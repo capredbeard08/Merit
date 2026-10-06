@@ -1,27 +1,62 @@
 import { NextResponse } from "next/server";
-import { normalizeEmail } from "@/lib/auth";
+import { z } from "zod";
+import { auth } from "@/lib/better-auth";
+import { prisma } from "@/lib/prisma";
+
+const createWorkspaceSchema = z.object({
+  name: z.string().trim().min(2).max(100),
+});
 
 export async function POST(request: Request) {
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+
+  if (!session?.user) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
+  const parsed = createWorkspaceSchema.safeParse(body);
 
-  if (!body || typeof body.name !== "string" || typeof body.email !== "string") {
-    return NextResponse.json({ error: "Workspace name and email are required" }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid workspace name" },
+      { status: 400 },
+    );
   }
 
-  const name = body.name.trim();
-  const email = normalizeEmail(body.email);
+  const workspace = await prisma.workspace.create({
+    data: {
+      name: parsed.data.name,
+      members: {
+        create: {
+          userId: session.user.id,
+          email: session.user.email.toLowerCase(),
+          role: "OWNER",
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      createdAt: true,
+      members: {
+        select: {
+          role: true,
+        },
+      },
+    },
+  });
 
-  if (name.length < 2 || name.length > 120) {
-    return NextResponse.json({ error: "Invalid workspace name" }, { status: 400 });
-  }
-
-  if (!email.includes("@") || email.length > 320) {
-    return NextResponse.json({ error: "Invalid email" }, { status: 400 });
-  }
-
-  return NextResponse.json({
-    accepted: true,
-    next: "authentication_required",
-    workspace: { name, ownerEmail: email },
-  }, { status: 202 });
+  return NextResponse.json(
+    {
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        role: workspace.members[0]?.role ?? "OWNER",
+      },
+    },
+    { status: 201 },
+  );
 }
