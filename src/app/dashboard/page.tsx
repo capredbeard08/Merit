@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import InboxActions from "./actions";
 import BranchManager from "./branches";
 import MemberManager from "./members";
+import Intelligence from "./intelligence";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -18,12 +19,10 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, recentFeedback, branches, members] = await Promise.all([
+  const [feedbackCount, sentCount, pendingCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
-    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
-    prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
     prisma.feedback.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
@@ -34,6 +33,27 @@ export default async function DashboardPage() {
         createdAt: true,
         customer: { select: { name: true, email: true } },
         branch: { select: { name: true } },
+      },
+    }),
+    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
+    prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
+    prisma.insight.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.feedbackReply.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: "desc" },
+      take: 25,
+      select: {
+        id: true,
+        rating: true,
+        message: true,
+        createdAt: true,
+        feedback: {
+          select: {
+            id: true,
+            customer: { select: { name: true, email: true, optedOutAt: true } },
+            branch: { select: { name: true } },
+          },
+        },
       },
     }),
   ]);
@@ -47,9 +67,7 @@ export default async function DashboardPage() {
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">{membership.workspace.name}</h1>
             <p className="mt-2 text-[#557565]">Customer intelligence, quietly automated.</p>
           </div>
-          <div className="text-sm text-[#557565]">
-            Signed in as <span className="font-medium text-[#173b2f]">{session.user.email}</span>
-          </div>
+          <div className="text-sm text-[#557565]">Signed in as <span className="font-medium text-[#173b2f]">{session.user.email}</span></div>
         </header>
 
         <section className="grid gap-5 py-8 md:grid-cols-3">
@@ -68,32 +86,35 @@ export default async function DashboardPage() {
 
         <section className="rounded-3xl border border-[#dfe5dc] bg-white/80 p-7 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#557565]">Action inbox</p>
-          <h2 className="mt-2 text-2xl font-semibold">
-            {pendingCount ? "Customer signals are waiting." : "Nothing needs your attention yet."}
-          </h2>
+          <h2 className="mt-2 text-2xl font-semibold">{pendingCount ? "Customer signals are waiting." : "Nothing needs your attention yet."}</h2>
           <p className="mt-2 max-w-2xl text-[#557565]">
-            {pendingCount
-              ? "These feedback requests are ready for the follow-up workflow."
-              : "Once service-completion events start flowing into MERIT, customer signals, replies, and recommended actions will appear here."}
+            {pendingCount ? "These feedback requests are ready for the follow-up workflow." : "Once service-completion events start flowing into MERIT, customer signals, replies, and recommended actions will appear here."}
           </p>
-
           <InboxActions
             workspaceId={workspaceId}
-            initialFeedback={recentFeedback.map((item) => ({
-              ...item,
-              createdAt: item.createdAt.toISOString(),
-            }))}
+            initialFeedback={recentFeedback.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
           />
         </section>
+
+        <Intelligence
+          initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
+          initialReplies={replies.map((item) => ({
+            ...item,
+            createdAt: item.createdAt.toISOString(),
+            feedback: {
+              ...item.feedback,
+              customer: {
+                ...item.feedback.customer,
+                optedOutAt: item.feedback.customer.optedOutAt ? item.feedback.customer.optedOutAt.toISOString() : null,
+              },
+            },
+          }))}
+        />
 
         <BranchManager workspaceId={workspaceId} initialBranches={branches} />
         <MemberManager
           workspaceId={workspaceId}
-          initialMembers={members.map((member) => ({
-            id: member.id,
-            role: member.role,
-            user: member.user,
-          }))}
+          initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))}
         />
       </div>
     </main>
