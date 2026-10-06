@@ -4,8 +4,11 @@ import { sendEmail, feedbackEmailHtml } from "@/lib/email";
 import { createFeedbackToken } from "@/lib/feedback-token";
 
 export async function POST(request: Request) {
-  const secret = request.headers.get("x-merit-cron-secret");
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  const secret = process.env.CRON_SECRET;
+  const headerSecret = request.headers.get("x-merit-cron-secret");
+  const authorization = request.headers.get("authorization");
+  const valid = !!secret && (headerSecret === secret || authorization === "Bearer " + secret);
+  if (!valid) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
