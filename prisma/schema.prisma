@@ -39,6 +39,7 @@ model Workspace {
   followUps FollowUp[]
   replies FeedbackReply[]
   insights Insight[]
+  auditLogs AuditLog[]
 }
 
 model Member {
@@ -51,7 +52,6 @@ model Member {
   updatedAt   DateTime  @updatedAt
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([workspaceId, email])
   @@unique([workspaceId, userId])
   @@index([workspaceId, role])
@@ -68,7 +68,7 @@ model Branch {
   customers   Customer[]
   feedback    Feedback[]
   events      ServiceEvent[]
-
+  webhooks    WebhookEndpoint[]
   @@unique([workspaceId, externalId])
   @@index([workspaceId])
 }
@@ -89,7 +89,6 @@ model Customer {
   branch       Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
   feedback     Feedback[]
   events       ServiceEvent[]
-
   @@unique([workspaceId, externalId])
   @@index([workspaceId, email])
 }
@@ -108,7 +107,6 @@ model ServiceEvent {
   branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
   customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   feedback     Feedback?
-
   @@unique([workspaceId, externalId])
   @@index([workspaceId, branchId, completedAt])
   @@index([customerId, completedAt])
@@ -133,7 +131,6 @@ model Feedback {
   branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
   customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
   serviceEvent   ServiceEvent   @relation(fields: [serviceEventId], references: [id], onDelete: Cascade)
-
   @@index([workspaceId, status, createdAt])
   @@index([branchId, createdAt])
   @@index([customerId, createdAt])
@@ -149,8 +146,7 @@ model Invitation {
   invitedByUserId String
   acceptedAt     DateTime?
   createdAt      DateTime @default(now())
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade]
   @@index([workspaceId, email])
   @@index([expiresAt])
 }
@@ -166,8 +162,24 @@ model WebhookEndpoint {
   revokedAt   DateTime?
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   branch      Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
-
   @@index([workspaceId, revokedAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorUserId String?
+  action      String
+  targetType  String
+  targetId    String?
+  metadata   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, action, createdAt])
+  @@index([targetType, targetId])
 }
 
 model User {
@@ -193,7 +205,6 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@index([userId])
 }
 
@@ -212,7 +223,6 @@ model Account {
   password             String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
-
   @@unique([providerId, accountId])
   @@index([userId])
 }
@@ -224,11 +234,9 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
   @@index([identifier])
   @@index([value])
 }
-
 
 enum FollowUpStatus {
   QUEUED
@@ -252,10 +260,8 @@ model FollowUp {
   updatedAt  DateTime       @updatedAt
   workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-
   @@index([workspaceId, status, scheduledAt])
 }
-
 
 enum FeedbackRating {
   ONE
@@ -275,7 +281,6 @@ model FeedbackReply {
   createdAt  DateTime       @default(now())
   workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-
   @@index([workspaceId, createdAt])
   @@index([feedbackId, createdAt])
 }
@@ -289,6 +294,5 @@ model Insight {
   evidence    Json
   createdAt   DateTime @default(now())
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
   @@index([workspaceId, createdAt])
 }
