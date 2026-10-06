@@ -76,3 +76,17 @@ export async function GET(request: Request) {
 
   return NextResponse.json({ endpoints });
 }
+
+
+export async function DELETE(request: Request) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  const endpointId = new URL(request.url).searchParams.get("id");
+  if (!endpointId) return NextResponse.json({ error: "id is required" }, { status: 400 });
+  const endpoint = await prisma.webhookEndpoint.findUnique({ where: { id: endpointId }, select: { id: true, workspaceId: true, revokedAt: true } });
+  if (!endpoint) return NextResponse.json({ error: "Webhook endpoint not found" }, { status: 404 });
+  const membership = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: endpoint.workspaceId, userId: session.user.id } } });
+  if (!membership || !can(membership.role.toLowerCase() as Role, "integrations:manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!endpoint.revokedAt) await prisma.webhookEndpoint.update({ where: { id: endpointId }, data: { revokedAt: new Date() } });
+  return NextResponse.json({ revoked: true });
+}
