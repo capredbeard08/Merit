@@ -116,6 +116,16 @@ export async function POST(request: Request) {
       },
     });
 
+    await tx.followUp.create({
+      data: {
+        workspaceId: parsed.data.workspaceId,
+        feedbackId: feedback.id,
+        channel: "email",
+        status: "QUEUED",
+        scheduledAt: new Date(Date.now() + 3 * 60 * 1000),
+      },
+    });
+
     return { eventId: event.id, feedbackId: feedback.id };
   });
 
