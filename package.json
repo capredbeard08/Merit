@@ -1,1 +1,30 @@
-{"name":"merit","version":"0.1.0","private":true,"scripts":{"dev":"next dev","build":"next build","start":"next start","lint":"next lint"},"dependencies":{"next":"15.5.0","react":"19.1.0","react-dom":"19.1.0","zod":"4.0.0"},"devDependencies":{"@types/node":"22.10.0","@types/react":"19.0.0","@types/react-dom":"19.0.0","typescript":"5.7.2","tailwindcss":"4.1.0","@tailwindcss/postcss":"4.1.0","postcss":"8.5.0"}}
+{
+  "name": "merit",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.5.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "4.0.0",
+    "better-auth": "1.7.7",
+    "@better-auth/prisma-adapter": "1.7.7",
+    "@prisma/client": "7.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.0",
+    "@types/react": "19.0.0",
+    "@types/react-dom": "19.0.0",
+    "typescript": "5.7.2",
+    "tailwindcss": "4.1.0",
+    "@tailwindcss/postcss": "4.1.0",
+    "postcss": "8.5.0",
+    "prisma": "7.10.0"
+  }
+}
