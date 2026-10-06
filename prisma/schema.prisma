@@ -37,6 +37,8 @@ model Workspace {
   webhookEndpoints WebhookEndpoint[]
   invitations Invitation[]
   followUps FollowUp[]
+  replies FeedbackReply[]
+  insights Insight[]
 }
 
 model Member {
@@ -123,6 +125,7 @@ model Feedback {
   clickedAt      DateTime?
   repliedAt      DateTime?
   followUp       FollowUp?
+  replies        FeedbackReply[]
   resolvedAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -251,4 +254,41 @@ model FollowUp {
   feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, status, scheduledAt])
+}
+
+
+enum FeedbackRating {
+  ONE
+  TWO
+  THREE
+  FOUR
+  FIVE
+}
+
+model FeedbackReply {
+  id         String         @id @default(cuid())
+  workspaceId String
+  feedbackId String
+  rating     FeedbackRating?
+  message    String?
+  email      String?
+  createdAt  DateTime       @default(now())
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([feedbackId, createdAt])
+}
+
+model Insight {
+  id          String   @id @default(cuid())
+  workspaceId String
+  kind        String
+  title       String
+  summary     String
+  evidence    Json
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
 }
