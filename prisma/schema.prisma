@@ -34,6 +34,7 @@ model Workspace {
   customers Customer[]
   feedback  Feedback[]
   events    ServiceEvent[]
+  webhookEndpoints WebhookEndpoint[]
 }
 
 model Member {
@@ -130,6 +131,21 @@ model Feedback {
   @@index([workspaceId, status, createdAt])
   @@index([branchId, createdAt])
   @@index([customerId, createdAt])
+}
+
+model WebhookEndpoint {
+  id          String    @id @default(cuid())
+  workspaceId String
+  label       String
+  secretHash  String
+  branchId    String?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch      Branch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, revokedAt])
 }
 
 model User {
