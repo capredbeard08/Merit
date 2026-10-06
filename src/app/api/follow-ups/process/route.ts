@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, feedbackEmailHtml } from "@/lib/email";
-import { randomBytes } from "node:crypto";
+import { createFeedbackToken } from "@/lib/feedback-token";
 
 export async function POST(request: Request) {
   const secret = request.headers.get("x-merit-cron-secret");
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       continue;
     }
 
-    const token = randomBytes(24).toString("base64url");
+    const token = createFeedbackToken(item.feedback.id);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const feedbackUrl = appUrl + "/feedback/" + item.feedback.id + "?t=" + token;
 
