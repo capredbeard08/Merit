@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
+import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
   if (parsed.data.branchId) {
     const branch = await prisma.branch.findFirst({
       where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId },
+      select: { id: true },
     });
     if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
   }
@@ -45,6 +47,16 @@ export async function POST(request: Request) {
       secretHash: hashSecret(secret),
     },
     select: { id: true, label: true, branchId: true, createdAt: true },
+  });
+
+  await writeAuditLog({
+    workspaceId: parsed.data.workspaceId,
+    actorUserId: session.user.id,
+    action: "WEBHOOK_CREATED",
+    targetType: "WebhookEndpoint",
+    targetId: endpoint.id,
+    metadata: { label: endpoint.label, branchId: endpoint.branchId },
+    request,
   });
 
   return NextResponse.json({
@@ -77,16 +89,40 @@ export async function GET(request: Request) {
   return NextResponse.json({ endpoints });
 }
 
-
 export async function DELETE(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+
   const endpointId = new URL(request.url).searchParams.get("id");
   if (!endpointId) return NextResponse.json({ error: "id is required" }, { status: 400 });
-  const endpoint = await prisma.webhookEndpoint.findUnique({ where: { id: endpointId }, select: { id: true, workspaceId: true, revokedAt: true } });
+
+  const endpoint = await prisma.webhookEndpoint.findUnique({
+    where: { id: endpointId },
+    select: { id: true, workspaceId: true, revokedAt: true },
+  });
   if (!endpoint) return NextResponse.json({ error: "Webhook endpoint not found" }, { status: 404 });
-  const membership = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: endpoint.workspaceId, userId: session.user.id } } });
-  if (!membership || !can(membership.role.toLowerCase() as Role, "integrations:manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (!endpoint.revokedAt) await prisma.webhookEndpoint.update({ where: { id: endpointId }, data: { revokedAt: new Date() } });
+
+  const membership = await prisma.member.findUnique({
+    where: { workspaceId_userId: { workspaceId: endpoint.workspaceId, userId: session.user.id } },
+  });
+  if (!membership || !can(membership.role.toLowerCase() as Role, "integrations:manage")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (!endpoint.revokedAt) {
+    await prisma.webhookEndpoint.update({
+      where: { id: endpointId },
+      data: { revokedAt: new Date() },
+    });
+    await writeAuditLog({
+      workspaceId: endpoint.workspaceId,
+      actorUserId: session.user.id,
+      action: "WEBHOOK_REVOKED",
+      targetType: "WebhookEndpoint",
+      targetId: endpoint.id,
+      request,
+    });
+  }
+
   return NextResponse.json({ revoked: true });
 }
