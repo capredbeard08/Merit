@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import InboxActions from "./actions";
+import BranchManager from "./branches";
+import MemberManager from "./members";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -16,10 +18,12 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, recentFeedback] = await Promise.all([
+  const [feedbackCount, sentCount, pendingCount, recentFeedback, branches, members] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
+    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
+    prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
     prisma.feedback.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
@@ -81,6 +85,16 @@ export default async function DashboardPage() {
             }))}
           />
         </section>
+
+        <BranchManager workspaceId={workspaceId} initialBranches={branches} />
+        <MemberManager
+          workspaceId={workspaceId}
+          initialMembers={members.map((member) => ({
+            id: member.id,
+            role: member.role,
+            user: member.user,
+          }))}
+        />
       </div>
     </main>
   );
