@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
+import InboxActions from "./actions";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -72,19 +73,13 @@ export default async function DashboardPage() {
               : "Once service-completion events start flowing into MERIT, customer signals, replies, and recommended actions will appear here."}
           </p>
 
-          {recentFeedback.length > 0 && (
-            <div className="mt-7 overflow-hidden rounded-2xl border border-[#dfe5dc]">
-              {recentFeedback.map((item) => (
-                <div key={item.id} className="flex flex-col gap-2 border-b border-[#dfe5dc] p-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-medium">{item.customer.name || item.customer.email || "Customer"}</p>
-                    <p className="text-sm text-[#718178]">{item.branch.name} · {item.createdAt.toLocaleString()}</p>
-                  </div>
-                  <span className="w-fit rounded-full bg-[#edf2eb] px-3 py-1 text-xs font-semibold tracking-wide">{item.status}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <InboxActions
+            workspaceId={workspaceId}
+            initialFeedback={recentFeedback.map((item) => ({
+              ...item,
+              createdAt: item.createdAt.toISOString(),
+            }))}
+          />
         </section>
       </div>
     </main>
