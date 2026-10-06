@@ -7,7 +7,7 @@ type Member = { id: string; role: string; user: { email: string; name: string | 
 export default function MemberManager({ workspaceId, initialMembers }: { workspaceId: string; initialMembers: Member[] }) {
   const [members, setMembers] = useState(initialMembers);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("AGENT");
+  const [role, setRole] = useState("agent");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -32,7 +32,7 @@ export default function MemberManager({ workspaceId, initialMembers }: { workspa
       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
         <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@email.com" className="rounded-xl border border-[#cfd9cf] bg-white px-4 py-3 outline-none" />
         <select value={role} onChange={(e) => setRole(e.target.value)} className="rounded-xl border border-[#cfd9cf] bg-white px-4 py-3">
-          <option value="ADMIN">Admin</option><option value="MANAGER">Manager</option><option value="AGENT">Agent</option><option value="VIEWER">Viewer</option>
+          <option value="admin">Admin</option><option value="manager">Manager</option><option value="agent">Agent</option><option value="viewer">Viewer</option>
         </select>
         <button onClick={addMember} disabled={busy || !email} className="rounded-xl bg-[#173b2f] px-5 py-3 font-medium text-white disabled:opacity-50">{busy ? "Adding…" : "Add member"}</button>
       </div>
