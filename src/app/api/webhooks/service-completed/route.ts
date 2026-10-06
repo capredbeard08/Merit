@@ -25,14 +25,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid event payload" }, { status: 400 });
   }
 
-  const endpoint = await prisma.webhookEndpoint.findFirst({
+  const endpoints = await prisma.webhookEndpoint.findMany({
     where: {
       workspaceId: parsed.data.workspaceId,
       revokedAt: null,
     },
   });
+  const endpoint = endpoints.find((candidate) => secretsMatch(providedSecret, candidate.secretHash));
 
-  if (!endpoint || !secretsMatch(providedSecret, endpoint.secretHash)) {
+  if (!endpoint) {
     return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
   }
 
