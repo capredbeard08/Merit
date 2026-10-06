@@ -1,0 +1,4 @@
+Invitation design (to be merged into prisma/schema.prisma):
+Invitation {
+  id, workspaceId, email, role, tokenHash, expiresAt, invitedByUserId, acceptedAt, createdAt
+}
