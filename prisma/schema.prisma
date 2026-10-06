@@ -35,6 +35,7 @@ model Workspace {
   feedback  Feedback[]
   events    ServiceEvent[]
   webhookEndpoints WebhookEndpoint[]
+  invitations Invitation[]
 }
 
 model Member {
@@ -131,6 +132,22 @@ model Feedback {
   @@index([workspaceId, status, createdAt])
   @@index([branchId, createdAt])
   @@index([customerId, createdAt])
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  email          String
+  role           Role     @default(VIEWER)
+  tokenHash      String   @unique
+  expiresAt      DateTime
+  invitedByUserId String
+  acceptedAt     DateTime?
+  createdAt      DateTime @default(now())
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, email])
+  @@index([expiresAt])
 }
 
 model WebhookEndpoint {
