@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MANAGER
+  AGENT
+  VIEWER
+}
+
+enum FeedbackStatus {
+  PENDING
+  CONTACTED
+  CLICKED
+  REPLIED
+  RESOLVED
+  OPTED_OUT
+}
+
+model Workspace {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  members   Member[]
+  branches  Branch[]
+  customers Customer[]
+  feedback  Feedback[]
+  events    ServiceEvent[]
+}
+
+model Member {
+  id          String    @id @default(cuid())
+  workspaceId String
+  email       String
+  role        Role      @default(VIEWER)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, role])
+}
+
+model Branch {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  externalId  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  customers   Customer[]
+  feedback    Feedback[]
+  events      ServiceEvent[]
+
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId])
+}
+
+model Customer {
+  id           String     @id @default(cuid())
+  workspaceId  String
+  branchId     String?
+  externalId   String
+  name         String?
+  email        String?
+  phone        String?
+  consentAt    DateTime?
+  optedOutAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  workspace    Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch       Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  feedback     Feedback[]
+  events       ServiceEvent[]
+
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId, email])
+}
+
+model ServiceEvent {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  branchId     String
+  customerId   String
+  externalId   String?
+  type         String?
+  completedAt  DateTime
+  receivedAt   DateTime @default(now())
+  payloadHash  String?
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  feedback     Feedback?
+
+  @@unique([workspaceId, externalId])
+  @@index([workspaceId, branchId, completedAt])
+  @@index([customerId, completedAt])
+}
+
+model Feedback {
+  id             String         @id @default(cuid())
+  workspaceId    String
+  branchId       String
+  customerId     String
+  serviceEventId String         @unique
+  status         FeedbackStatus @default(PENDING)
+  sentAt         DateTime?
+  clickedAt      DateTime?
+  repliedAt      DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceEvent   ServiceEvent   @relation(fields: [serviceEventId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, createdAt])
+  @@index([branchId, createdAt])
+  @@index([customerId, createdAt])
+}
