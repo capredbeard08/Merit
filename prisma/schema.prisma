@@ -36,6 +36,7 @@ model Workspace {
   events    ServiceEvent[]
   webhookEndpoints WebhookEndpoint[]
   invitations Invitation[]
+  followUps FollowUp[]
 }
 
 model Member {
@@ -121,6 +122,7 @@ model Feedback {
   sentAt         DateTime?
   clickedAt      DateTime?
   repliedAt      DateTime?
+  followUp       FollowUp?
   resolvedAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -222,4 +224,31 @@ model Verification {
 
   @@index([identifier])
   @@index([value])
+}
+
+
+enum FollowUpStatus {
+  QUEUED
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model FollowUp {
+  id         String         @id @default(cuid())
+  workspaceId String
+  feedbackId String         @unique
+  channel    String         @default("email")
+  status     FollowUpStatus @default(QUEUED)
+  scheduledAt DateTime
+  sentAt     DateTime?
+  failedAt   DateTime?
+  providerId String?
+  error      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, status, scheduledAt])
 }
