@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     const token = createFeedbackToken(item.feedback.id);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const feedbackUrl = appUrl + "/feedback/" + item.feedback.id + "?t=" + token;
+    const feedbackUrl = appUrl + "/api/feedback/" + item.feedback.id + "/click?t=" + token;
 
     try {
       const result = await sendEmail({
