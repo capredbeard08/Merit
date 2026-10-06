@@ -12,3 +12,13 @@ const permissions: Record<Role, readonly string[]> = {
 export function can(role: Role, permission: string) {
   return permissions[role].includes(permission);
 }
+
+
+export function assertWorkspaceRole(
+  role: Role,
+  required: Permission,
+) {
+  if (!can(role, required)) {
+    throw new Error("FORBIDDEN");
+  }
+}
