@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyFeedbackToken } from "@/lib/feedback-token";
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
   const token = new URL(request.url).searchParams.get("t");
   if (!token || !verifyFeedbackToken(id, token)) {
