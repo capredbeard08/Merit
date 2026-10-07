@@ -10,7 +10,7 @@ const schema = z.object({
   email: z.string().email().optional(),
 });
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !verifyFeedbackToken(id, parsed.data?.token ?? "")) {
