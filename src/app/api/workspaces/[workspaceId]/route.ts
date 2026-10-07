@@ -6,7 +6,7 @@ import { can, type Role } from "@/lib/domain";
 
 const schema = z.object({ name: z.string().trim().min(2).max(120) });
 
-export async function PATCH(request: Request, context: { params: Promise<{ workspaceId: string }> }) {
+export async function PATCH(request: Request, context: { params: Promise<{ workspaceId: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
