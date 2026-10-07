@@ -9,7 +9,7 @@ const schema = z.object({
   status: z.enum(["CONTACTED","CLICKED","REPLIED","RESOLVED","OPTED_OUT"]),
 });
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
