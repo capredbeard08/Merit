@@ -3,7 +3,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
