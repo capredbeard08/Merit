@@ -7,7 +7,7 @@ const createWorkspaceSchema = z.object({
   name: z.string().trim().min(2).max(100),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const session = await auth.api.getSession({
     headers: request.headers,
   });
