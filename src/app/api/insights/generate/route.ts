@@ -10,7 +10,7 @@ const themes: Record<string, string[]> = {
   price: ["price", "expensive", "cheap", "cost", "value"],
 };
 
-export async function POST() {
+export async function POST(): Promise<Response> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
