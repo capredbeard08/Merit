@@ -20,7 +20,7 @@ async function getMembership(request: Request, workspaceId: string) {
   return { session, membership };
 }
 
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   const workspaceId = new URL(request.url).searchParams.get("workspaceId");
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const result = await getMembership(request, workspaceId);
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ members });
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid member payload" }, { status: 400 });
 
