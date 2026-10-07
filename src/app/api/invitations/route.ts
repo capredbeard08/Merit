@@ -15,7 +15,7 @@ function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
