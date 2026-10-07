@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendEmail, feedbackEmailHtml } from "@/lib/email";
 import { createFeedbackToken } from "@/lib/feedback-token";
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
   const headerSecret = request.headers.get("x-merit-cron-secret");
   const authorization = request.headers.get("authorization");
