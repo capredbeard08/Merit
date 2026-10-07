@@ -16,7 +16,7 @@ function secretsMatch(provided: string, storedHash: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const providedSecret = request.headers.get("x-merit-webhook-secret");
   if (!providedSecret || providedSecret.length > 256) {
     return NextResponse.json({ error: "Webhook secret required" }, { status: 401 });
