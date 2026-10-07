@@ -9,7 +9,7 @@ const querySchema = z.object({
   status: z.enum(["PENDING","CONTACTED","CLICKED","REPLIED","RESOLVED","OPTED_OUT"]).optional(),
 });
 
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
