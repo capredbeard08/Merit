@@ -16,7 +16,7 @@ function hashSecret(secret: string) {
   return createHash("sha256").update(secret).digest("hex");
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
   }, { status: 201 });
 }
 
-export async function GET(request: Request) {
+export async function GET(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ endpoints });
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
