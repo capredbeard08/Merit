@@ -7,6 +7,7 @@ import BranchManager from "./branches";
 import MemberManager from "./members";
 import Intelligence from "./intelligence";
 import MeritMark from "@/components/MeritMark";
+import FileLibrary from "./files";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -113,6 +114,7 @@ export default async function DashboardPage() {
         />
 
         <BranchManager workspaceId={workspaceId} initialBranches={branches} />
+        <FileLibrary workspaceId={workspaceId} />
         <MemberManager
           workspaceId={workspaceId}
           initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))}
