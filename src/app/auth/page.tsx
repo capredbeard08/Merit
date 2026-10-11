@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import MeritMark from "@/components/MeritMark";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -65,7 +66,7 @@ export default function AuthPage() {
     <main className="min-h-screen bg-[#f7f3ea] px-6 py-16 text-[#173b2f]">
       <div className="mx-auto max-w-md">
         <div className="mb-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#557565]">MERIT</p>
+          <div className="merit-brand"><MeritMark size={48} /><span className="merit-brand-name">MERIT</span></div>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight">
             {mode === "signup" ? "Build your customer intelligence workspace." : "Welcome back."}
           </h1>
