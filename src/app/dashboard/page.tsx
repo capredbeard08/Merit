@@ -6,6 +6,7 @@ import InboxActions from "./actions";
 import BranchManager from "./branches";
 import MemberManager from "./members";
 import Intelligence from "./intelligence";
+import MeritMark from "@/components/MeritMark";
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -63,7 +64,7 @@ export default async function DashboardPage() {
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-col gap-3 border-b border-[#dfe5dc] pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#557565]">MERIT</p>
+            <div className="merit-brand"><MeritMark size={42} /><span className="merit-brand-name">MERIT</span></div>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">{membership.workspace.name}</h1>
             <p className="mt-2 text-[#557565]">Customer intelligence, quietly automated.</p>
           </div>
