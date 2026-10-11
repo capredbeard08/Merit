@@ -10,6 +10,12 @@ const themes: Record<string, string[]> = {
   price: ["price", "expensive", "cheap", "cost", "value"],
 };
 
+type ReplyForInsight = {
+  rating: "ONE" | "TWO" | "THREE" | "FOUR" | "FIVE" | null;
+  message: string | null;
+  createdAt: Date;
+};
+
 export async function POST(): Promise<Response> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
@@ -20,7 +26,7 @@ export async function POST(): Promise<Response> {
   });
   if (!membership) return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
 
-  const replies = await prisma.feedbackReply.findMany({
+  const replies: ReplyForInsight[] = await prisma.feedbackReply.findMany({
     where: { workspaceId: membership.workspaceId },
     orderBy: { createdAt: "desc" },
     take: 250,
@@ -30,9 +36,9 @@ export async function POST(): Promise<Response> {
   if (!replies.length) return NextResponse.json({ generated: 0, message: "Not enough feedback yet." });
 
   const ratingValues: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
-  const rated = replies.filter((item) => item.rating);
-  const average = rated.length ? rated.reduce((sum, item) => sum + (ratingValues[item.rating!] || 0), 0) / rated.length : 0;
-  const text = replies.map((item) => item.message || "").join(" ").toLowerCase();
+  const rated = replies.filter((item: ReplyForInsight) => item.rating);
+  const average = rated.length ? rated.reduce((sum: number, item: ReplyForInsight) => sum + (ratingValues[item.rating!] || 0), 0) / rated.length : 0;
+  const text = replies.map((item: ReplyForInsight) => item.message || "").join(" ").toLowerCase();
 
   const ranked = Object.entries(themes)
     .map(([theme, words]) => ({
