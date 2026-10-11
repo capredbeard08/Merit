@@ -13,3 +13,25 @@
 html, body { margin: 0; min-height: 100%; }
 body { background: var(--ivory); color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
 button, input, textarea, select { font: inherit; }
+
+
+/* MERIT identity: deep forest green, warm ivory, restrained motion. */
+.merit-brand { display: inline-flex; align-items: center; gap: 0.7rem; color: var(--green); }
+.merit-brand-name { font-weight: 750; letter-spacing: 0.2em; font-size: 0.92rem; }
+.merit-boot {
+  position: fixed; inset: 0; z-index: 10000; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1rem; background: #123c2d; color: #f7f4ec;
+  animation: merit-boot-fade 1.15s ease forwards; pointer-events: none;
+}
+.merit-boot-mark { animation: merit-mark-arrive 850ms cubic-bezier(.2,.8,.2,1) both; }
+.merit-boot-mark svg { filter: drop-shadow(0 8px 24px rgba(0,0,0,.12)); }
+.merit-boot-word { font-size: 0.85rem; font-weight: 700; letter-spacing: .34em; padding-left: .34em; opacity: 0; animation: merit-word-arrive 500ms ease 180ms forwards; }
+.merit-boot-line { width: 74px; height: 2px; background: rgba(247,244,236,.22); overflow: hidden; position: relative; }
+.merit-boot-line::after { content: ""; position: absolute; inset: 0; background: #f7f4ec; transform-origin: left; animation: merit-line-run 780ms ease 100ms both; }
+@keyframes merit-mark-arrive { from { opacity: 0; transform: translateY(12px) scale(.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes merit-word-arrive { to { opacity: 1; } }
+@keyframes merit-line-run { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes merit-boot-fade { 0%, 72% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  .merit-boot, .merit-boot-mark, .merit-boot-word, .merit-boot-line::after { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+}
