@@ -40,6 +40,7 @@ model Workspace {
   replies FeedbackReply[]
   insights Insight[]
   auditLogs AuditLog[]
+  files FileAsset[]
 }
 
 model Member {
@@ -294,5 +295,22 @@ model Insight {
   evidence    Json
   createdAt   DateTime @default(now())
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, createdAt])
+}
+
+
+model FileAsset {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  uploadedById String
+  originalName String
+  pathname     String   @unique
+  contentType  String
+  sizeBytes    Int
+  status       String   @default("AVAILABLE")
+  analysisText String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   @@index([workspaceId, createdAt])
 }
