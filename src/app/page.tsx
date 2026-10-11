@@ -1,3 +1,5 @@
+import MeritMark from "@/components/MeritMark";
+
 const features = [
   ["Privacy first", "Customer data stays behind explicit workspace and permission boundaries."],
   ["Automated feedback", "Capture completed-service events and turn them into timely feedback requests."],
@@ -9,7 +11,7 @@ export default function Home() {
     <main className="min-h-screen px-6 py-16 md:px-12">
       <section className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
-          <p className="mb-5 text-sm font-semibold tracking-[0.2em] text-[#123c2d]">MERIT</p>
+          <div className="merit-brand mb-7"><MeritMark size={48} /><span className="merit-brand-name">MERIT</span></div>
           <h1 className="text-5xl font-semibold tracking-tight text-[#17211c] md:text-7xl">
             Customer feedback, quietly automated.
           </h1>
