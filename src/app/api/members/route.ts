@@ -10,21 +10,29 @@ const createSchema = z.object({
   role: z.enum(roles).default("viewer"),
 });
 
-async function getMembership(request: Request, workspaceId: string) {
+type MembershipResult =
+  | { ok: false; response: Response }
+  | { ok: true; session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>; membership: NonNullable<Awaited<ReturnType<typeof prisma.member.findUnique>>> };
+
+async function getMembership(request: Request, workspaceId: string): Promise<MembershipResult> {
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return { error: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
+  if (!session?.user) {
+    return { ok: false, response: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
+  }
   const membership = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: session.user.id } },
   });
-  if (!membership) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  return { session, membership };
+  if (!membership) {
+    return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { ok: true, session, membership };
 }
 
 export async function GET(request: Request): Promise<Response> {
   const workspaceId = new URL(request.url).searchParams.get("workspaceId");
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const result = await getMembership(request, workspaceId);
-  if ("error" in result) return result.error;
+  if (!result.ok) return result.response;
   if (!can(result.membership.role.toLowerCase() as Role, "members:manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -42,7 +50,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return NextResponse.json({ error: "Invalid member payload" }, { status: 400 });
 
   const result = await getMembership(request, parsed.data.workspaceId);
-  if ("error" in result) return result.error;
+  if (!result.ok) return result.response;
   if (!can(result.membership.role.toLowerCase() as Role, "members:manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
