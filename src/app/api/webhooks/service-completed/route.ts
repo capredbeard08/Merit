@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serviceCompletedEventSchema } from "@/lib/security";
 import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/env";
@@ -86,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const customer = await tx.customer.upsert({
         where: {
           workspaceId_externalId: {
