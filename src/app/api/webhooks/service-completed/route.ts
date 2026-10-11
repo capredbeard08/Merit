@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
   const endpoints = await prisma.webhookEndpoint.findMany({
     where: { workspaceId: parsed.data.workspaceId, revokedAt: null },
   });
-  const endpoint = endpoints.find((candidate) => secretsMatch(providedSecret, candidate.secretHash));
+  const endpoint = endpoints.find((candidate: { secretHash: string }) => secretsMatch(providedSecret, candidate.secretHash));
 
   if (!endpoint) return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
 
