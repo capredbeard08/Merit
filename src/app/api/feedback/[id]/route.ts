@@ -42,7 +42,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const updatedFeedback = await tx.feedback.update({
       where: { id },
       data: { status: parsed.data.status, ...timestamps[parsed.data.status] },
-      select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true, customerId: true },
+      select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true },
     });
 
     if (parsed.data.status === "OPTED_OUT") {
@@ -56,8 +56,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       });
     }
 
-    const { customerId: _customerId, ...responseFeedback } = updatedFeedback;
-    return responseFeedback;
+    return updatedFeedback;
   });
 
   return NextResponse.json({ feedback: updated });
