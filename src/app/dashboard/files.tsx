@@ -32,7 +32,7 @@ export default function FileLibrary({ workspaceId }: { workspaceId: string }) {
         await upload(file.name, file, {
           access: "private",
           handleUploadUrl: "/api/files/upload",
-          clientPayload: JSON.stringify({ workspaceId, originalName: file.name }),
+          clientPayload: JSON.stringify({ workspaceId, originalName: file.name, sizeBytes: file.size }),
         });
       }
       setMessage("Upload complete. Files are stored privately in this workspace.");
