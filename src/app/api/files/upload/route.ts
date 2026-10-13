@@ -8,8 +8,6 @@ import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, FILE_M
 export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const body = await request.json().catch(() => null) as HandleUploadBody | null;
   if (!body) return NextResponse.json({ error: "Invalid upload request" }, { status: 400 });
 
@@ -18,6 +16,8 @@ export async function POST(request: Request): Promise<Response> {
       body,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
+        const session = await auth.api.getSession({ headers: request.headers });
+        if (!session?.user) throw new Error("Authentication required");
         let payload: { workspaceId?: string; originalName?: string; sizeBytes?: number } = {};
         try { payload = JSON.parse(clientPayload || "{}"); } catch { throw new Error("Invalid upload metadata"); }
         const workspaceId = payload.workspaceId || "";
@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json(jsonResponse);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload authorization failed";
-    const status = message === "Forbidden" ? 403 : 400;
+    const status = message === "Authentication required" ? 401 : message === "Forbidden" ? 403 : 400;
     return NextResponse.json({ error: message }, { status });
   }
 }
