@@ -38,10 +38,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     OPTED_OUT: {},
   } as const;
 
-  const updated = await prisma.feedback.update({
-    where: { id },
-    data: { status: parsed.data.status, ...timestamps[parsed.data.status] },
-    select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true },
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedFeedback = await tx.feedback.update({
+      where: { id },
+      data: { status: parsed.data.status, ...timestamps[parsed.data.status] },
+      select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true, customerId: true },
+    });
+
+    if (parsed.data.status === "OPTED_OUT") {
+      await tx.customer.updateMany({
+        where: { id: feedback.customerId, workspaceId: parsed.data.workspaceId },
+        data: { optedOutAt: now },
+      });
+      await tx.followUp.updateMany({
+        where: { feedbackId: id, status: "QUEUED" },
+        data: { status: "CANCELLED" },
+      });
+    }
+
+    const { customerId: _customerId, ...responseFeedback } = updatedFeedback;
+    return responseFeedback;
   });
 
   return NextResponse.json({ feedback: updated });
