@@ -13,6 +13,9 @@ const trustedOrigins = [
   "https://merit-capredbeard08.vercel.app",
   "https://merit-git-main-capredbeard08.vercel.app",
   "https://merit-olive.vercel.app",
+  "https://merit-qmi40m6le-capredbeard08.vercel.app",
+  "https://merit-29vvlita4-capredbeard08.vercel.app",
+  "https://merit-mh7b9v2rj-capredbeard08.vercel.app",
 ].filter((origin): origin is string => Boolean(origin));
 
 export const auth = betterAuth({
