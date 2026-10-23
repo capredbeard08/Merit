@@ -151,6 +151,14 @@ export default function AuthPage() {
           </button>
         </form>
 
+        <p className="mt-5 text-center text-xs leading-6 text-[#6b7c72]">
+          By creating an account, you acknowledge that you have read our{" "}
+          <a href="/privacy" className="font-semibold text-[#315b49] underline underline-offset-2">
+            Privacy Policy
+          </a>
+          . Please review it before submitting personal information.
+        </p>
+
         <button
           type="button"
           onClick={() => {
