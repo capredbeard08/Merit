@@ -20,8 +20,10 @@ export default function AuthPage() {
     setBusy(true);
     setError("");
 
+    let stage = mode === "signup" ? "signup" : "signin";
     try {
       if (mode === "signup") {
+        stage = "signup";
         const result = await authClient.signUp.email({
           name,
           email,
@@ -29,9 +31,11 @@ export default function AuthPage() {
         });
 
         if (result.error) {
-          throw new Error(result.error.message || "Unable to create account.");
+          console.error("[MERIT auth] signup rejected", { code: result.error.code ?? null, status: result.error.status ?? null });
+          throw new Error(result.error.message || result.error.code || "Unable to create account.");
         }
 
+        stage = "workspace";
         const workspaceResponse = await fetch("/api/workspaces", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -43,6 +47,7 @@ export default function AuthPage() {
           throw new Error(body?.error || "Account created, but workspace setup failed.");
         }
       } else {
+        stage = "signin";
         const result = await authClient.signIn.email({
           email,
           password,
@@ -56,7 +61,9 @@ export default function AuthPage() {
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      const message = err instanceof Error ? err.message : "Something went wrong.";
+      console.error("[MERIT auth] flow failed", { stage, error: message });
+      setError(message);
     } finally {
       setBusy(false);
     }
