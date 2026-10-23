@@ -41,7 +41,7 @@ export function sanitizeSecurityMetadata(
     if (typeof value === "string") safe[key.slice(0, 64)] = value.slice(0, MAX_STRING_LENGTH);
     else if (typeof value === "number" && Number.isFinite(value)) safe[key.slice(0, 64)] = value;
     else if (typeof value === "boolean") safe[key.slice(0, 64)] = value;
-    else if (value === null) safe[key.slice(0, 64)] = null;
+    // Omit null/unsupported values; Prisma InputJsonValue excludes JavaScript null.
   }
   return safe;
 }
