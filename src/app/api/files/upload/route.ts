@@ -49,8 +49,12 @@ export async function POST(request: Request): Promise<Response> {
             originalName,
             pathname: blob.pathname,
             contentType: contentTypeForName(originalName),
-            sizeBytes: payload.sizeBytes ?? 0,
-            status: originalName.toLowerCase().endsWith(".exe") ? "QUARANTINED" : "AVAILABLE",
+            // The client-reported size is untrusted, and this callback does not provide
+            // a verified object size. Do not persist a forged size as authoritative.
+            sizeBytes: 0,
+            // Keep uploads unavailable until server-side content/size verification
+            // and malware scanning are implemented.
+            status: "QUARANTINED",
           },
           update: {},
         });
