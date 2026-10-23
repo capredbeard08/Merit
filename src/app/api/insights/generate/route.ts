@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
+import { can, type Role } from "@/lib/domain";
 
 const themes: Record<string, string[]> = {
   service: ["service", "staff", "team", "employee", "helpful", "rude"],
@@ -25,6 +26,9 @@ export async function POST(): Promise<Response> {
     orderBy: { createdAt: "asc" },
   });
   if (!membership) return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+  if (!can(membership.role.toLowerCase() as Role, "ai:use")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const replies: ReplyForInsight[] = await prisma.feedbackReply.findMany({
     where: { workspaceId: membership.workspaceId },
