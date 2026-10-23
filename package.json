@@ -10,7 +10,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:security": "tsx --test src/lib/security-warden.test.ts"
   },
   "dependencies": {
     "next": "15.5.18",
