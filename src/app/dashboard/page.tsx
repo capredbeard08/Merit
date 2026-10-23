@@ -21,10 +21,11 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
+  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
+    prisma.feedback.count({ where: { workspaceId, status: "REPLIED" } }),
     prisma.feedback.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
@@ -60,65 +61,128 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const metrics = [
+    { label: "Feedback requests", value: feedbackCount, note: "Created in this workspace", mark: "01" },
+    { label: "Follow-ups sent", value: sentCount, note: "Successfully recorded as sent", mark: "02" },
+    { label: "Replies received", value: repliedCount, note: "Feedback with a customer reply", mark: "03" },
+    { label: "Awaiting response", value: pendingCount, note: "Requests still pending", mark: "04" },
+  ];
+
   return (
-    <main className="min-h-screen bg-[#f7f3ea] px-6 py-10 text-[#173b2f]">
-      <div className="mx-auto max-w-6xl">
-        <header className="flex flex-col gap-3 border-b border-[#dfe5dc] pb-8 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[#f7f4ec] px-4 py-6 text-[#17211c] sm:px-6 sm:py-8 lg:px-10">
+      <div className="mx-auto max-w-[1400px]">
+        <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="merit-brand"><MeritMark size={42} /><span className="merit-brand-name">MERIT</span></div>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight">{membership.workspace.name}</h1>
-            <p className="mt-2 text-[#557565]">Customer intelligence, quietly automated.</p>
+            <a href="/dashboard" aria-label="MERIT dashboard home" className="merit-brand">
+              <MeritMark size={40} />
+              <span className="merit-brand-name">MERIT</span>
+            </a>
+            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
+            <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
           </div>
-          <div className="text-sm text-[#557565]">Signed in as <span className="font-medium text-[#173b2f]">{session.user.email}</span></div>
+          <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
+              {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-[#718178]">Signed in as</p>
+              <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
+            </div>
+          </div>
         </header>
 
-        <section className="grid gap-5 py-8 md:grid-cols-3">
-          {[
-            ["Feedback", String(feedbackCount), "responses captured"],
-            ["Follow-ups", String(sentCount), "messages sent"],
-            ["Action Inbox", String(pendingCount), "items awaiting action"],
-          ].map(([label, value, detail]) => (
-            <article key={label} className="rounded-3xl border border-[#dfe5dc] bg-white/80 p-6 shadow-sm">
-              <p className="text-sm font-medium text-[#557565]">{label}</p>
-              <p className="mt-3 text-4xl font-semibold">{value}</p>
-              <p className="mt-2 text-sm text-[#718178]">{detail}</p>
+        <section aria-label="Workspace metrics" className="grid gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => (
+            <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium text-[#557565]">{metric.label}</p>
+                <span className="text-[10px] font-semibold tracking-[0.16em] text-[#9aa69e]">{metric.mark}</span>
+              </div>
+              <p className="mt-5 text-4xl font-semibold tracking-tight tabular-nums text-[#123c2d]">{metric.value.toLocaleString()}</p>
+              <p className="mt-2 text-xs leading-5 text-[#718178]">{metric.note}</p>
             </article>
           ))}
         </section>
 
-        <section className="rounded-3xl border border-[#dfe5dc] bg-white/80 p-7 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[#557565]">Action inbox</p>
-          <h2 className="mt-2 text-2xl font-semibold">{pendingCount ? "Customer signals are waiting." : "Nothing needs your attention yet."}</h2>
-          <p className="mt-2 max-w-2xl text-[#557565]">
-            {pendingCount ? "These feedback requests are ready for the follow-up workflow." : "Once service-completion events start flowing into MERIT, customer signals, replies, and recommended actions will appear here."}
-          </p>
-          <InboxActions
-            workspaceId={workspaceId}
-            initialFeedback={recentFeedback.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
+        <section id="action-inbox" className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
+          <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Action inbox</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight">{pendingCount ? "Follow up on open requests" : "Your inbox is clear"}</h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#69756e]">
+                  {pendingCount ? "Review pending feedback requests and keep customer follow-up moving." : "New service events and feedback requests will appear here when the workflow is connected and active."}
+                </p>
+              </div>
+              <span className="rounded-full bg-[#e7eee9] px-3 py-1.5 text-xs font-semibold text-[#315b49]">{pendingCount} pending</span>
+            </div>
+            <div className="mt-6">
+              <InboxActions
+                workspaceId={workspaceId}
+                initialFeedback={recentFeedback.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
+              />
+            </div>
+          </div>
+
+          <aside className="flex flex-col justify-between rounded-3xl bg-[#123c2d] p-6 text-[#f7f4ec] sm:p-7">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c0d2c5]">MERIT principle</p>
+              <h2 className="mt-4 text-2xl font-semibold leading-tight">Listen carefully. Act deliberately.</h2>
+              <p className="mt-3 text-sm leading-6 text-[#d4e0d7]">Feedback only matters when it helps your team understand what happened and decide what to improve.</p>
+            </div>
+            <div className="mt-8 border-t border-white/15 pt-4">
+              <p className="text-xs text-[#c0d2c5]">Workspace activity</p>
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                <span>Branches</span><span className="font-semibold tabular-nums">{branches.length}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                <span>Team members</span><span className="font-semibold tabular-nums">{members.length}</span>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section id="intelligence" className="mt-7">
+          <div className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Understand the signal</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight">Feedback intelligence</h2>
+            <p className="mt-1 text-sm text-[#69756e]">Recent replies and emerging themes from this workspace.</p>
+          </div>
+          <Intelligence
+            initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
+            initialReplies={replies.map((item) => ({
+              ...item,
+              createdAt: item.createdAt.toISOString(),
+              feedback: {
+                ...item.feedback,
+                customer: {
+                  ...item.feedback.customer,
+                  optedOutAt: item.feedback.customer.optedOutAt ? item.feedback.customer.optedOutAt.toISOString() : null,
+                },
+              },
+            }))}
           />
         </section>
 
-        <Intelligence
-          initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
-          initialReplies={replies.map((item) => ({
-            ...item,
-            createdAt: item.createdAt.toISOString(),
-            feedback: {
-              ...item.feedback,
-              customer: {
-                ...item.feedback.customer,
-                optedOutAt: item.feedback.customer.optedOutAt ? item.feedback.customer.optedOutAt.toISOString() : null,
-              },
-            },
-          }))}
-        />
+        <section id="workspace-settings" className="mt-10 border-t border-[#dfe4df] pt-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Workspace management</p>
+          <h2 className="mt-1 text-2xl font-semibold tracking-tight">Your workspace, organised</h2>
+          <p className="mt-1 text-sm text-[#69756e]">Manage locations, authorised team members, and supporting files.</p>
+          <div id="branches" className="mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} /></div>
+          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} /></div>
+          <div id="team" className="mt-5">
+            <MemberManager
+              workspaceId={workspaceId}
+              initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))}
+            />
+          </div>
+        </section>
 
-        <BranchManager workspaceId={workspaceId} initialBranches={branches} />
-        <FileLibrary workspaceId={workspaceId} />
-        <MemberManager
-          workspaceId={workspaceId}
-          initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))}
-        />
+        <footer className="mt-10 flex flex-col gap-2 border-t border-[#dfe4df] pt-5 text-xs text-[#7b887f] sm:flex-row sm:items-center sm:justify-between">
+          <span>MERIT · Customer intelligence, quietly automated.</span>
+          <span>Workspace data is shown within your authorised membership.</span>
+        </footer>
       </div>
     </main>
   );
