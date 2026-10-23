@@ -7,16 +7,12 @@ if (!secret || secret.length < 32) {
   throw new Error("AUTH_SECRET must be at least 32 characters");
 }
 
+// Trust only configured application origins and the permanent production domain.
+// Do not hardcode deployment-specific Vercel preview URLs: they change on redeploy.
 const trustedOrigins = [
   process.env.BETTER_AUTH_URL,
   process.env.NEXT_PUBLIC_APP_URL,
-  "https://merit-capredbeard08.vercel.app",
-  "https://merit-git-main-capredbeard08.vercel.app",
   "https://merit-olive.vercel.app",
-  "https://merit-qmi40m6le-capredbeard08.vercel.app",
-  "https://merit-29vvlita4-capredbeard08.vercel.app",
-  "https://merit-mh7b9v2rj-capredbeard08.vercel.app",
-  "https://merit-8q9b8dryg-capredbeard08.vercel.app",
 ].filter((origin): origin is string => Boolean(origin));
 
 export const auth = betterAuth({
