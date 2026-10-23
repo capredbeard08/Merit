@@ -6,6 +6,7 @@ on:
     paths:
       - "prisma/migrations/**"
       - "prisma/schema.prisma"
+      - ".github/workflows/migrate.yml"
   workflow_dispatch:
 
 jobs:
@@ -22,8 +23,20 @@ jobs:
         with:
           node-version: 20
 
+      - name: Validate database configuration
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::GitHub Actions secret DATABASE_URL is empty or missing."
+            exit 1
+          fi
+
+      - name: Clear npm cache
+        run: npm cache clean --force
+
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Apply Prisma migrations
         run: npx prisma migrate deploy
