@@ -7,6 +7,14 @@ if (!secret || secret.length < 32) {
   throw new Error("AUTH_SECRET must be at least 32 characters");
 }
 
+const trustedOrigins = [
+  process.env.BETTER_AUTH_URL,
+  process.env.NEXT_PUBLIC_APP_URL,
+  "https://merit-capredbeard08.vercel.app",
+  "https://merit-git-main-capredbeard08.vercel.app",
+  "https://merit-olive.vercel.app",
+].filter((origin): origin is string => Boolean(origin));
+
 export const auth = betterAuth({
   secret,
   database: prismaAdapter(prisma, {
@@ -22,7 +30,5 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
   },
-  trustedOrigins: [
-    process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-  ],
+  trustedOrigins,
 });
