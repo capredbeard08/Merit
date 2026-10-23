@@ -51,12 +51,12 @@ export function feedbackEmailHtml(args: {
   const feedbackUrl = escapeHtml(args.feedbackUrl);
   const optOutUrl = escapeHtml(args.optOutUrl);
 
-  return "<!doctype html><html><body style=\\"font-family:Arial,sans-serif;color:#173b2f;line-height:1.6\\">" +
+  return "<!doctype html><html><body style=\"font-family:Arial,sans-serif;color:#173b2f;line-height:1.6\">" +
     "<h2>" + businessName + "</h2>" +
     "<p>Hi" + customerName + ",</p>" +
     "<p>Thanks for choosing us at " + branchName + ". We'd value your honest feedback about your experience.</p>" +
-    "<p><a href=\\"" + feedbackUrl + "\\" style=\\"display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px\\">Share your feedback</a></p>" +
+    "<p><a href=\"" + feedbackUrl + "\" style=\"display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px\">Share your feedback</a></p>" +
     "<p>Your feedback helps us understand what we're doing well and where we can improve.</p>" +
-    "<p style=\\"font-size:12px;color:#718178\\">If you don't want to receive future feedback requests, <a href=\\"" + optOutUrl + "\\">unsubscribe from feedback requests</a>.</p>" +
+    "<p style=\"font-size:12px;color:#718178\">If you don't want to receive future feedback requests, <a href=\"" + optOutUrl + "\">unsubscribe from feedback requests</a>.</p>" +
     "</body></html>";
 }
