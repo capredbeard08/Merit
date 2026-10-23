@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 const createWorkspaceSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -26,6 +27,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
+  try {
   const workspace = await prisma.workspace.create({
     data: {
       name: parsed.data.name,
@@ -59,4 +61,9 @@ export async function POST(request: Request): Promise<Response> {
     },
     { status: 201 },
   );
+  } catch (error) {
+    const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : "WORKSPACE_CREATE_FAILED";
+    console.error("[MERIT workspace] create failed", { code, errorName: error instanceof Error ? error.name : "UnknownError" });
+    return NextResponse.json({ error: "Workspace setup failed. Your account may already exist; try signing in. If this continues, contact support." }, { status: 500 });
+  }
 }
