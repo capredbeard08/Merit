@@ -107,6 +107,9 @@ export default function Home() {
         <footer className="flex flex-col gap-3 py-8 text-xs text-[#7b887f] sm:flex-row sm:items-center sm:justify-between">
           <span>© {new Date().getFullYear()} MERIT</span>
           <span>Customer intelligence, quietly automated.</span>
+          <Link href="/privacy" className="font-semibold text-[#315b49] hover:underline">
+            Privacy Policy
+          </Link>
         </footer>
       </section>
     </main>
