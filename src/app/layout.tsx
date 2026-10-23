@@ -4,7 +4,8 @@ import BootSplash from "@/components/BootSplash";
 
 export const metadata: Metadata = {
   title: "MERIT — Customer intelligence, quietly automated",
-  description: "Privacy-first customer feedback and review operations for small businesses.",
+  description:
+    "Privacy-first customer feedback and intelligence for establishments and corporations.",
   icons: { icon: "/favicon.svg" },
 };
 
