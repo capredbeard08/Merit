@@ -8,6 +8,7 @@ import MemberManager from "./members";
 import Intelligence from "./intelligence";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import FileLibrary from "./files";
+import ClickTrend from "./click-trend";
 
 
 export default async function DashboardPage() {
@@ -22,7 +23,8 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, repliedCount, completedCount, clickedCount, feedbackReplyCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
+  const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
+  const [feedbackCount, sentCount, pendingCount, repliedCount, completedCount, clickedCount, feedbackReplyCount, recentFeedback, branches, members, insights, replies, recentClicks] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
@@ -63,7 +65,16 @@ export default async function DashboardPage() {
         },
       },
     }),
+    prisma.feedback.findMany({ where: { workspaceId, clickedAt: { gte: eightWeeksAgo } }, select: { clickedAt: true } }),
   ]);
+
+  const clickTrend = Array.from({ length: 8 }, (_, index) => {
+    const start = new Date(eightWeeksAgo);
+    start.setDate(start.getDate() + index * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { label: start.toLocaleDateString("en", { month: "short", day: "numeric" }), clicks: recentClicks.filter((item) => item.clickedAt && item.clickedAt >= start && item.clickedAt < end).length };
+  });
 
   const deliveryRate = feedbackCount ? Math.round((sentCount / feedbackCount) * 100) : 0;
   const clickRate = sentCount ? Math.round((clickedCount / sentCount) * 100) : 0;
@@ -105,6 +116,14 @@ export default async function DashboardPage() {
             </article>
           ))}
         </div></section>
+
+        <section className="mb-7 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+          <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
+            <div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Review-link clicks</h2><p className="mt-1 text-sm text-[#64746c]">Recorded clicks over the last eight weeks</p></div><span className="rounded-full bg-[#e2f1eb] px-3 py-1.5 text-xs font-semibold text-[#075b46]">{recentClicks.length} tracked</span></div>
+            <ClickTrend points={clickTrend} />
+          </div>
+          <div className="rounded-3xl border border-[#dfe4df] bg-[#eff7f3] p-5 sm:p-7"><h2 className="text-lg font-semibold">What these numbers mean</h2><p className="mt-2 text-sm leading-6 text-[#53645d]">MERIT counts recorded service events, feedback requests, review-link clicks, and replies from your workspace data. These are operational metrics, not independently verified public reviews.</p><a href="/dashboard/feedback" className="mt-4 inline-flex font-semibold text-[#075b46] underline underline-offset-4">Explore feedback →</a></div>
+        </section>
 
         <section id="action-inbox" className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
