@@ -35,12 +35,38 @@ export default function Intelligence({
 }) {
   const router = useRouter();
   const [generating, setGenerating] = useState(false);
+  const [generationMessage, setGenerationMessage] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   async function generate() {
     setGenerating(true);
+    setGenerationMessage(null);
+    setGenerationError(null);
     try {
-      await fetch("/api/insights/generate", { method: "POST" });
+      const response = await fetch("/api/insights/generate", { method: "POST" });
+      const result = await response.json().catch(() => null) as {
+        error?: string;
+        message?: string;
+        generated?: number;
+      } | null;
+
+      if (!response.ok) {
+        setGenerationError(result?.error || "AI generation failed (" + response.status + ").");
+        return;
+      }
+      if (result?.generated === 0) {
+        setGenerationMessage(result.message || "There is not enough feedback to analyze yet.");
+        return;
+      }
+      if (!result?.generated) {
+        setGenerationError("The AI response was received, but MERIT could not confirm that an insight was saved.");
+        return;
+      }
+
+      setGenerationMessage("New insights generated and saved.");
       router.refresh();
+    } catch {
+      setGenerationError("Could not reach the AI endpoint. Check your connection and try again.");
     } finally {
       setGenerating(false);
     }
@@ -64,6 +90,8 @@ export default function Intelligence({
             {generating ? "Generating..." : "Generate insights"}
           </button>
         </div>
+        {generationError ? <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{generationError}</p> : null}
+        {generationMessage ? <p role="status" className="mt-4 rounded-xl border border-[#dfe5dc] bg-[#f2f6f1] px-4 py-3 text-sm text-[#315b47]">{generationMessage}</p> : null}
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           {initialInsights.length ? initialInsights.slice(0, 3).map((insight) => (
