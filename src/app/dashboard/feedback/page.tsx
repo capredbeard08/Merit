@@ -7,7 +7,7 @@ import FeedbackInbox from "../FeedbackInbox";
 
 export const dynamic = "force-dynamic";
 
-export default async function FeedbackPage() {
+export default async function FeedbackPage({ searchParams }: { searchParams: Promise<{ location?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
@@ -19,9 +19,13 @@ export default async function FeedbackPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
+  const branches = await prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true } });
+  const params = await searchParams;
+  const selectedBranch = branches.find((branch) => branch.id === params.location) ?? null;
+  const branchFilter = selectedBranch ? { branchId: selectedBranch.id } : {};
   const [records, pending, reviewing, resolved, closed] = await Promise.all([
     prisma.feedback.findMany({
-      where: { workspaceId },
+      where: { workspaceId, ...branchFilter },
       orderBy: { createdAt: "desc" },
       take: 100,
       select: {
@@ -40,10 +44,10 @@ export default async function FeedbackPage() {
         },
       },
     }),
-    prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
-    prisma.feedback.count({ where: { workspaceId, status: { in: ["CONTACTED", "CLICKED", "REPLIED"] } } }),
-    prisma.feedback.count({ where: { workspaceId, status: "RESOLVED" } }),
-    prisma.feedback.count({ where: { workspaceId, status: "OPTED_OUT" } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "PENDING" } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: { in: ["CONTACTED", "CLICKED", "REPLIED"] } } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "RESOLVED" } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "OPTED_OUT" } }),
   ]);
 
   return (
@@ -53,7 +57,7 @@ export default async function FeedbackPage() {
         <header className="flex flex-col gap-5 border-b border-[#e4eae6] pb-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Feedback</h1>
-            <p className="mt-1 text-base text-[#64746c]">Customer feedback from completed services.</p>
+            <p className="mt-1 text-base text-[#64746c]">Private feedback from your recorded service events.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <a href="/dashboard#action-inbox" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">↗ Get feedback</a>
@@ -61,7 +65,7 @@ export default async function FeedbackPage() {
           </div>
         </header>
         <section className="mt-6">
-          <p className="text-sm text-[#64746c]">Workspace <span className="font-semibold text-[#1e4032]">{membership.workspace.name}</span></p>
+          <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-[#64746c]">Workspace <span className="font-semibold text-[#1e4032]">{membership.workspace.name}</span> · {selectedBranch ? selectedBranch.name : "All locations"}</p>{branches.length > 1 ? <form action="/dashboard/feedback" method="get" className="flex items-center gap-2"><label htmlFor="feedback-location" className="text-sm text-[#53645d]">Scope</label><select id="feedback-location" name="location" defaultValue={selectedBranch?.id ?? "all"} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="rounded-lg border border-[#d9e2dc] bg-white px-3 py-2 text-sm"><option value="all">All locations</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></form> : null}</div>
           <FeedbackInbox
             workspaceId={workspaceId}
             initialItems={records.map((item) => ({ ...item, createdAt: item.createdAt.toISOString(), sentAt: item.sentAt?.toISOString() || null, clickedAt: item.clickedAt?.toISOString() || null, repliedAt: item.repliedAt?.toISOString() || null, replies: item.replies.map((reply) => ({ ...reply, createdAt: reply.createdAt.toISOString() })) }))}
