@@ -26,7 +26,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const workspaceId = new URL(request.url).searchParams.get("workspaceId") || "";
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const access = await getAuthorizedMembership(request, workspaceId, "feedback:read");
-  if (access.response) return access.response;
+  if (!("session" in access)) return access.response;
 
   const feedback = await prisma.feedback.findFirst({ where: { id, workspaceId }, select: { id: true } });
   if (!feedback) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
