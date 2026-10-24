@@ -6,10 +6,12 @@ import InboxActions from "./actions";
 import BranchManager from "./branches";
 import MemberManager from "./members";
 import Intelligence from "./intelligence";
-import MeritMark from "@/components/MeritMark";
+import DashboardSidebar from "@/components/DashboardSidebar";
 import FileLibrary from "./files";
+import ClickTrend from "./click-trend";
 
-export default async function DashboardPage() {
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ location?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
@@ -21,13 +23,21 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
-    prisma.feedback.count({ where: { workspaceId } }),
-    prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
-    prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
-    prisma.feedback.count({ where: { workspaceId, status: "REPLIED" } }),
+  const branches = await prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } });
+  const params = await searchParams;
+  const selectedBranch = branches.find((branch) => branch.id === params.location) ?? null;
+  const branchFilter = selectedBranch ? { branchId: selectedBranch.id } : {};
+  const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
+  const [feedbackCount, sentCount, pendingCount, repliedCount, completedCount, clickedCount, feedbackReplyCount, recentFeedback, members, insights, replies, recentClicks] = await Promise.all([
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, sentAt: { not: null } } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "PENDING" } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "REPLIED" } }),
+    prisma.serviceEvent.count({ where: { workspaceId, ...branchFilter } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, clickedAt: { not: null } } }),
+    prisma.feedbackReply.count({ where: { workspaceId, ...(selectedBranch ? { feedback: { branchId: selectedBranch.id } } : {}) } }),
     prisma.feedback.findMany({
-      where: { workspaceId },
+      where: { workspaceId, ...branchFilter },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
@@ -38,11 +48,10 @@ export default async function DashboardPage() {
         branch: { select: { name: true } },
       },
     }),
-    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
     prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
     prisma.insight.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.feedbackReply.findMany({
-      where: { workspaceId },
+      where: { workspaceId, ...(selectedBranch ? { feedback: { branchId: selectedBranch.id } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 25,
       select: {
@@ -59,40 +68,47 @@ export default async function DashboardPage() {
         },
       },
     }),
+    prisma.feedback.findMany({ where: { workspaceId, ...branchFilter, clickedAt: { gte: eightWeeksAgo } }, select: { clickedAt: true } }),
   ]);
 
+  const clickTrend = Array.from({ length: 8 }, (_, index) => {
+    const start = new Date(eightWeeksAgo);
+    start.setDate(start.getDate() + index * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { label: start.toLocaleDateString("en", { month: "short", day: "numeric" }), clicks: recentClicks.filter((item) => item.clickedAt && item.clickedAt >= start && item.clickedAt < end).length };
+  });
+
+  const deliveryRate = feedbackCount ? Math.round((sentCount / feedbackCount) * 100) : 0;
+  const clickRate = sentCount ? Math.round((clickedCount / sentCount) * 100) : 0;
   const metrics = [
-    { label: "Feedback requests", value: feedbackCount, note: "Created in this workspace", mark: "01" },
-    { label: "Follow-ups sent", value: sentCount, note: "Successfully recorded as sent", mark: "02" },
-    { label: "Replies received", value: repliedCount, note: "Feedback with a customer reply", mark: "03" },
-    { label: "Awaiting response", value: pendingCount, note: "Requests still pending", mark: "04" },
+    { label: "Services completed", value: completedCount.toLocaleString(), note: "Completed service events received", mark: "01" },
+    { label: "Requests sent", value: sentCount.toLocaleString(), note: feedbackCount + " feedback requests recorded", mark: "02" },
+    { label: "Send rate", value: deliveryRate + "%", note: "Sent requests / recorded requests", mark: "03" },
+    { label: "Click rate", value: clickRate + "%", note: clickedCount + " review-link clicks recorded", mark: "04" },
+    { label: "Feedback received", value: feedbackReplyCount.toLocaleString(), note: repliedCount + " requests marked as replied", mark: "05" },
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f4ec] px-4 py-6 text-[#17211c] sm:px-6 sm:py-8 lg:px-10">
+    <div className="min-h-screen bg-[#fbfcfb] text-[#14231c]">
+      <DashboardSidebar workspaceName={membership.workspace.name} userName={session.user.name || session.user.email} active="overview" />
+      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-9 md:ml-[234px] md:py-7">
       <div className="mx-auto max-w-[1400px]">
-        <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <header className="flex flex-col gap-5 border-b border-[#e4eae6] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <a href="/dashboard" aria-label="MERIT dashboard home" className="merit-brand">
-              <MeritMark size={40} />
-              <span className="merit-brand-name">MERIT</span>
-            </a>
-            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
-            <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Good morning, {session.user.name || session.user.email}</h1>
+            <p className="mt-2 text-base text-[#64746c]">Here’s what’s happening with your customer feedback.</p>
+            <p className="mt-2 text-sm text-[#6d7c74]">Workspace: <span className="font-semibold text-[#174b3b]">{membership.workspace.name}</span></p>
+            {branches.length > 1 ? <form action="/dashboard" method="get" className="mt-3 flex items-center gap-2"><label htmlFor="overview-location" className="text-sm text-[#53645d]">Scope</label><select id="overview-location" name="location" defaultValue={selectedBranch?.id ?? "all"} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="rounded-lg border border-[#d9e2dc] bg-white px-3 py-2 text-sm"><option value="all">All locations</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></form> : null}
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
-              {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-[#718178]">Signed in as</p>
-              <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <a href="/dashboard#branches" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">⌖ Locations</a>
+            <a href="/dashboard#action-inbox" className="inline-flex items-center gap-2 rounded-xl bg-[#075b46] px-4 py-3 text-sm font-semibold text-white hover:bg-[#064b3a]">↗ Get feedback</a>
+            <a href="/dashboard/feedback" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">☷ View activity</a>
           </div>
         </header>
 
-        <section aria-label="Workspace metrics" className="grid gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Workspace metrics" className="py-7"><div className="mb-4"><h2 className="text-xl font-semibold">Request funnel</h2><p className="mt-1 text-sm text-[#64746c]">From recorded service events to private feedback · {selectedBranch ? selectedBranch.name : "All locations"}</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
               <div className="flex items-center justify-between gap-3">
@@ -103,6 +119,14 @@ export default async function DashboardPage() {
               <p className="mt-2 text-xs leading-5 text-[#718178]">{metric.note}</p>
             </article>
           ))}
+        </div></section>
+
+        <section className="mb-7 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+          <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
+            <div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Review-link clicks</h2><p className="mt-1 text-sm text-[#64746c]">Recorded clicks over the last eight weeks · {selectedBranch ? selectedBranch.name : "All locations"}</p></div><span className="rounded-full bg-[#e2f1eb] px-3 py-1.5 text-xs font-semibold text-[#075b46]">{recentClicks.length} tracked</span></div>
+            <ClickTrend points={clickTrend} />
+          </div>
+          <div className="rounded-3xl border border-[#dfe4df] bg-[#eff7f3] p-5 sm:p-7"><h2 className="text-lg font-semibold">What these numbers mean</h2><p className="mt-2 text-sm leading-6 text-[#53645d]">MERIT counts recorded service events, feedback requests, review-link clicks, and replies from your workspace data. These are operational metrics, not independently verified public reviews.</p><a href="/dashboard/feedback" className="mt-4 inline-flex font-semibold text-[#075b46] underline underline-offset-4">Explore feedback →</a></div>
         </section>
 
         <section id="action-inbox" className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
@@ -125,21 +149,28 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <aside className="flex flex-col justify-between rounded-3xl bg-[#123c2d] p-6 text-[#f7f4ec] sm:p-7">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c0d2c5]">MERIT principle</p>
-              <h2 className="mt-4 text-2xl font-semibold leading-tight">Listen carefully. Act deliberately.</h2>
-              <p className="mt-3 text-sm leading-6 text-[#d4e0d7]">Feedback only matters when it helps your team understand what happened and decide what to improve.</p>
-            </div>
-            <div className="mt-8 border-t border-white/15 pt-4">
-              <p className="text-xs text-[#c0d2c5]">Workspace activity</p>
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span>Branches</span><span className="font-semibold tabular-nums">{branches.length}</span>
+          <aside className="rounded-3xl border border-[#f0e2c9] bg-[#fffaf1] p-6 sm:p-7">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-[#75431a]">Needs follow-up: {pendingCount} open</h2>
+                <p className="mt-2 text-sm leading-6 text-[#6f675c]">Requests still awaiting action may need a customer follow-up.</p>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-                <span>Team members</span><span className="font-semibold tabular-nums">{members.length}</span>
-              </div>
+              <span className="text-xl text-[#a56824]" aria-hidden="true">⚠</span>
             </div>
+            <div className="mt-5 divide-y divide-[#f0e5d4]">
+              {recentFeedback.filter((item) => item.status === "PENDING").slice(0, 4).map((item) => (
+                <div key={item.id} className="flex items-center gap-3 py-4 first:pt-0 last:pb-0">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f5ead8] text-xs font-semibold text-[#7b4c1e]">{(item.customer.name || item.customer.email || "C").slice(0, 2).toUpperCase()}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[#29372f]">{item.customer.name || item.customer.email || "Customer"}</p>
+                    <p className="mt-1 truncate text-xs text-[#756d62]">{item.branch.name} · {new Date(item.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#f8e8cb] px-2.5 py-1 text-[11px] font-semibold text-[#80501c]">No response</span>
+                </div>
+              ))}
+              {pendingCount === 0 ? <p className="py-4 text-sm text-[#6f675c]">No open requests need follow-up right now.</p> : null}
+            </div>
+            <a href="/dashboard/feedback" className="mt-5 inline-flex text-sm font-semibold text-[#075b46] underline underline-offset-4">View all feedback ↗</a>
           </aside>
         </section>
 
@@ -184,6 +215,7 @@ export default async function DashboardPage() {
           <span>Workspace data is shown within your authorised membership.</span>
         </footer>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
