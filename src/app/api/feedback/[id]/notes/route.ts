@@ -60,7 +60,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const parsed = noteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Enter a note of up to 2,000 characters." }, { status: 400 });
   const access = await getAuthorizedMembership(request, parsed.data.workspaceId, "feedback:write");
-  if (!("session" in access)) return access.response;
+  if (!("session" in access) || !access.session?.user) return "response" in access ? access.response : NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  const session = access.session;
 
   const feedback = await prisma.feedback.findFirst({
     where: { id, workspaceId: parsed.data.workspaceId },
@@ -71,7 +72,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const record = await prisma.auditLog.create({
     data: {
       workspaceId: parsed.data.workspaceId,
-      actorUserId: access.session.user.id,
+      actorUserId: session.user.id,
       action: "FEEDBACK_NOTE_CREATED",
       targetType: "FeedbackNote",
       targetId: id,
@@ -84,7 +85,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       id: record.id,
       note: parsed.data.note,
       createdAt: record.createdAt.toISOString(),
-      author: access.session.user.name || access.session.user.email,
+      author: session.user.name || session.user.email,
     },
   }, { status: 201 });
 }
