@@ -9,16 +9,18 @@ const noteSchema = z.object({
   note: z.string().trim().min(1).max(2000),
 });
 
-async function getAuthorizedMembership(request: Request, workspaceId: string, permission: "feedback:read" | "feedback:write") {
+type AuthorizedAccess = { ok: true; session: NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>; membership: { role: string } } | { ok: false; response: Response };
+
+async function getAuthorizedMembership(request: Request, workspaceId: string, permission: "feedback:read" | "feedback:write"): Promise<AuthorizedAccess> {
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return { response: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
+  if (!session?.user) return { ok: false, response: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
   const membership = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: session.user.id } },
   });
   if (!membership || !can(membership.role.toLowerCase() as Role, permission)) {
-    return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return { session, membership };
+  return { ok: true, session, membership };
 }
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
@@ -26,7 +28,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const workspaceId = new URL(request.url).searchParams.get("workspaceId") || "";
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const access = await getAuthorizedMembership(request, workspaceId, "feedback:read");
-  if (!("session" in access)) return access.response;
+  if (!access.ok) return access.response;
 
   const feedback = await prisma.feedback.findFirst({ where: { id, workspaceId }, select: { id: true } });
   if (!feedback) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
