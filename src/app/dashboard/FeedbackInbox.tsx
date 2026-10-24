@@ -60,7 +60,16 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
     const needle = query.trim().toLowerCase();
     const matches = !needle || [item.customer.name || "", item.customer.email || "", item.branch.name, ...item.replies.map((reply) => reply.message || "")].some((text) => text.toLowerCase().includes(needle));
     return inTab && matches;
-  }).sort((a, b) => sort === "oldest" ? +new Date(a.createdAt) - +new Date(b.createdAt) : +new Date(b.createdAt) - +new Date(a.createdAt)), [items, tab, query, sort]);
+  }).sort((a, b) => {
+    if (sort === "oldest") return +new Date(a.createdAt) - +new Date(b.createdAt);
+    if (sort === "lowest-rating") {
+      const ar = a.replies[0]?.rating ? ratingValue[a.replies[0].rating] : 6;
+      const br = b.replies[0]?.rating ? ratingValue[b.replies[0].rating] : 6;
+      return ar - br || +new Date(b.createdAt) - +new Date(a.createdAt);
+    }
+    if (sort === "oldest-unresolved") return +new Date(a.createdAt) - +new Date(b.createdAt);
+    return +new Date(b.createdAt) - +new Date(a.createdAt);
+  }), [items, tab, query, sort]);
 
   const selected = filtered.find((item) => item.id === selectedId) || filtered[0] || null;
 
@@ -96,7 +105,7 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
           <div className="flex flex-col gap-3 border-b border-[#e7ece8] p-4 sm:flex-row sm:items-center sm:justify-between">
             <label className="sr-only" htmlFor="feedback-sort">Sort feedback</label>
             <select id="feedback-sort" value={sort} onChange={(event) => setSort(event.target.value)} className="rounded-lg border-0 bg-transparent py-2 text-sm text-[#53645d] focus:ring-2 focus:ring-[#7bb7a0]">
-              <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+              <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="lowest-rating">Lowest rating first</option><option value="oldest-unresolved">Oldest open first</option>
             </select>
             <label className="flex min-w-0 items-center gap-2 rounded-xl border border-[#dfe7e2] px-3 py-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/></svg>
@@ -113,6 +122,7 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
                   <span className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-[#16231d]">{item.customer.name || "Customer"}</span><span className={"rounded-full px-2.5 py-1 text-[11px] font-semibold " + (item.status === "PENDING" ? "bg-[#fff0d8] text-[#80501c]" : item.status === "RESOLVED" ? "bg-[#dff3e7] text-[#185b40]" : item.status === "OPTED_OUT" ? "bg-[#e9ecea] text-[#58655e]" : "bg-[#e0edfc] text-[#235b91]")}>{statusLabel[item.status] || item.status}</span></span>
                   <span className="mt-1 block truncate text-sm text-[#4c5c54]">{reply?.message ? "“" + reply.message + "”" : item.customer.email || "No written feedback yet"}</span>
                   <span className="mt-1 block text-xs text-[#718078]">{item.branch.name} · {relativeLabel(item.createdAt)}</span>
+                  <span className="mt-1 block text-xs font-semibold text-[#80501c]">{item.replies[0]?.rating ? `Customer rating: ${ratingValue[item.replies[0].rating]}/5` : "No rating given"}</span>
                 </span>
                 <span className="pt-3 text-lg text-[#73847b]" aria-hidden="true">›</span>
               </button>;
@@ -131,12 +141,12 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
               <span className="rounded-full bg-[#fff0d8] px-3 py-1.5 text-xs font-semibold text-[#80501c]">{statusLabel[selected.status] || selected.status}</span>
             </div>
             <div className="py-6">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#718078]">Customer feedback</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[#718078]">Full comment</h3>
               {selected.replies.length ? selected.replies.map((reply) => <article key={reply.id} className="mt-4 rounded-xl bg-[#f7f9f7] p-4">
                 <p className="text-lg font-semibold leading-7 text-[#17251e]">{reply.message ? "“" + reply.message + "”" : "Rating submitted without a written comment."}</p>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm text-[#64746c]">{dateLabel(reply.createdAt)}</span>
-                  <span aria-label={reply.rating ? "Rating " + ratingValue[reply.rating] + " out of 5" : "No rating"} className="font-semibold text-[#8b5b19]">{reply.rating ? "★".repeat(ratingValue[reply.rating]) + "☆".repeat(5 - ratingValue[reply.rating]) + " " + ratingValue[reply.rating] + "/5" : "No rating"}</span>
+                  <span aria-label={reply.rating ? "Customer rating " + ratingValue[reply.rating] + " out of 5" : "No customer rating"} className="font-semibold text-[#8b5b19]">{reply.rating ? "★".repeat(ratingValue[reply.rating]) + "☆".repeat(5 - ratingValue[reply.rating]) + " " + ratingValue[reply.rating] + "/5" : "No rating"}</span>
                 </div>
               </article>) : <p className="mt-4 rounded-xl bg-[#f7f9f7] p-4 text-sm leading-6 text-[#64746c]">No written reply has been received for this request yet.</p>}
             </div>
