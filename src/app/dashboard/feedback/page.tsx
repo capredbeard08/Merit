@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import DashboardSidebar from "@/components/DashboardSidebar";
-import FeedbackInbox from "./FeedbackInbox";
+import FeedbackInbox from "../FeedbackInbox";
 
 export const dynamic = "force-dynamic";
 
