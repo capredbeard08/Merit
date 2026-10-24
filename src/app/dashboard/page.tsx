@@ -11,7 +11,7 @@ import FileLibrary from "./files";
 import ClickTrend from "./click-trend";
 
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ location?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
@@ -23,17 +23,21 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
+  const branches = await prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } });
+  const params = await searchParams;
+  const selectedBranch = branches.find((branch) => branch.id === params.location) ?? null;
+  const branchFilter = selectedBranch ? { branchId: selectedBranch.id } : {};
   const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
-  const [feedbackCount, sentCount, pendingCount, repliedCount, completedCount, clickedCount, feedbackReplyCount, recentFeedback, branches, members, insights, replies, recentClicks] = await Promise.all([
-    prisma.feedback.count({ where: { workspaceId } }),
-    prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
-    prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
-    prisma.feedback.count({ where: { workspaceId, status: "REPLIED" } }),
-    prisma.serviceEvent.count({ where: { workspaceId } }),
-    prisma.feedback.count({ where: { workspaceId, clickedAt: { not: null } } }),
-    prisma.feedbackReply.count({ where: { workspaceId } }),
+  const [feedbackCount, sentCount, pendingCount, repliedCount, completedCount, clickedCount, feedbackReplyCount, recentFeedback, members, insights, replies, recentClicks] = await Promise.all([
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, sentAt: { not: null } } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "PENDING" } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, status: "REPLIED" } }),
+    prisma.serviceEvent.count({ where: { workspaceId, ...branchFilter } }),
+    prisma.feedback.count({ where: { workspaceId, ...branchFilter, clickedAt: { not: null } } }),
+    prisma.feedbackReply.count({ where: { workspaceId, ...(selectedBranch ? { feedback: { branchId: selectedBranch.id } } : {}) } }),
     prisma.feedback.findMany({
-      where: { workspaceId },
+      where: { workspaceId, ...branchFilter },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
@@ -44,11 +48,10 @@ export default async function DashboardPage() {
         branch: { select: { name: true } },
       },
     }),
-    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
     prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
     prisma.insight.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.feedbackReply.findMany({
-      where: { workspaceId },
+      where: { workspaceId, ...(selectedBranch ? { feedback: { branchId: selectedBranch.id } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 25,
       select: {
@@ -65,7 +68,7 @@ export default async function DashboardPage() {
         },
       },
     }),
-    prisma.feedback.findMany({ where: { workspaceId, clickedAt: { gte: eightWeeksAgo } }, select: { clickedAt: true } }),
+    prisma.feedback.findMany({ where: { workspaceId, ...branchFilter, clickedAt: { gte: eightWeeksAgo } }, select: { clickedAt: true } }),
   ]);
 
   const clickTrend = Array.from({ length: 8 }, (_, index) => {
@@ -96,6 +99,7 @@ export default async function DashboardPage() {
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Good morning, {session.user.name || session.user.email}</h1>
             <p className="mt-2 text-base text-[#64746c]">Here’s what’s happening with your customer feedback.</p>
             <p className="mt-2 text-sm text-[#6d7c74]">Workspace: <span className="font-semibold text-[#174b3b]">{membership.workspace.name}</span></p>
+            {branches.length > 1 ? <form action="/dashboard" method="get" className="mt-3 flex items-center gap-2"><label htmlFor="overview-location" className="text-sm text-[#53645d]">Scope</label><select id="overview-location" name="location" defaultValue={selectedBranch?.id ?? "all"} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="rounded-lg border border-[#d9e2dc] bg-white px-3 py-2 text-sm"><option value="all">All locations</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></form> : null}
           </div>
           <div className="flex flex-wrap gap-3">
             <a href="/dashboard#branches" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">⌖ Locations</a>
@@ -104,7 +108,7 @@ export default async function DashboardPage() {
           </div>
         </header>
 
-        <section aria-label="Workspace metrics" className="py-7"><div className="mb-4"><h2 className="text-xl font-semibold">Tracked by MERIT</h2><p className="mt-1 text-sm text-[#64746c]">From completed services to customer feedback</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section aria-label="Workspace metrics" className="py-7"><div className="mb-4"><h2 className="text-xl font-semibold">Request funnel</h2><p className="mt-1 text-sm text-[#64746c]">From recorded service events to private feedback · {selectedBranch ? selectedBranch.name : "All locations"}</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
               <div className="flex items-center justify-between gap-3">
@@ -119,7 +123,7 @@ export default async function DashboardPage() {
 
         <section className="mb-7 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
           <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
-            <div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Review-link clicks</h2><p className="mt-1 text-sm text-[#64746c]">Recorded clicks over the last eight weeks</p></div><span className="rounded-full bg-[#e2f1eb] px-3 py-1.5 text-xs font-semibold text-[#075b46]">{recentClicks.length} tracked</span></div>
+            <div className="flex items-center justify-between gap-4"><div><h2 className="text-xl font-semibold">Review-link clicks</h2><p className="mt-1 text-sm text-[#64746c]">Recorded clicks over the last eight weeks · {selectedBranch ? selectedBranch.name : "All locations"}</p></div><span className="rounded-full bg-[#e2f1eb] px-3 py-1.5 text-xs font-semibold text-[#075b46]">{recentClicks.length} tracked</span></div>
             <ClickTrend points={clickTrend} />
           </div>
           <div className="rounded-3xl border border-[#dfe4df] bg-[#eff7f3] p-5 sm:p-7"><h2 className="text-lg font-semibold">What these numbers mean</h2><p className="mt-2 text-sm leading-6 text-[#53645d]">MERIT counts recorded service events, feedback requests, review-link clicks, and replies from your workspace data. These are operational metrics, not independently verified public reviews.</p><a href="/dashboard/feedback" className="mt-4 inline-flex font-semibold text-[#075b46] underline underline-offset-4">Explore feedback →</a></div>
@@ -148,7 +152,7 @@ export default async function DashboardPage() {
           <aside className="rounded-3xl border border-[#f0e2c9] bg-[#fffaf1] p-6 sm:p-7">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-[#75431a]">Service recovery required: {pendingCount} open</h2>
+                <h2 className="text-xl font-semibold text-[#75431a]">Needs follow-up: {pendingCount} open</h2>
                 <p className="mt-2 text-sm leading-6 text-[#6f675c]">Requests still awaiting action may need a customer follow-up.</p>
               </div>
               <span className="text-xl text-[#a56824]" aria-hidden="true">⚠</span>
@@ -161,7 +165,7 @@ export default async function DashboardPage() {
                     <p className="truncate text-sm font-semibold text-[#29372f]">{item.customer.name || item.customer.email || "Customer"}</p>
                     <p className="mt-1 truncate text-xs text-[#756d62]">{item.branch.name} · {new Date(item.createdAt).toLocaleDateString()}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-[#f8e8cb] px-2.5 py-1 text-[11px] font-semibold text-[#80501c]">Follow up</span>
+                  <span className="shrink-0 rounded-full bg-[#f8e8cb] px-2.5 py-1 text-[11px] font-semibold text-[#80501c]">No response</span>
                 </div>
               ))}
               {pendingCount === 0 ? <p className="py-4 text-sm text-[#6f675c]">No open requests need follow-up right now.</p> : null}
