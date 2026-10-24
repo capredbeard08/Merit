@@ -91,7 +91,7 @@ export default async function DashboardPage() {
             <a href="/dashboard#action-inbox" className="inline-flex items-center gap-2 rounded-xl bg-[#075b46] px-4 py-3 text-sm font-semibold text-white hover:bg-[#064b3a]">↗ Get feedback</a>
             <a href="/dashboard/feedback" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">☷ View activity</a>
           </div>
-        </header>/header>
+        </header>
 
         <section aria-label="Workspace metrics" className="py-7"><div className="mb-4"><h2 className="text-xl font-semibold">Tracked by MERIT</h2><p className="mt-1 text-sm text-[#64746c]">From completed services to customer feedback</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map((metric) => (
@@ -148,7 +148,7 @@ export default async function DashboardPage() {
               {pendingCount === 0 ? <p className="py-4 text-sm text-[#6f675c]">No open requests need follow-up right now.</p> : null}
             </div>
             <a href="/dashboard/feedback" className="mt-5 inline-flex text-sm font-semibold text-[#075b46] underline underline-offset-4">View all feedback ↗</a>
-          </aside>  </aside>
+          </aside>
         </section>
 
         <section id="intelligence" className="mt-7">
