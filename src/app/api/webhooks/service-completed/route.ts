@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serviceCompletedEventSchema } from "@/lib/security";
-import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/env";
+import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/webhook-constants";
 
 export const runtime = "nodejs";
 
