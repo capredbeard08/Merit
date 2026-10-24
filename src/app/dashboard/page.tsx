@@ -6,9 +6,9 @@ import InboxActions from "./actions";
 import BranchManager from "./branches";
 import MemberManager from "./members";
 import Intelligence from "./intelligence";
-import MeritMark from "@/components/MeritMark";
+import DashboardSidebar from "@/components/DashboardSidebar";
 import FileLibrary from "./files";
-import SignOutButton from "@/components/SignOutButton";
+
 
 export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -70,29 +70,20 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f4ec] px-4 py-6 text-[#17211c] sm:px-6 sm:py-8 lg:px-10">
+    <div className="min-h-screen bg-[#fbfcfb] text-[#14231c]">\n      <DashboardSidebar workspaceName={membership.workspace.name} userName={session.user.name || session.user.email} active="overview" />\n      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-9 md:ml-[234px] md:py-7">
       <div className="mx-auto max-w-[1400px]">
-        <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <header className="flex flex-col gap-5 border-b border-[#e4eae6] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <a href="/dashboard" aria-label="MERIT dashboard home" className="merit-brand">
-              <MeritMark size={40} />
-              <span className="merit-brand-name">MERIT</span>
-            </a>
-            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
-            <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Good morning, {session.user.name || session.user.email}</h1>
+            <p className="mt-2 text-base text-[#64746c]">Here’s what’s happening with your customer feedback.</p>
+            <p className="mt-2 text-sm text-[#6d7c74]">Workspace: <span className="font-semibold text-[#174b3b]">{membership.workspace.name}</span></p>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
-              {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-[#718178]">Signed in as</p>
-              <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
-            </div>
-            <SignOutButton />
+          <div className="flex flex-wrap gap-3">
+            <a href="/dashboard#branches" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">⌖ Locations</a>
+            <a href="/dashboard#action-inbox" className="inline-flex items-center gap-2 rounded-xl bg-[#075b46] px-4 py-3 text-sm font-semibold text-white hover:bg-[#064b3a]">↗ Get feedback</a>
+            <a href="/dashboard/feedback" className="inline-flex items-center gap-2 rounded-xl border border-[#d9e2dc] bg-white px-4 py-3 text-sm font-semibold text-[#243b30] hover:bg-[#f3f8f5]">☷ View activity</a>
           </div>
-        </header>
+        </header>/header>
 
         <section aria-label="Workspace metrics" className="grid gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
