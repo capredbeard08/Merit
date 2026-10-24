@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Item = {
   id: string;
@@ -13,6 +13,7 @@ type Item = {
   customer: { id: string; name: string | null; email: string | null };
   replies: { id: string; rating: string | null; message: string | null; createdAt: string }[];
 };
+type Note = { id: string; note: string; createdAt: string; author: string };
 type Counts = { new: number; reviewing: number; resolved: number; closed: number };
 type Tab = "new" | "reviewing" | "resolved" | "closed";
 
@@ -54,6 +55,9 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
   const [selectedId, setSelectedId] = useState(initialItems[0]?.id || "");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const filtered = useMemo(() => items.filter((item) => {
     const inTab = tabStatuses[tab].includes(item.status);
@@ -72,6 +76,30 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
   }), [items, tab, query, sort]);
 
   const selected = filtered.find((item) => item.id === selectedId) || filtered[0] || null;
+
+  useEffect(() => {
+    if (!selected) { setNotes([]); return; }
+    let cancelled = false;
+    fetch(`/api/feedback/${encodeURIComponent(selected.id)}/notes?workspaceId=${encodeURIComponent(workspaceId)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load notes.")))
+      .then((data) => { if (!cancelled) setNotes(data.notes || []); })
+      .catch(() => { if (!cancelled) setNotes([]); });
+    return () => { cancelled = true; };
+  }, [selected?.id, workspaceId]);
+
+  async function saveNote() {
+    if (!selected || !noteDraft.trim() || noteSaving) return;
+    setNoteSaving(true);
+    try {
+      const response = await fetch(`/api/feedback/${encodeURIComponent(selected.id)}/notes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaceId, note: noteDraft.trim() }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not save note.");
+      setNotes((current) => [...current, data.note]);
+      setNoteDraft("");
+      setNotice("Internal note saved.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save note."); }
+    finally { setNoteSaving(false); }
+  }
 
   async function changeStatus(item: Item, status: "CONTACTED" | "RESOLVED" | "OPTED_OUT") {
     setBusy(true); setNotice("");
@@ -151,7 +179,15 @@ export default function FeedbackInbox({ workspaceId, initialItems, counts }: { w
               </article>) : <p className="mt-4 rounded-xl bg-[#f7f9f7] p-4 text-sm leading-6 text-[#64746c]">No written reply has been received for this request yet.</p>}
             </div>
             <div className="border-t border-[#e9eeeb] pt-5">
-              <h3 className="text-sm font-semibold text-[#233d32]">Request timeline</h3>
+              <h3 className="text-sm font-semibold text-[#233d32]">Internal notes</h3>
+              <div className="mt-3 space-y-2">
+                {notes.map((note) => <article key={note.id} className="rounded-lg bg-[#f7f9f7] p-3"><p className="whitespace-pre-wrap text-sm">{note.note}</p><p className="mt-2 text-xs text-[#718078]">{note.author} · {dateLabel(note.createdAt)}</p></article>)}
+                {notes.length === 0 ? <p className="text-sm text-[#718078]">No internal notes yet.</p> : null}
+              </div>
+              <label htmlFor="internal-note" className="mt-3 block text-sm font-medium text-[#31483b]">Add an internal note</label>
+              <textarea id="internal-note" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} maxLength={2000} rows={3} className="mt-2 w-full rounded-xl border border-[#dfe7e2] p-3 text-sm" placeholder="Record context for your team…" />
+              <button type="button" onClick={() => void saveNote()} disabled={!noteDraft.trim() || noteSaving} className="mt-2 rounded-xl bg-[#075b46] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{noteSaving ? "Saving…" : "Save note"}</button>
+              <h3 className="mt-6 text-sm font-semibold text-[#233d32]">Request timeline</h3>
               <div className="mt-3 space-y-2 text-sm text-[#64746c]">
                 <p>Created · {dateLabel(selected.createdAt)}</p>
                 {selected.sentAt ? <p>Request sent · {dateLabel(selected.sentAt)}</p> : null}
