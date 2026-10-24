@@ -22,11 +22,14 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
+  const [feedbackCount, sentCount, pendingCount, repliedCount, completedCount, clickedCount, feedbackReplyCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
     prisma.feedback.count({ where: { workspaceId, status: "REPLIED" } }),
+    prisma.serviceEvent.count({ where: { workspaceId } }),
+    prisma.feedback.count({ where: { workspaceId, clickedAt: { not: null } } }),
+    prisma.feedbackReply.count({ where: { workspaceId } }),
     prisma.feedback.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
@@ -62,11 +65,14 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  const deliveryRate = feedbackCount ? Math.round((sentCount / feedbackCount) * 100) : 0;
+  const clickRate = sentCount ? Math.round((clickedCount / sentCount) * 100) : 0;
   const metrics = [
-    { label: "Feedback requests", value: feedbackCount, note: "Created in this workspace", mark: "01" },
-    { label: "Follow-ups sent", value: sentCount, note: "Successfully recorded as sent", mark: "02" },
-    { label: "Replies received", value: repliedCount, note: "Feedback with a customer reply", mark: "03" },
-    { label: "Awaiting response", value: pendingCount, note: "Requests still pending", mark: "04" },
+    { label: "Services completed", value: completedCount.toLocaleString(), note: "Completed service events received", mark: "01" },
+    { label: "Requests sent", value: sentCount.toLocaleString(), note: feedbackCount + " feedback requests recorded", mark: "02" },
+    { label: "Delivery rate", value: deliveryRate + "%", note: "Sent requests / recorded requests", mark: "03" },
+    { label: "Click rate", value: clickRate + "%", note: clickedCount + " review-link clicks recorded", mark: "04" },
+    { label: "Feedback received", value: feedbackReplyCount.toLocaleString(), note: repliedCount + " requests marked as replied", mark: "05" },
   ];
 
   return (
@@ -87,7 +93,7 @@ export default async function DashboardPage() {
           </div>
         </header>/header>
 
-        <section aria-label="Workspace metrics" className="grid gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
+        <section aria-label="Workspace metrics" className="py-7"><div className="mb-4"><h2 className="text-xl font-semibold">Tracked by MERIT</h2><p className="mt-1 text-sm text-[#64746c]">From completed services to customer feedback</p></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
               <div className="flex items-center justify-between gap-3">
@@ -98,7 +104,7 @@ export default async function DashboardPage() {
               <p className="mt-2 text-xs leading-5 text-[#718178]">{metric.note}</p>
             </article>
           ))}
-        </section>
+        </div></section>
 
         <section id="action-inbox" className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
