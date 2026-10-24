@@ -60,7 +60,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const parsed = noteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Enter a note of up to 2,000 characters." }, { status: 400 });
   const access = await getAuthorizedMembership(request, parsed.data.workspaceId, "feedback:write");
-  if ("response" in access) return access.response;
+  if (access.response) return access.response;
 
   const feedback = await prisma.feedback.findFirst({
     where: { id, workspaceId: parsed.data.workspaceId },
