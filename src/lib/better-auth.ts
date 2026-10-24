@@ -7,20 +7,21 @@ if (!secret || secret.length < 32) {
   throw new Error("AUTH_SECRET must be at least 32 characters");
 }
 
-const trustedOrigins = [
-  process.env.BETTER_AUTH_URL,
-  process.env.NEXT_PUBLIC_APP_URL,
-  "https://merit-capredbeard08.vercel.app",
-  "https://merit-git-main-capredbeard08.vercel.app",
-  "https://merit-olive.vercel.app",
-  "https://merit-qmi40m6le-capredbeard08.vercel.app",
-  "https://merit-29vvlita4-capredbeard08.vercel.app",
-  "https://merit-mh7b9v2rj-capredbeard08.vercel.app",
-  "https://merit-8q9b8dryg-capredbeard08.vercel.app",
-].filter((origin): origin is string => Boolean(origin));
-
 export const auth = betterAuth({
   secret,
+  // Resolve the auth base URL from the incoming host, but only for MERIT-owned
+  // Vercel hostnames. This supports new preview deployment URLs without
+  // manually updating the list for every deployment.
+  baseURL: {
+    allowedHosts: [
+      "merit-olive.vercel.app",
+      "merit-capredbeard08.vercel.app",
+      "merit-git-main-capredbeard08.vercel.app",
+      "merit-*-capredbeard08.vercel.app",
+    ],
+    protocol: "https",
+    fallback: "https://merit-olive.vercel.app",
+  },
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -34,5 +35,4 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
   },
-  trustedOrigins,
 });
