@@ -70,7 +70,9 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#fbfcfb] text-[#14231c]">\n      <DashboardSidebar workspaceName={membership.workspace.name} userName={session.user.name || session.user.email} active="overview" />\n      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-9 md:ml-[234px] md:py-7">
+    <div className="min-h-screen bg-[#fbfcfb] text-[#14231c]">
+      <DashboardSidebar workspaceName={membership.workspace.name} userName={session.user.name || session.user.email} active="overview" />
+      <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-9 md:ml-[234px] md:py-7">
       <div className="mx-auto max-w-[1400px]">
         <header className="flex flex-col gap-5 border-b border-[#e4eae6] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -177,6 +179,7 @@ export default async function DashboardPage() {
           <span>Workspace data is shown within your authorised membership.</span>
         </footer>
       </div>
-    </main>
+      </main>
+    </div>
   );
 }
