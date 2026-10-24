@@ -8,6 +8,8 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().min(3),
   CRON_SECRET: z.string().min(32),
   AI_PROVIDER_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().min(1).optional(),
+  GROQ_MODEL: z.string().min(1).optional(),
   EMAIL_PROVIDER_API_KEY: z.string().optional(),
 });
 
@@ -19,6 +21,8 @@ export const env = envSchema.parse({
   EMAIL_FROM: process.env.EMAIL_FROM,
   CRON_SECRET: process.env.CRON_SECRET,
   AI_PROVIDER_API_KEY: process.env.AI_PROVIDER_API_KEY || undefined,
+  GROQ_API_KEY: process.env.GROQ_API_KEY || undefined,
+  GROQ_MODEL: process.env.GROQ_MODEL || undefined,
   EMAIL_PROVIDER_API_KEY: process.env.EMAIL_PROVIDER_API_KEY || undefined,
 });
 
