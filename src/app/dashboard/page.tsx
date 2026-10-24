@@ -70,7 +70,7 @@ export default async function DashboardPage() {
   const metrics = [
     { label: "Services completed", value: completedCount.toLocaleString(), note: "Completed service events received", mark: "01" },
     { label: "Requests sent", value: sentCount.toLocaleString(), note: feedbackCount + " feedback requests recorded", mark: "02" },
-    { label: "Delivery rate", value: deliveryRate + "%", note: "Sent requests / recorded requests", mark: "03" },
+    { label: "Send rate", value: deliveryRate + "%", note: "Sent requests / recorded requests", mark: "03" },
     { label: "Click rate", value: clickRate + "%", note: clickedCount + " review-link clicks recorded", mark: "04" },
     { label: "Feedback received", value: feedbackReplyCount.toLocaleString(), note: repliedCount + " requests marked as replied", mark: "05" },
   ];
@@ -126,22 +126,29 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <aside className="flex flex-col justify-between rounded-3xl bg-[#123c2d] p-6 text-[#f7f4ec] sm:p-7">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#c0d2c5]">MERIT principle</p>
-              <h2 className="mt-4 text-2xl font-semibold leading-tight">Listen carefully. Act deliberately.</h2>
-              <p className="mt-3 text-sm leading-6 text-[#d4e0d7]">Feedback only matters when it helps your team understand what happened and decide what to improve.</p>
-            </div>
-            <div className="mt-8 border-t border-white/15 pt-4">
-              <p className="text-xs text-[#c0d2c5]">Workspace activity</p>
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
-                <span>Branches</span><span className="font-semibold tabular-nums">{branches.length}</span>
+          <aside className="rounded-3xl border border-[#f0e2c9] bg-[#fffaf1] p-6 sm:p-7">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-[#75431a]">Service recovery required: {pendingCount} open</h2>
+                <p className="mt-2 text-sm leading-6 text-[#6f675c]">Requests still awaiting action may need a customer follow-up.</p>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-                <span>Team members</span><span className="font-semibold tabular-nums">{members.length}</span>
-              </div>
+              <span className="text-xl text-[#a56824]" aria-hidden="true">⚠</span>
             </div>
-          </aside>
+            <div className="mt-5 divide-y divide-[#f0e5d4]">
+              {recentFeedback.filter((item) => item.status === "PENDING").slice(0, 4).map((item) => (
+                <div key={item.id} className="flex items-center gap-3 py-4 first:pt-0 last:pb-0">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f5ead8] text-xs font-semibold text-[#7b4c1e]">{(item.customer.name || item.customer.email || "C").slice(0, 2).toUpperCase()}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[#29372f]">{item.customer.name || item.customer.email || "Customer"}</p>
+                    <p className="mt-1 truncate text-xs text-[#756d62]">{item.branch.name} · {new Date(item.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-[#f8e8cb] px-2.5 py-1 text-[11px] font-semibold text-[#80501c]">Follow up</span>
+                </div>
+              ))}
+              {pendingCount === 0 ? <p className="py-4 text-sm text-[#6f675c]">No open requests need follow-up right now.</p> : null}
+            </div>
+            <a href="/dashboard/feedback" className="mt-5 inline-flex text-sm font-semibold text-[#075b46] underline underline-offset-4">View all feedback ↗</a>
+          </aside>  </aside>
         </section>
 
         <section id="intelligence" className="mt-7">
