@@ -35,12 +35,12 @@ export default function DashboardSidebar({ workspaceName, userName, active = "ov
       <nav aria-label="Main navigation" className="mt-6 grid grid-cols-2 gap-1 sm:grid-cols-3 md:mt-5 md:flex md:flex-col md:gap-1">
         {items.map((item) => {
           const selected = active === "feedback" ? item.label === "Feedback" : active === "overview" && item.label === "Overview";
-          return <Link key={item.label} href={item.href} aria-current={selected ? "page" : undefined} className={"flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors " + (selected ? "bg-[#e2f1eb] text-[#073e31] before:absolute before:left-0 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[#08745a]" : "text-[#273b33] hover:bg-white/80")}>
+          return <Link key={item.label} href={item.href} aria-current={selected ? "page" : undefined} className={"relative flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors " + (selected ? "bg-[#e2f1eb] text-[#073e31] before:absolute before:left-0 before:h-8 before:w-[3px] before:rounded-r-full before:bg-[#08745a]" : "text-[#273b33] hover:bg-white/80")}>
             <NavIcon name={item.icon} /><span>{item.label}</span>
           </Link>;
         })}
       </nav>
-      <div className="mt-5 hidden border-t border-[#dfe8e3] pt-4 md:mt-auto md:block">
+      <div className="mt-5 border-t border-[#dfe8e3] pt-4 md:mt-auto">
         <p className="truncate px-2 text-sm font-semibold text-[#233d32]">{workspaceName}</p>
         <div className="mt-4 flex items-center gap-3 px-2">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#e1ece7] text-sm font-semibold text-[#174b3b]">{(userName || "M").slice(0,1).toUpperCase()}</span>
