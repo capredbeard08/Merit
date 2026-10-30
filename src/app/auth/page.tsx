@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import MeritMark from "@/components/MeritMark";
 
@@ -9,7 +9,6 @@ type Stage = "credentials" | "verification" | "workspace";
 
 export default function AuthPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [stage, setStage] = useState<Stage>("credentials");
   const [name, setName] = useState("");
@@ -58,7 +57,7 @@ export default function AuthPage() {
         const pendingName = sessionStorage.getItem("merit.pendingWorkspaceName");
         if (pendingName) setWorkspace(pendingName);
         setStage("workspace");
-        if (searchParams.get("verified") === "1") {
+        if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("verified") === "1") {
           setNotice("Email verified successfully. Finish setting up your workspace.");
         }
       } catch (cause) {
@@ -67,7 +66,7 @@ export default function AuthPage() {
     }
     void initialise();
     return () => { active = false; };
-  }, [router, searchParams]);
+  }, [router]);
 
   async function createWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
