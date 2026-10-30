@@ -267,6 +267,7 @@ model FollowUp {
   workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   feedback    Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   @@index([workspaceId, status, scheduledAt])
+  @@index([status, processingAt])
 }
 
 enum FeedbackRating {
