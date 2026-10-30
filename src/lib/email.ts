@@ -6,7 +6,7 @@ type SendEmailInput = {
 };
 
 export async function sendEmail(input: SendEmailInput) {
-  const apiKey = process.env.EMAIL_PROVIDER_API_KEY;
+  const apiKey = process.env.RESEND_API_KEY || process.env.EMAIL_PROVIDER_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) throw new Error("Email provider is not configured");
 
