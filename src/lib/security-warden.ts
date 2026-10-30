@@ -67,31 +67,32 @@ export async function recordSecurityEvent(input: RecordSecurityEventInput): Prom
     null;
   const userAgent = headers?.get("user-agent")?.slice(0, 300) ?? null;
 
-  if (!input.workspaceId) {
-    // Until a platform-level security-event store is added, do not pretend a
-    // console log is durable monitoring. Emit a structured operational warning.
-    console.error(JSON.stringify({
-      component: "MERIT_SECURITY_WARDEN_UNSCOPED_EVENT",
+  await prisma.securityEvent.create({
+    data: {
+      workspaceId: input.workspaceId ?? null,
+      actorUserId: input.actorUserId ?? null,
       type: input.type,
       severity,
-      metadata,
-      ipAddress,
-      userAgent,
-      occurredAt: new Date().toISOString(),
-    }));
-    return;
-  }
-
-  await prisma.auditLog.create({
-    data: {
-      workspaceId: input.workspaceId,
-      actorUserId: input.actorUserId ?? null,
-      action: `SECURITY:${input.type}`,
-      targetType: "SECURITY_EVENT",
       targetId: input.targetId ?? null,
       metadata,
       ipAddress,
       userAgent,
     },
   });
+
+  // Keep workspace audit history compatible with existing investigations.
+  if (input.workspaceId) {
+    await prisma.auditLog.create({
+      data: {
+        workspaceId: input.workspaceId,
+        actorUserId: input.actorUserId ?? null,
+        action: `SECURITY:${input.type}`,
+        targetType: "SECURITY_EVENT",
+        targetId: input.targetId ?? null,
+        metadata,
+        ipAddress,
+        userAgent,
+      },
+    });
+  }
 }
