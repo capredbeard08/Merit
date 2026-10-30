@@ -12,6 +12,7 @@ This list is based on the attached website audit. Timing references are intentio
 - [x] Dedicated `files:manage` permission for administrator-level upload and deletion operations.
 - [x] Audited branch, feedback-status, invitation, member, workspace, and file mutations.
 - [x] File deletion removes the private blob object and the database record.
+- [x] Owner/admin-only Security Warden event API and desktop monitoring panel.
 
 ## Public positioning and product proof
 
