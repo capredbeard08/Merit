@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { sanitizeSecurityMetadata } from "@/lib/security-warden";
 
 type AuditInput = {
   workspaceId: string;
@@ -20,9 +21,9 @@ export async function writeAuditLog(input: AuditInput) {
       action: input.action,
       targetType: input.targetType,
       targetId: input.targetId ?? null,
-      metadata: input.metadata,
-      ipAddress: headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? headers?.get("x-real-ip") ?? null,
-      userAgent: headers?.get("user-agent")?.slice(0, 1000) ?? null,
+      metadata: input.metadata ? sanitizeSecurityMetadata(input.metadata as Record<string, unknown>) : undefined,
+      ipAddress: headers?.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? headers?.get("x-real-ip")?.slice(0, 64) ?? null,
+      userAgent: headers?.get("user-agent")?.slice(0, 300) ?? null,
     },
   });
 }

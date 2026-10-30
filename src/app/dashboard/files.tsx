@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { upload } from "@vercel/blob/client";
 
 type FileItem = { id: string; originalName: string; contentType: string; sizeBytes: number; status: string; createdAt: string };
-const ACCEPT = ".pdf,.docx,.jpg,.jpeg,.png,.gif,.txt,.html,.mp3,.mp4,.zip,.csv,.exe";
+const ACCEPT = ".pdf,.docx,.jpg,.jpeg,.png,.gif,.txt,.mp3,.mp4,.zip,.csv";
 const MAX = 50 * 1024 * 1024;
-const EXTENSIONS = ["pdf","docx","jpg","jpeg","png","gif","txt","html","mp3","mp4","zip","csv","exe"];
+const EXTENSIONS = ["pdf","docx","jpg","jpeg","png","gif","txt","mp3","mp4","zip","csv"];
 function prettySize(size: number) { return size < 1024 * 1024 ? Math.max(1, Math.round(size / 1024)) + " KB" : (size / (1024 * 1024)).toFixed(1) + " MB"; }
 
 export default function FileLibrary({ workspaceId }: { workspaceId: string }) {
@@ -57,7 +57,7 @@ export default function FileLibrary({ workspaceId }: { workspaceId: string }) {
         </label>
       </div>
       {message && <p role="status" className="mt-4 rounded-xl bg-[#e7eee9] p-3 text-sm text-[#173b2f]">{message}</p>}
-      <p className="mt-3 text-xs leading-5 text-[#718178]">Executable uploads are quarantined and cannot be downloaded. AI analysis will be enabled only for formats with a safe, supported extraction pipeline.</p>
+      <p className="mt-3 text-xs leading-5 text-[#718178]">Executable, script, and ambiguous binary uploads are blocked. Files remain unavailable until they pass the supported safety workflow.</p>
       <div className="mt-5 divide-y divide-[#e4e9e3]">
         {files.length === 0 ? <p className="py-5 text-sm text-[#718178]">No files uploaded yet.</p> : files.map(file => (
           <div key={file.id} className="flex items-center justify-between gap-4 py-4">

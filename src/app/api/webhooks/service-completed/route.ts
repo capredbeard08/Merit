@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serviceCompletedEventSchema } from "@/lib/security";
 import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/env";
+import { recordSecurityEvent } from "@/lib/security-warden";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,7 @@ function secretsMatch(provided: string, storedHash: string) {
 export async function POST(request: Request): Promise<Response> {
   const providedSecret = request.headers.get("x-merit-webhook-secret");
   if (!providedSecret || providedSecret.length > 256) {
+    await recordSecurityEvent({ type: "WEBHOOK_AUTH_FAILURE", metadata: { reason: "missing_or_invalid_secret" }, request });
     return NextResponse.json({ error: "Webhook secret required" }, { status: 401 });
   }
 
@@ -52,6 +54,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const now = Date.now();
   if (occurredAt < now - WEBHOOK_MAX_AGE_SECONDS * 1000 || occurredAt > now + WEBHOOK_MAX_FUTURE_SECONDS * 1000) {
+    await recordSecurityEvent({ type: "SUSPICIOUS_INPUT", workspaceId: parsed.data.workspaceId, metadata: { reason: "timestamp_outside_replay_window" }, request });
     return NextResponse.json({ error: "Event timestamp outside replay window" }, { status: 409 });
   }
 
@@ -60,9 +63,13 @@ export async function POST(request: Request): Promise<Response> {
   });
   const endpoint = endpoints.find((candidate: { secretHash: string }) => secretsMatch(providedSecret, candidate.secretHash));
 
-  if (!endpoint) return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
+  if (!endpoint) {
+    await recordSecurityEvent({ type: "WEBHOOK_AUTH_FAILURE", workspaceId: parsed.data.workspaceId, metadata: { reason: "secret_mismatch" }, request });
+    return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
+  }
 
   if (endpoint.branchId && endpoint.branchId !== parsed.data.branchId) {
+    await recordSecurityEvent({ type: "AUTHZ_DENIED", workspaceId: parsed.data.workspaceId, metadata: { reason: "branch_scope_mismatch" }, request });
     return NextResponse.json({ error: "Webhook is not authorized for this branch" }, { status: 403 });
   }
 

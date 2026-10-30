@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, FILE_MAX_BYTES, safeOriginalName } from "@/lib/file-security";
+import { recordSecurityEvent } from "@/lib/security-warden";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,14 @@ export async function POST(request: Request): Promise<Response> {
             status: "QUARANTINED",
           },
           update: {},
+        });
+        await recordSecurityEvent({
+          type: "UPLOAD_QUARANTINED",
+          workspaceId: payload.workspaceId,
+          actorUserId: payload.userId,
+          targetId: blob.pathname,
+          metadata: { contentType: contentTypeForName(originalName), status: "QUARANTINED" },
+          request,
         });
       },
     });

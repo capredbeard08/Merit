@@ -2,6 +2,14 @@
 
 This list is based on the attached website audit. Timing references are intentionally omitted; the November deadline is not treated as a constraint.
 
+## Verified in current implementation pass
+
+- [x] Baseline response headers: no sniffing, frame denial, referrer policy, permissions policy, and a restrictive content security policy.
+- [x] Executable, script, traversal, hidden-file, and ambiguous-binary upload blocking.
+- [x] Quarantined upload events recorded by the Security Warden.
+- [x] Audit metadata sanitization and bounded request context.
+- [x] Six security regression tests passing and production build passing.
+
 ## Public positioning and product proof
 
 - [ ] Rewrite the hero around the customer-feedback operations workflow: collect feedback consistently, identify recurring issues, and improve operations.
