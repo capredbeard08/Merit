@@ -29,14 +29,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!member || !can(member.role.toLowerCase() as Role, "files:erase")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!file.deletedAt || file.status !== "DELETED") {
+  if (!file.deletedAt || !["DELETED", "ERASURE_PENDING"].includes(file.status)) {
     return NextResponse.json({ error: "Only soft-deleted files can be permanently erased" }, { status: 409 });
   }
 
   await writeAuditLog({
     workspaceId: file.workspaceId,
     actorUserId: session.user.id,
-    action: "FILE_ERASURE_STARTED",
+    action: file.status === "ERASURE_PENDING" ? "FILE_ERASURE_RETRY_STARTED" : "FILE_ERASURE_STARTED",
     targetType: "FILE_ASSET",
     targetId: file.id,
     metadata: { priorStatus: file.status },
@@ -44,7 +44,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
 
   // Keep the database tombstone if storage deletion fails so the operation can be retried.
-  await prisma.fileAsset.update({ where: { id: file.id }, data: { status: "ERASURE_PENDING" } });
+  if (file.status !== "ERASURE_PENDING") await prisma.fileAsset.update({ where: { id: file.id }, data: { status: "ERASURE_PENDING" } });
   try {
     await del(file.pathname);
   } catch {
