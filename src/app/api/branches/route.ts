@@ -25,7 +25,7 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const branches = await prisma.branch.findMany({
-    where: { workspaceId },
+    where: { workspaceId, archivedAt: null },
     orderBy: { name: "asc" },
     select: { id: true, name: true, externalId: true, createdAt: true },
   });
