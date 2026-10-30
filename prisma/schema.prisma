@@ -244,6 +244,7 @@ model Verification {
 
 enum FollowUpStatus {
   QUEUED
+  PROCESSING
   SENT
   FAILED
   CANCELLED
@@ -256,6 +257,7 @@ model FollowUp {
   channel     String         @default("email")
   status      FollowUpStatus @default(QUEUED)
   scheduledAt DateTime
+  processingAt DateTime?
   sentAt      DateTime?
   failedAt    DateTime?
   providerId  String?
