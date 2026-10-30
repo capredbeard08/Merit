@@ -21,6 +21,7 @@ const trustedOrigins = [
   "https://merit-29vvlita4-capredbeard08.vercel.app",
   "https://merit-mh7b9v2rj-capredbeard08.vercel.app",
   "https://merit-8q9b8dryg-capredbeard08.vercel.app",
+  "https://merit-3t1m2ahta-capredbeard08.vercel.app",
 ].filter((origin): origin is string => Boolean(origin));
 
 const previewCaptchaDisabled = process.env.VERCEL_ENV === "preview";
