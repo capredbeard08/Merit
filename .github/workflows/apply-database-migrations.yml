@@ -31,7 +31,20 @@ jobs:
         run: npm ci
 
       - name: Check migration status before applying
-        run: npx prisma migrate status
+        shell: bash
+        run: |
+          set +e
+          output=$(npx prisma migrate status 2>&1)
+          status=$?
+          set -e
+          printf '%s\\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            if ! grep -Fq "Following migrations have not yet been applied:" <<< "$output"; then
+              echo "::error::Prisma migration pre-check failed for a reason other than pending migrations."
+              exit "$status"
+            fi
+            echo "Pending migrations detected as expected; continuing to the deployment step."
+          fi
         env:
           DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
 
