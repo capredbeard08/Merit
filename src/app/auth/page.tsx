@@ -136,19 +136,24 @@ export default function AuthPage() {
     try {
       if (mode === "signup") {
         sessionStorage.setItem("merit.pendingWorkspaceName", workspace.trim());
+        const captchaToken = await getCaptchaToken("register");
         const result = await authClient.signUp.email({
           name,
           email,
           password,
-          callbackURL: "/auth?verified=1",
+          callbackURL: "/auth",
+        }, {
+          fetchOptions: { headers: { "x-captcha-response": captchaToken } },
         });
         if (result.error) {
           sessionStorage.removeItem("merit.pendingWorkspaceName");
           console.error("[MERIT auth] signup rejected", { code: result.error.code ?? null, status: result.error.status ?? null });
           throw new Error(result.error.message || result.error.code || "Unable to create account.");
         }
-        setStage("verification");
-        setNotice("We’ve sent a verification link to your email. Verify your address, then return here to finish creating your workspace.");
+        const continued = await continueIfAuthenticated();
+        if (!continued) {
+          throw new Error("Your account was created, but we couldn't confirm your session. Please sign in.");
+        }
       } else {
         const captchaToken = await getCaptchaToken("login");
         const result = await authClient.signIn.email({ email, password }, {
