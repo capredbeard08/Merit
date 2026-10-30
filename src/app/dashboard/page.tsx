@@ -152,6 +152,7 @@ export default async function DashboardPage() {
             <p className="mt-1 text-sm text-[#69756e]">Recent replies and emerging themes from this workspace.</p>
           </div>
           <Intelligence
+            workspaceId={workspaceId}
             initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
             initialReplies={replies.map((item) => ({
               ...item,
