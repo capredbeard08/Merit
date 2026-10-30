@@ -5,7 +5,27 @@ import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import MeritMark from "@/components/MeritMark";
 
-type Stage = "credentials" | "verification" | "workspace";
+type Stage = "credentials" | "workspace";
+
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (callback: () => void) => void;
+      execute: (siteKey: string, options: { action: string }) => Promise<string>;
+    };
+  }
+}
+
+async function getCaptchaToken(action: "register" | "login") {
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  if (!siteKey) throw new Error("Security check is not configured. Please contact MERIT support.");
+  if (!window.grecaptcha) throw new Error("Security check is still loading. Please try again.");
+  return new Promise<string>((resolve, reject) => {
+    window.grecaptcha!.ready(() => {
+      window.grecaptcha!.execute(siteKey, { action }).then(resolve).catch(() => reject(new Error("Security check failed. Please try again.")));
+    });
+  });
+}
 
 export default function AuthPage() {
   const router = useRouter();
@@ -18,6 +38,17 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+    if (!siteKey || document.querySelector('script[data-merit-recaptcha="true"]')) return;
+    const script = document.createElement("script");
+    script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.meritRecaptcha = "true";
+    document.head.appendChild(script);
+  }, []);
 
   async function continueIfAuthenticated() {
     const sessionResult = await authClient.getSession();
@@ -36,7 +67,7 @@ export default function AuthPage() {
     const pendingName = sessionStorage.getItem("merit.pendingWorkspaceName");
     if (pendingName) setWorkspace(pendingName);
     setStage("workspace");
-    setNotice("Your email is verified. Finish setting up your workspace.");
+    setNotice("Your account is ready. Finish setting up your workspace.");
     return true;
   }
 
@@ -58,7 +89,7 @@ export default function AuthPage() {
         if (pendingName) setWorkspace(pendingName);
         setStage("workspace");
         if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("verified") === "1") {
-          setNotice("Email verified successfully. Finish setting up your workspace.");
+          setNotice("Your account is ready. Finish setting up your workspace.");
         }
       } catch (cause) {
         console.error("[MERIT auth] session initialisation failed", cause);
@@ -119,7 +150,10 @@ export default function AuthPage() {
         setStage("verification");
         setNotice("We’ve sent a verification link to your email. Verify your address, then return here to finish creating your workspace.");
       } else {
-        const result = await authClient.signIn.email({ email, password });
+        const captchaToken = await getCaptchaToken("login");
+        const result = await authClient.signIn.email({ email, password }, {
+          fetchOptions: { headers: { "x-captcha-response": captchaToken } },
+        });
         if (result.error) throw new Error(result.error.message || "Unable to sign in.");
         const continued = await continueIfAuthenticated();
         if (!continued) throw new Error("We couldn't confirm your session. Please try signing in again.");
@@ -135,7 +169,7 @@ export default function AuthPage() {
 
   const isSignup = mode === "signup";
   const showWorkspace = stage === "workspace";
-  const showVerification = stage === "verification";
+  const showVerification = false;
 
   return (
     <main className="min-h-screen bg-[#f7f3ea] px-6 py-16 text-[#173b2f]">

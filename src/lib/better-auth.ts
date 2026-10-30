@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
+import { captcha } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
@@ -21,6 +22,11 @@ const trustedOrigins = [
   "https://merit-8q9b8dryg-capredbeard08.vercel.app",
 ].filter((origin): origin is string => Boolean(origin));
 
+const captchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+if (!captchaSecret) {
+  throw new Error("RECAPTCHA_SECRET_KEY must be configured");
+}
+
 export const auth = betterAuth({
   secret,
   database: prismaAdapter(prisma, {
@@ -28,7 +34,9 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    // Temporary pilot configuration: email verification is disabled until
+    // a verified sending domain is configured. Restore this before broad launch.
+    requireEmailVerification: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
   },
@@ -42,10 +50,18 @@ export const auth = betterAuth({
         idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
       });
     },
-    sendOnSignUp: true,
-    sendOnSignIn: true,
+    // Keep email delivery dormant until the sender domain is verified.
+    sendOnSignUp: false,
+    sendOnSignIn: false,
     autoSignInAfterVerification: true,
   },
+  plugins: [
+    captcha({
+      provider: "google-recaptcha",
+      secretKey: captchaSecret,
+      minScore: 0.5,
+    }),
+  ],
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
