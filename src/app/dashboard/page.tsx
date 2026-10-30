@@ -183,7 +183,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {can(membership.role.toLowerCase() as Role, "workspace:manage") ? <SecurityCenter workspaceId={workspaceId} /> : null}
+        {can(membership.role.toLowerCase() as Role, "security:read") ? <SecurityCenter workspaceId={workspaceId} /> : null}
 
         <footer className="mt-10 flex flex-col gap-2 border-t border-[#dfe4df] pt-5 text-xs text-[#7b887f] sm:flex-row sm:items-center sm:justify-between">
           <span>MERIT · Customer intelligence, quietly automated.</span>
