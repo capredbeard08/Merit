@@ -1,0 +1,1 @@
+{"routes":[{"path":"/","title":"MERIT home"},{"path":"/auth","title":"MERIT authentication"},{"path":"/privacy","title":"MERIT privacy policy"},{"path":"/security","title":"MERIT security"},{"path":"/dashboard","title":"MERIT dashboard"},{"path":"/feedback/:id","title":"MERIT feedback request"},{"path":"/invite/:token","title":"MERIT invitation"}]}
