@@ -10,21 +10,23 @@ export const permissionNames = [
   "feedback:write",
   "integrations:manage",
   "files:manage",
+  "files:recover",
+  "files:erase",
   "ai:use",
 ] as const;
 
 export type Permission = (typeof permissionNames)[number];
 
 const permissions: Record<Role, readonly Permission[]> = {
-  owner: ["workspace:manage", "members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "ai:use"],
-  admin: ["members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "ai:use"],
+  owner: ["workspace:manage", "members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "files:recover", "files:erase", "ai:use"],
+  admin: ["members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "files:recover", "ai:use"],
   manager: ["branches:read", "feedback:read", "feedback:write", "ai:use"],
   agent: ["feedback:read", "feedback:write"],
   viewer: ["feedback:read"],
 };
 
 export function can(role: Role, permission: Permission) {
-  return permissions[role].includes(permission);
+  return permissions[role]?.includes(permission) ?? false;
 }
 
 export function assertWorkspaceRole(role: Role, required: Permission) {
