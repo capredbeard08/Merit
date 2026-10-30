@@ -17,6 +17,7 @@ declare global {
 }
 
 async function getCaptchaToken(action: "register" | "login") {
+  if (process.env.NEXT_PUBLIC_DISABLE_CAPTCHA === "true") return null;
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   if (!siteKey) throw new Error("Security check is not configured. Please contact MERIT support.");
   if (!window.grecaptcha) throw new Error("Security check is still loading. Please try again.");
@@ -40,6 +41,7 @@ export default function AuthPage() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_DISABLE_CAPTCHA === "true") return;
     const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
     if (!siteKey || document.querySelector('script[data-merit-recaptcha="true"]')) return;
     const script = document.createElement("script");
@@ -142,7 +144,7 @@ export default function AuthPage() {
           email,
           password,
           callbackURL: "/auth",
-          fetchOptions: { headers: { "x-captcha-response": captchaToken } },
+          fetchOptions: captchaToken ? { headers: { "x-captcha-response": captchaToken } } : {},
         });
         if (result.error) {
           sessionStorage.removeItem("merit.pendingWorkspaceName");
@@ -158,7 +160,7 @@ export default function AuthPage() {
         const result = await authClient.signIn.email({
           email,
           password,
-          fetchOptions: { headers: { "x-captcha-response": captchaToken } },
+          fetchOptions: captchaToken ? { headers: { "x-captcha-response": captchaToken } } : {},
         });
         if (result.error) throw new Error(result.error.message || "Unable to sign in.");
         const continued = await continueIfAuthenticated();
