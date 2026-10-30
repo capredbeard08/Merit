@@ -142,7 +142,6 @@ export default function AuthPage() {
           email,
           password,
           callbackURL: "/auth",
-        }, {
           fetchOptions: { headers: { "x-captcha-response": captchaToken } },
         });
         if (result.error) {
@@ -156,7 +155,9 @@ export default function AuthPage() {
         }
       } else {
         const captchaToken = await getCaptchaToken("login");
-        const result = await authClient.signIn.email({ email, password }, {
+        const result = await authClient.signIn.email({
+          email,
+          password,
           fetchOptions: { headers: { "x-captcha-response": captchaToken } },
         });
         if (result.error) throw new Error(result.error.message || "Unable to sign in.");
