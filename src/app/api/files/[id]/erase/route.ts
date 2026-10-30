@@ -29,7 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!member || !can(member.role.toLowerCase() as Role, "files:erase")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!file.deletedAt || !["DELETED", "ERASURE_PENDING"].includes(file.status)) {
+  if (!file.deletedAt || (file.status !== "DELETED" && file.status !== "ERASURE_PENDING")) {
     return NextResponse.json({ error: "Only soft-deleted files can be permanently erased" }, { status: 409 });
   }
   const retentionSetting = process.env.FILE_RECOVERY_RETENTION_DAYS;
