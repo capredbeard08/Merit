@@ -10,7 +10,7 @@ export async function GET(request: Request): Promise<Response> {
   if (!workspaceId || workspaceId.length > 128) return NextResponse.json({ error: "Invalid workspaceId" }, { status: 400 });
 
   const membership = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId, userId: session.user.id } } });
-  if (!membership || !can(membership.role.toLowerCase() as Role, "workspace:manage")) {
+  if (!membership || !can(membership.role.toLowerCase() as Role, "security:read")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
