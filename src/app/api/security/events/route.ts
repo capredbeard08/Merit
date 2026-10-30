@@ -14,16 +14,24 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const events = await prisma.auditLog.findMany({
-    where: { workspaceId, action: { startsWith: "SECURITY:" } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: { id: true, action: true, targetId: true, metadata: true, createdAt: true, actorUserId: true },
-  });
-  const counts = events.reduce<Record<string, number>>((result, event) => {
-    const severity = typeof event.metadata === "object" && event.metadata && "severity" in event.metadata ? String(event.metadata.severity) : "UNKNOWN";
-    result[severity] = (result[severity] ?? 0) + 1;
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [events, groupedCounts] = await Promise.all([
+    prisma.securityEvent.findMany({
+      where: { workspaceId, createdAt: { gte: since } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, type: true, severity: true, targetId: true, metadata: true, createdAt: true, actorUserId: true },
+    }),
+    prisma.securityEvent.groupBy({
+      by: ["severity"],
+      where: { workspaceId, createdAt: { gte: since } },
+      _count: { _all: true },
+    }),
+  ]);
+  const counts = groupedCounts.reduce<Record<string, number>>((result, item) => {
+    result[item.severity] = item._count._all;
     return result;
-  }, {});
-  return NextResponse.json({ events, counts });
+  }, { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 });
+
+  return NextResponse.json({ events, counts, windowDays: 30 });
 }
