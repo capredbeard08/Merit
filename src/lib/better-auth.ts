@@ -23,8 +23,9 @@ const trustedOrigins = [
   "https://merit-8q9b8dryg-capredbeard08.vercel.app",
 ].filter((origin): origin is string => Boolean(origin));
 
+const previewCaptchaDisabled = process.env.VERCEL_ENV === "preview";
 const captchaSecret = process.env.RECAPTCHA_SECRET_KEY;
-if (!captchaSecret) {
+if (!previewCaptchaDisabled && !captchaSecret) {
   throw new Error("RECAPTCHA_SECRET_KEY must be configured");
 }
 
@@ -56,10 +57,13 @@ export const auth = betterAuth({
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
   },
-  plugins: [
+  // CAPTCHA remains mandatory in production. Preview deployments bypass it so
+  // reviewers can authenticate on ephemeral Vercel hostnames not allowlisted
+  // by Google's reCAPTCHA domain configuration.
+  plugins: previewCaptchaDisabled ? [] : [
     captcha({
       provider: "google-recaptcha",
-      secretKey: captchaSecret,
+      secretKey: captchaSecret!,
       minScore: 0.5,
     }),
   ],
