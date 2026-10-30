@@ -65,6 +65,8 @@ model Branch {
   externalId  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+  archivedById String?
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   customers   Customer[]
   feedback    Feedback[]
@@ -72,6 +74,7 @@ model Branch {
   webhooks    WebhookEndpoint[]
   @@unique([workspaceId, externalId])
   @@index([workspaceId])
+  @@index([workspaceId, archivedAt])
 }
 
 model Customer {
@@ -316,4 +319,21 @@ model FileAsset {
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   @@index([workspaceId, createdAt])
   @@index([workspaceId, deletedAt])
+}
+
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  actorUserId String?
+  type        String
+  severity    String
+  targetId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  @@index([workspaceId, createdAt])
+  @@index([severity, createdAt])
+  @@index([type, createdAt])
 }
