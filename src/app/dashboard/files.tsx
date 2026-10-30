@@ -108,7 +108,7 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canEra
             <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div className="min-w-0"><p className="truncate font-medium text-[#173b2f]">{file.originalName}</p><p className="mt-1 text-xs text-[#718178]">Deleted {file.deletedAt ? new Date(file.deletedAt).toLocaleString() : "date unavailable"} · {prettySize(file.sizeBytes)}</p></div>
               <div className="flex items-center gap-3">
-                <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>
+                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}{file.status === "ERASURE_PENDING" && <span className="text-xs font-semibold text-[#8a3e2e]">Erasure pending</span>}
                 {canErase && <button type="button" disabled={busy} onClick={() => void erase(file)} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Erase permanently</button>}
               </div>
             </div>
