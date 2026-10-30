@@ -88,7 +88,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const branch = await prisma.branch.findFirst({
-    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId },
+    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
     select: { id: true },
   });
   if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
