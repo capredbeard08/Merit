@@ -73,15 +73,48 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f4ec] px-4 py-6 text-[#17211c] sm:px-6 sm:py-8 lg:px-10">
-      <div className="mx-auto max-w-[1400px]">
+    <main className="min-h-screen bg-[#f7f4ec] text-[#17211c]">
+      <div className="mx-auto flex min-h-screen max-w-[1600px]">
+        <aside className="hidden w-[260px] shrink-0 border-r border-[#dfe4df] bg-[#f2efe6] px-5 py-7 lg:flex lg:flex-col">
+          <a href="#overview" aria-label="MERIT dashboard home" className="merit-brand mb-9">
+            <MeritMark size={40} />
+            <span className="merit-brand-name">MERIT</span>
+          </a>
+          <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#87938a]">Workspace</p>
+          <nav aria-label="Dashboard navigation" className="space-y-1">
+            {[
+              ["overview", "Overview", "⌂"],
+              ["action-inbox", "Action inbox", "↳"],
+              ["intelligence", "Feedback intelligence", "⌁"],
+              ["branches", "Branches", "▦"],
+              ["files", "Files & documents", "▤"],
+              ["team", "Team access", "♙"],
+              ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security Warden", "◇"]] : []),
+            ].map(([id, label, mark]) => (
+              <a key={id} href={`#${id}`} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-[#52665a] transition hover:bg-white hover:text-[#123c2d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#315b49]">
+                <span aria-hidden="true" className="w-5 text-center text-base text-[#718178]">{mark}</span>
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-auto rounded-2xl border border-[#dfe4df] bg-white/70 p-4">
+            <p className="text-xs font-semibold text-[#173b2f]">Your workspace</p>
+            <p className="mt-1 truncate text-sm text-[#718178]">{membership.workspace.name}</p>
+            <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-[#87938a]">{membership.role.toLowerCase()}</p>
+          </div>
+        </aside>
+        <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
+          <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden" aria-label="Dashboard navigation">
+            {[
+              ["overview", "Overview"], ["action-inbox", "Inbox"], ["intelligence", "Insights"],
+              ["branches", "Branches"], ["files", "Files"], ["team", "Team"],
+              ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security"]] : []),
+            ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dfe4df] bg-white/75 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
+          </div>
+          <div className="mx-auto max-w-[1200px]">
         <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <a href="/dashboard" aria-label="MERIT dashboard home" className="merit-brand">
-              <MeritMark size={40} />
-              <span className="merit-brand-name">MERIT</span>
-            </a>
-            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
             <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
           </div>
@@ -96,7 +129,7 @@ export default async function DashboardPage() {
           </div>
         </header>
 
-        <section aria-label="Workspace metrics" className="grid gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
+        <section id="overview" aria-label="Workspace metrics" className="grid scroll-mt-6 gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
               <div className="flex items-center justify-between gap-3">
@@ -174,9 +207,9 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Workspace management</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">Your workspace, organised</h2>
           <p className="mt-1 text-sm text-[#69756e]">Manage locations, authorised team members, and supporting files.</p>
-          <div id="branches" className="mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
-          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(membership.role.toLowerCase() as Role, "files:manage")} canRecover={can(membership.role.toLowerCase() as Role, "files:recover")} canErase={can(membership.role.toLowerCase() as Role, "files:erase")} /></div>
-          <div id="team" className="mt-5">
+          <div id="branches" className="mt-5 scroll-mt-6"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
+          <div id="files" className="mt-5 scroll-mt-6"><FileLibrary workspaceId={workspaceId} canManage={can(membership.role.toLowerCase() as Role, "files:manage")} canRecover={can(membership.role.toLowerCase() as Role, "files:recover")} canErase={can(membership.role.toLowerCase() as Role, "files:erase")} /></div>
+          <div id="team" className="mt-5 scroll-mt-6">
             <MemberManager
               workspaceId={workspaceId}
               initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))}
@@ -184,12 +217,14 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {can(membership.role.toLowerCase() as Role, "security:read") ? <SecurityCenter workspaceId={workspaceId} /> : null}
+        {can(membership.role.toLowerCase() as Role, "security:read") ? <div id="security-center" className="scroll-mt-6"><SecurityCenter workspaceId={workspaceId} /></div> : null}
 
         <footer className="mt-10 flex flex-col gap-2 border-t border-[#dfe4df] pt-5 text-xs text-[#7b887f] sm:flex-row sm:items-center sm:justify-between">
           <span>MERIT · Customer intelligence, quietly automated.</span>
           <span>Workspace data is shown within your authorised membership.</span>
         </footer>
+          </div>
+        </div>
       </div>
     </main>
   );
