@@ -212,18 +212,18 @@ model Session {
 model Account {
   id                   String    @id
   accountId            String
-  providerId           String
-  userId               String
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken          String?
-  refreshToken         String?
-  idToken              String?
-  accessTokenExpiresAt DateTime?
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope                String?
-  password             String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
   @@unique([providerId, accountId])
   @@index([userId])
 }
@@ -233,8 +233,8 @@ model Verification {
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime
+  updatedAt  DateTime
   @@index([identifier])
   @@index([value])
 }
@@ -247,20 +247,20 @@ enum FollowUpStatus {
 }
 
 model FollowUp {
-  id         String         @id @default(cuid())
+  id          String         @id @default(cuid())
   workspaceId String
-  feedbackId String         @unique
-  channel    String         @default("email")
-  status     FollowUpStatus @default(QUEUED)
+  feedbackId  String         @unique
+  channel     String         @default("email")
+  status      FollowUpStatus @default(QUEUED)
   scheduledAt DateTime
-  sentAt     DateTime?
-  failedAt   DateTime?
-  providerId String?
-  error      String?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  sentAt      DateTime?
+  failedAt    DateTime?
+  providerId  String?
+  error       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback    Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   @@index([workspaceId, status, scheduledAt])
 }
 
@@ -273,15 +273,15 @@ enum FeedbackRating {
 }
 
 model FeedbackReply {
-  id         String         @id @default(cuid())
+  id          String         @id @default(cuid())
   workspaceId String
-  feedbackId String
-  rating     FeedbackRating?
-  message    String?
-  email      String?
-  createdAt  DateTime       @default(now())
-  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  feedbackId  String
+  rating      FeedbackRating?
+  message     String?
+  email       String?
+  createdAt   DateTime       @default(now())
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback    Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   @@index([workspaceId, createdAt])
   @@index([feedbackId, createdAt])
 }
@@ -298,7 +298,6 @@ model Insight {
   @@index([workspaceId, createdAt])
 }
 
-
 model FileAsset {
   id           String   @id @default(cuid())
   workspaceId  String
@@ -309,8 +308,12 @@ model FileAsset {
   sizeBytes    Int
   status       String   @default("AVAILABLE")
   analysisText String?
+  deletedAt    DateTime?
+  deletedById  String?
+  priorStatus  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   @@index([workspaceId, createdAt])
+  @@index([workspaceId, deletedAt])
 }
