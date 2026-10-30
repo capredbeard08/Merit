@@ -26,7 +26,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const existing = await prisma.branch.findFirst({ where: { id, workspaceId: parsed.data.workspaceId } });
+  const existing = await prisma.branch.findFirst({ where: { id, workspaceId: parsed.data.workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
   const branch = await prisma.branch.update({
@@ -58,10 +58,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const existing = await prisma.branch.findFirst({ where: { id, workspaceId } });
+  const existing = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
-  await prisma.branch.delete({ where: { id } });
-  await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_DELETED", targetType: "BRANCH", targetId: id, request });
+  await prisma.branch.update({ where: { id }, data: { archivedAt: new Date(), archivedById: session.user.id } });
+  await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_ARCHIVED", targetType: "BRANCH", targetId: id, metadata: { dataPreserved: true }, request });
   return new NextResponse(null, { status: 204 });
 }
