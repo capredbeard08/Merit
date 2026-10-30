@@ -27,7 +27,7 @@ export async function POST(request: Request): Promise<Response> {
         if (!Number.isSafeInteger(sizeBytes) || (sizeBytes as number) < 0 || (sizeBytes as number) > FILE_MAX_BYTES) throw new Error("Invalid file size");
         if (!workspaceId || workspaceId.length > 128 || !allowedFileName(originalName)) throw new Error("Unsupported file type or workspace");
         const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId, userId: session.user.id } } });
-        if (!member || !can(member.role.toLowerCase() as Role, "feedback:write")) throw new Error("Forbidden");
+        if (!member || !can(member.role.toLowerCase() as Role, "files:manage")) throw new Error("Forbidden");
         return {
           allowedContentTypes: [...FILE_ALLOWED_CONTENT_TYPES],
           maximumSizeInBytes: FILE_MAX_BYTES,

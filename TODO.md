@@ -9,6 +9,9 @@ This list is based on the attached website audit. Timing references are intentio
 - [x] Quarantined upload events recorded by the Security Warden.
 - [x] Audit metadata sanitization and bounded request context.
 - [x] Six security regression tests passing and production build passing.
+- [x] Dedicated `files:manage` permission for administrator-level upload and deletion operations.
+- [x] Audited branch, feedback-status, invitation, member, workspace, and file mutations.
+- [x] File deletion removes the private blob object and the database record.
 
 ## Public positioning and product proof
 

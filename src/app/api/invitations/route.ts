@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
+import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -50,6 +51,8 @@ export async function POST(request: Request): Promise<Response> {
     },
     select: { id: true, email: true, role: true, expiresAt: true },
   });
+
+  await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "INVITATION_CREATED", targetType: "INVITATION", targetId: invitation.id, metadata: { role: parsed.data.role }, request });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   return NextResponse.json({

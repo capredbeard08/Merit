@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
+import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -37,6 +38,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     select: { id: true, name: true, externalId: true, updatedAt: true },
   });
 
+  await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "BRANCH_UPDATED", targetType: "BRANCH", targetId: id, metadata: { changedName: parsed.data.name !== undefined, changedExternalId: parsed.data.externalId !== undefined }, request });
+
   return NextResponse.json({ branch });
 }
 
@@ -59,5 +62,6 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
   await prisma.branch.delete({ where: { id } });
+  await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_DELETED", targetType: "BRANCH", targetId: id, request });
   return new NextResponse(null, { status: 204 });
 }

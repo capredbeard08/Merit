@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
+import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({ name: z.string().trim().min(2).max(120) });
 
@@ -26,6 +27,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ works
     data: { name: parsed.data.name },
     select: { id: true, name: true, updatedAt: true },
   });
+
+  await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "WORKSPACE_UPDATED", targetType: "WORKSPACE", targetId: workspaceId, metadata: { changedName: true }, request });
 
   return NextResponse.json({ workspace });
 }

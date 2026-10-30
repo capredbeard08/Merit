@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
+import { writeAuditLog } from "@/lib/audit";
 
 const createSchema = z.object({
   workspaceId: z.string().min(1),
@@ -72,6 +73,8 @@ export async function POST(request: Request): Promise<Response> {
     data: { workspaceId: parsed.data.workspaceId, userId: user.id, email: user.email, role: parsed.data.role.toUpperCase() as never },
     select: { id: true, email: true, role: true, createdAt: true },
   });
+
+  await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: result.session.user.id, action: "MEMBER_CREATED", targetType: "MEMBER", targetId: member.id, metadata: { role: parsed.data.role }, request });
 
   return NextResponse.json({ member }, { status: 201 });
 }
