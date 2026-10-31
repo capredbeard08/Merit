@@ -14,11 +14,21 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const membership = await prisma.member.findFirst({
-    where: { userId: session.user.id },
-    include: { workspace: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const requestedWorkspaceId = new URL(request.url).searchParams.get("workspaceId");
+  const membership = requestedWorkspaceId
+    ? await prisma.member.findFirst({
+        where: { userId: session.user.id, workspaceId: requestedWorkspaceId },
+        include: { workspace: { select: { id: true, name: true } } },
+      })
+    : await prisma.member.findFirst({
+        where: { userId: session.user.id },
+        include: { workspace: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      });
+
+  if (requestedWorkspaceId && !membership) {
+    return NextResponse.json({ error: "Workspace membership not found" }, { status: 404 });
+  }
 
   return NextResponse.json({
     workspace: membership
