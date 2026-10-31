@@ -9,11 +9,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     return NextResponse.json({ error: "Invalid feedback link" }, { status: 404 });
   }
 
-  const feedback = await prisma.feedback.findUnique({ where: { id }, select: { id: true, status: true } });
+  const feedback = await prisma.feedback.findUnique({ where: { id }, select: { id: true, workspaceId: true, status: true } });
   if (!feedback) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
 
   await prisma.feedback.update({
-    where: { id },
+    where: { id, workspaceId: feedback.workspaceId },
     data: { clickedAt: new Date(), status: feedback.status === "PENDING" || feedback.status === "CONTACTED" ? "CLICKED" : undefined },
   });
 

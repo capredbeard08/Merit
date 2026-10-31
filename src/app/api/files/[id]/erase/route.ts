@@ -71,7 +71,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Storage erasure could not be confirmed; the file remains blocked for retry." }, { status: 503 });
   }
 
-  await prisma.fileAsset.delete({ where: { id: file.id } });
+  const erased = await prisma.fileAsset.deleteMany({
+    where: { id: file.id, workspaceId: file.workspaceId, status: "ERASURE_PENDING", deletedAt: file.deletedAt },
+  });
+  if (erased.count !== 1) {
+    return NextResponse.json({ error: "File erasure state changed after storage deletion; investigate before retrying." }, { status: 409 });
+  }
   await writeAuditLog({
     workspaceId: file.workspaceId,
     actorUserId: session.user.id,

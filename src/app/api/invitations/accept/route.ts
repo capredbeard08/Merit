@@ -23,28 +23,27 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Invitation email does not match signed-in account" }, { status: 403 });
   }
 
-  const existing = await prisma.member.findUnique({
-    where: { workspaceId_userId: { workspaceId: invitation.workspaceId, userId: session.user.id } },
-  });
-  if (existing) {
-    await prisma.invitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });
-    return NextResponse.json({ accepted: true, workspaceId: invitation.workspaceId });
-  }
+  const accepted = await prisma.$transaction(async (tx) => {
+    // Claim the invitation once, even when two requests race to accept it.
+    const claim = await tx.invitation.updateMany({
+      where: { id: invitation.id, acceptedAt: null, expiresAt: { gt: new Date() } },
+      data: { acceptedAt: new Date() },
+    });
+    if (claim.count !== 1) return false;
 
-  await prisma.$transaction([
-    prisma.member.create({
-      data: {
+    await tx.member.upsert({
+      where: { workspaceId_userId: { workspaceId: invitation.workspaceId, userId: session.user.id } },
+      create: {
         workspaceId: invitation.workspaceId,
         userId: session.user.id,
         email: session.user.email,
         role: invitation.role,
       },
-    }),
-    prisma.invitation.update({
-      where: { id: invitation.id },
-      data: { acceptedAt: new Date() },
-    }),
-  ]);
+      update: {},
+    });
+    return true;
+  });
 
+  if (!accepted) return NextResponse.json({ error: "Invitation is invalid or expired" }, { status: 400 });
   return NextResponse.json({ accepted: true, workspaceId: invitation.workspaceId });
 }

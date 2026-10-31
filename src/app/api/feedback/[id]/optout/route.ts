@@ -12,21 +12,21 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
   const feedback = await prisma.feedback.findUnique({
     where: { id },
-    select: { id: true, customerId: true },
+    select: { id: true, workspaceId: true, customerId: true },
   });
   if (!feedback) return NextResponse.json({ error: "Feedback request not found" }, { status: 404 });
 
   await prisma.$transaction([
     prisma.customer.update({
-      where: { id: feedback.customerId },
+      where: { id: feedback.customerId, workspaceId: feedback.workspaceId },
       data: { optedOutAt: new Date() },
     }),
     prisma.feedback.update({
-      where: { id },
+      where: { id, workspaceId: feedback.workspaceId },
       data: { status: "OPTED_OUT" },
     }),
     prisma.followUp.updateMany({
-      where: { feedbackId: id, status: "QUEUED" },
+      where: { feedbackId: id, workspaceId: feedback.workspaceId, status: "QUEUED" },
       data: { status: "CANCELLED" },
     }),
   ]);
