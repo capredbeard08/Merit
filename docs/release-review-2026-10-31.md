@@ -40,7 +40,14 @@ Required before enabling AI for real customer data:
 ### 4. Dashboard changes overlap
 PR #2 substantially changes dashboard metrics, branch filtering, click trends and navigation. PR #4 adds a different sidebar/navigation implementation to a dashboard that already contains PR #3's security and recovery components. Select one dashboard implementation and port the needed functionality deliberately; do not merge both implementations blindly.
 
-## Work performed after the initial review\n- Updated PR #3's Better Auth configuration to use a strict dynamic host allowlist for MERIT-owned Vercel hosts while retaining the CAPTCHA plugin and the dormant verification callback. Better Auth 1.7.x documents that `baseURL.allowedHosts` are automatically added to trusted origins; Vercel's proxy behavior does not require enabling trusted proxy headers.\n- Changed webhook request-body handling to enforce the 256 KiB cap while streaming, rather than buffering the entire body before checking its size.\n- Brought the controlled manual database migration workflow into the security branch. It remains `workflow_dispatch` only and has not been run.\n- Corrected the PR #3 description and TODO status: email verification is configured but not enforced.\n- Latest PR #3 head at this update: `c3d373f2a8ca0552dfac0408ecf4b2d1aa32baac`; GitHub CI is queued and Vercel preview status is pending.\n\n## Security remediation checks
+## Work performed after the initial review
+- Updated PR #3's Better Auth configuration to use a strict dynamic host allowlist for MERIT-owned Vercel hosts while retaining the CAPTCHA plugin and the dormant verification callback. Better Auth 1.7.x documents that `baseURL.allowedHosts` are automatically added to trusted origins; Vercel's proxy behavior does not require enabling trusted proxy headers.
+- Changed webhook request-body handling to enforce the 256 KiB cap while streaming, rather than buffering the entire body before checking its size.
+- Brought the controlled manual database migration workflow into the security branch. It remains `workflow_dispatch` only and has not been run.
+- Corrected the PR #3 description and TODO status: email verification is configured but not enforced.
+- Latest PR #3 head at this update: `a124d1f6df8463ae8f6651b18f34636e6aad3fcf`; GitHub CI is queued and Vercel preview status is pending.
+
+## Security remediation checks
 - Review every workspace-scoped route for membership, role and cross-entity ownership checks.
 - Inspect actual SQL migrations and the live PostgreSQL catalog before claiming Row Level Security is enabled. Prisma schema declarations alone do not prove RLS policies exist.
 - Test recoverable file deletion/restoration and branch archival/restoration, including retention and blob/database consistency.
@@ -49,7 +56,11 @@ PR #2 substantially changes dashboard metrics, branch filtering, click trends an
 - Confirm production CSP, CORS, rate limits, webhook signature/replay controls, backup retention and a successful isolated restore drill.
 - Confirm production debug settings and secret-file ignore/history checks.
 
-## Vercel environment finding\n- The Vercel project metadata assigns one `DATABASE_URL` environment-variable record to both `production` and `preview`. Preview therefore currently receives the same database URL value as Production. SSO protection is enabled for non-custom deployment domains, but that is not database isolation and does not prevent accidental writes from preview code. Create and verify a separate Preview database before write-capable preview testing or preview migrations.\n- A Preview-only `NEXT_PUBLIC_DISABLE_CAPTCHA=true` variable is configured for `feat/restore-functional-sidebar`; the corresponding PR #4 code also disables the server CAPTCHA plugin when `VERCEL_ENV=preview`. Keep this behind SSO and separate Preview data; do not copy the bypass into production.\n\n## Release gates
+## Vercel environment finding
+- The Vercel project metadata assigns one `DATABASE_URL` environment-variable record to both `production` and `preview`. Preview therefore currently receives the same database URL value as Production. SSO protection is enabled for non-custom deployment domains, but that is not database isolation and does not prevent accidental writes from preview code. Create and verify a separate Preview database before write-capable preview testing or preview migrations.
+- A Preview-only `NEXT_PUBLIC_DISABLE_CAPTCHA=true` variable is configured for `feat/restore-functional-sidebar`; the corresponding PR #4 code also disables the server CAPTCHA plugin when `VERCEL_ENV=preview`. Keep this behind SSO and separate Preview data; do not copy the bypass into production.
+
+## Release gates
 1. One integrated branch with documented source PRs and no unresolved conflicts.
 2. CI passes: tests, typecheck and production build.
 3. Vercel preview build passes.
