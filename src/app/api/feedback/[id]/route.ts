@@ -6,7 +6,7 @@ import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
 
 const schema = z.object({
-  workspaceId: z.string().min(1),
+  workspaceId: z.string().min(1).max(128),
   status: z.enum(["CONTACTED","CLICKED","REPLIED","RESOLVED","OPTED_OUT"]),
 });
 
@@ -27,6 +27,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const feedback = await prisma.feedback.findFirst({
     where: { id, workspaceId: parsed.data.workspaceId },
+    select: { id: true, status: true, customerId: true },
   });
   if (!feedback) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
 
@@ -40,11 +41,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   } as const;
 
   const updated = await prisma.$transaction(async (tx) => {
-    const updatedFeedback = await tx.feedback.update({
-      where: { id },
+    // Keep tenant scope on the mutation itself. The earlier read is not the
+    // authorization boundary for this write.
+    const claim = await tx.feedback.updateMany({
+      where: { id, workspaceId: parsed.data.workspaceId },
       data: { status: parsed.data.status, ...timestamps[parsed.data.status] },
-      select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true },
     });
+    if (claim.count !== 1) return null;
 
     if (parsed.data.status === "OPTED_OUT") {
       await tx.customer.updateMany({
@@ -52,13 +55,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         data: { optedOutAt: now },
       });
       await tx.followUp.updateMany({
-        where: { feedbackId: id, status: "QUEUED" },
+        where: { feedbackId: id, workspaceId: parsed.data.workspaceId, status: "QUEUED" },
         data: { status: "CANCELLED" },
       });
     }
 
-    return updatedFeedback;
+    return tx.feedback.findFirst({
+      where: { id, workspaceId: parsed.data.workspaceId },
+      select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true },
+    });
   });
+
+  if (!updated) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
 
   await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "FEEDBACK_STATUS_CHANGED", targetType: "FEEDBACK", targetId: id, metadata: { from: feedback.status, to: parsed.data.status }, request });
 
