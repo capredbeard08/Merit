@@ -29,7 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   // request can transition an eligible feedback record to REPLIED.
   const accepted = await prisma.$transaction(async (tx) => {
     const claim = await tx.feedback.updateMany({
-      where: { id, status: { in: ["PENDING", "CONTACTED", "CLICKED"] } },
+      where: { id, workspaceId: feedback.workspaceId, status: { in: ["PENDING", "CONTACTED", "CLICKED"] } },
       data: { repliedAt: new Date(), status: "REPLIED" },
     });
     if (claim.count !== 1) return false;
