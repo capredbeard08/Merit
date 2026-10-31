@@ -4,13 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { can, type Role } from "@/lib/domain";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const membership = await prisma.member.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
+  const workspaceId = new URL(request.url).searchParams.get("workspaceId");
+  if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
+  const membership = await prisma.member.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: session.user.id } },
   });
   if (!membership) return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   if (!can(membership.role.toLowerCase() as Role, "feedback:read")) {
