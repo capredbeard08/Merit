@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
+import { writeAuditLog } from "@/lib/audit";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -34,11 +35,16 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (!member || !can(member.role.toLowerCase() as Role, "files:manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (file.deletedAt || file.status === "DELETED") return new NextResponse(null, { status: 204 });
 
-  await prisma.fileAsset.update({
-    where: { id: file.id },
+  // Compare-and-set prevents a stale delete request from overwriting a
+  // concurrent restore, quarantine, or permanent-erasure transition.
+  const claim = await prisma.fileAsset.updateMany({
+    where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
     data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED" },
   });
-  const { writeAuditLog } = await import("@/lib/audit");
+  if (claim.count !== 1) {
+    return NextResponse.json({ error: "File state changed; refresh and try again." }, { status: 409 });
+  }
+
   await writeAuditLog({
     workspaceId: file.workspaceId,
     actorUserId: session.user.id,
