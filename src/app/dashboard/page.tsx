@@ -27,16 +27,23 @@ function MetricCard({ label, value, note, icon }: { label: string; value: string
   );
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ workspaceId?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
-  const membership = await prisma.member.findFirst({
+  const { workspaceId: requestedWorkspaceId } = await searchParams;
+  const memberships = await prisma.member.findMany({
     where: { userId: session.user.id },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
-  if (!membership) redirect("/auth");
+  if (memberships.length === 0) redirect("/auth");
+
+  // A requested workspace is usable only when the signed-in user has a membership.
+  const membership = requestedWorkspaceId
+    ? memberships.find((item) => item.workspaceId === requestedWorkspaceId)
+    : memberships[0];
+  if (!membership) redirect("/dashboard");
 
   const workspaceId = membership.workspaceId;
   const role = membership.role.toLowerCase() as Role;
@@ -98,6 +105,15 @@ export default async function DashboardPage() {
             {can(role, "security:read") ? <a href="#security-center" className="merit-nav-link"><span className="w-5 text-center">◇</span>Security Warden</a> : null}
           </nav>
           <div className="mt-auto border-t border-white/15 pt-5">
+            {memberships.length > 1 ? (
+              <form action="/dashboard" method="get" className="mb-5 space-y-2">
+                <label htmlFor="workspace-switcher" className="block text-xs font-semibold text-[#dce8df]">Your workspaces</label>
+                <select id="workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="w-full rounded-lg border border-white/20 bg-[#173d2e] px-2 py-2 text-sm text-white">
+                  {memberships.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspace.name}</option>)}
+                </select>
+                <button type="submit" className="w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-[#e3ece5] hover:bg-white/10">Switch workspace</button>
+              </form>
+            ) : null}
             <p className="text-xs font-semibold text-[#dce8df]">{membership.workspace.name}</p>
             <div className="mt-4 flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#4f8067] bg-[#174a36] font-semibold text-white">{(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}</span>
