@@ -17,13 +17,15 @@ type ReplyForInsight = {
   createdAt: Date;
 };
 
-export async function POST(): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const membership = await prisma.member.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
+  const body = await request.json().catch(() => null) as { workspaceId?: unknown } | null;
+  const workspaceId = typeof body?.workspaceId === "string" ? body.workspaceId : "";
+  if (!workspaceId || workspaceId.length > 128) return NextResponse.json({ error: "A valid workspaceId is required" }, { status: 400 });
+  const membership = await prisma.member.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: session.user.id } },
   });
   if (!membership) return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   if (!can(membership.role.toLowerCase() as Role, "ai:use")) {

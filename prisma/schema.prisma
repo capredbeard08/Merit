@@ -65,6 +65,8 @@ model Branch {
   externalId  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  archivedAt  DateTime?
+  archivedById String?
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   customers   Customer[]
   feedback    Feedback[]
@@ -72,6 +74,7 @@ model Branch {
   webhooks    WebhookEndpoint[]
   @@unique([workspaceId, externalId])
   @@index([workspaceId])
+  @@index([workspaceId, archivedAt])
 }
 
 model Customer {
@@ -212,18 +215,18 @@ model Session {
 model Account {
   id                   String    @id
   accountId            String
-  providerId           String
-  userId               String
-  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken          String?
-  refreshToken         String?
-  idToken              String?
-  accessTokenExpiresAt DateTime?
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope                String?
-  password             String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
   @@unique([providerId, accountId])
   @@index([userId])
 }
@@ -233,35 +236,38 @@ model Verification {
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime
+  updatedAt  DateTime
   @@index([identifier])
   @@index([value])
 }
 
 enum FollowUpStatus {
   QUEUED
+  PROCESSING
   SENT
   FAILED
   CANCELLED
 }
 
 model FollowUp {
-  id         String         @id @default(cuid())
+  id          String         @id @default(cuid())
   workspaceId String
-  feedbackId String         @unique
-  channel    String         @default("email")
-  status     FollowUpStatus @default(QUEUED)
+  feedbackId  String         @unique
+  channel     String         @default("email")
+  status      FollowUpStatus @default(QUEUED)
   scheduledAt DateTime
-  sentAt     DateTime?
-  failedAt   DateTime?
-  providerId String?
-  error      String?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  processingAt DateTime?
+  sentAt      DateTime?
+  failedAt    DateTime?
+  providerId  String?
+  error       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback    Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   @@index([workspaceId, status, scheduledAt])
+  @@index([status, processingAt])
 }
 
 enum FeedbackRating {
@@ -273,15 +279,15 @@ enum FeedbackRating {
 }
 
 model FeedbackReply {
-  id         String         @id @default(cuid())
+  id          String         @id @default(cuid())
   workspaceId String
-  feedbackId String
-  rating     FeedbackRating?
-  message    String?
-  email      String?
-  createdAt  DateTime       @default(now())
-  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  feedbackId  String
+  rating      FeedbackRating?
+  message     String?
+  email       String?
+  createdAt   DateTime       @default(now())
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback    Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   @@index([workspaceId, createdAt])
   @@index([feedbackId, createdAt])
 }
@@ -298,7 +304,6 @@ model Insight {
   @@index([workspaceId, createdAt])
 }
 
-
 model FileAsset {
   id           String   @id @default(cuid())
   workspaceId  String
@@ -309,8 +314,29 @@ model FileAsset {
   sizeBytes    Int
   status       String   @default("AVAILABLE")
   analysisText String?
+  deletedAt    DateTime?
+  deletedById  String?
+  priorStatus  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   @@index([workspaceId, createdAt])
+  @@index([workspaceId, deletedAt])
+}
+
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  actorUserId String?
+  type        String
+  severity    String
+  targetId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  @@index([workspaceId, createdAt])
+  @@index([severity, createdAt])
+  @@index([type, createdAt])
 }

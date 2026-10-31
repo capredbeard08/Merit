@@ -10,23 +10,45 @@ export async function POST(request: Request): Promise<Response> {
   const valid = !!secret && (headerSecret === secret || authorization === "Bearer " + secret);
   if (!valid) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const now = new Date();
+  const staleClaim = new Date(now.getTime() - 10 * 60 * 1000);
+  // Recover jobs abandoned by a crashed worker. Provider idempotency protects retries
+  // if a provider accepted an email immediately before the worker stopped.
+  await prisma.followUp.updateMany({
+    where: { status: "PROCESSING", processingAt: { lt: staleClaim } },
+    data: { status: "QUEUED", processingAt: null },
+  });
+
   const due = await prisma.followUp.findMany({
-    where: { status: "QUEUED", scheduledAt: { lte: new Date() } },
+    where: { status: "QUEUED", scheduledAt: { lte: now } },
     orderBy: { scheduledAt: "asc" },
     take: 25,
-    include: {
-      workspace: true,
-      feedback: { include: { customer: true, branch: true } },
-    },
+    select: { id: true },
   });
 
   let sent = 0;
   let failed = 0;
+  let skipped = 0;
 
-  for (const item of due) {
+  for (const candidate of due) {
+    const claim = await prisma.followUp.updateMany({
+      where: { id: candidate.id, status: "QUEUED" },
+      data: { status: "PROCESSING", processingAt: new Date() },
+    });
+    if (claim.count !== 1) { skipped++; continue; }
+
+    const item = await prisma.followUp.findUnique({
+      where: { id: candidate.id },
+      include: {
+        workspace: true,
+        feedback: { include: { customer: true, branch: true } },
+      },
+    });
+    if (!item) { skipped++; continue; }
+
     const customer = item.feedback.customer;
     if (!customer.email || customer.optedOutAt || item.feedback.status === "OPTED_OUT") {
-      await prisma.followUp.update({ where: { id: item.id }, data: { status: "CANCELLED" } });
+      await prisma.followUp.update({ where: { id: item.id }, data: { status: "CANCELLED", processingAt: null } });
       continue;
     }
 
@@ -52,7 +74,7 @@ export async function POST(request: Request): Promise<Response> {
       await prisma.$transaction([
         prisma.followUp.update({
           where: { id: item.id },
-          data: { status: "SENT", sentAt: new Date(), providerId: result.id },
+          data: { status: "SENT", sentAt: new Date(), providerId: result.id ?? null, processingAt: null, error: null },
         }),
         prisma.feedback.update({
           where: { id: item.feedbackId },
@@ -66,6 +88,7 @@ export async function POST(request: Request): Promise<Response> {
         data: {
           status: "FAILED",
           failedAt: new Date(),
+          processingAt: null,
           error: error instanceof Error ? error.message.slice(0, 500) : "Unknown email error",
         },
       });
@@ -73,5 +96,5 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed });
+  return NextResponse.json({ processed: due.length, sent, failed, skipped });
 }

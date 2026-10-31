@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serviceCompletedEventSchema } from "@/lib/security";
-import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/env";
+import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/webhook-constants";
 import { recordSecurityEvent } from "@/lib/security-warden";
 
 export const runtime = "nodejs";
@@ -30,9 +30,34 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 
-  const rawBody = await request.text().catch(() => "");
-  if (!rawBody || new TextEncoder().encode(rawBody).byteLength > WEBHOOK_MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "Payload too large or empty" }, { status: 413 });
+  // Enforce the body limit while streaming. Content-Length may be absent or untrusted.
+  if (!request.body) {
+    return NextResponse.json({ error: "Empty payload" }, { status: 400 });
+  }
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let receivedBytes = 0;
+  let rawBody = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > WEBHOOK_MAX_BODY_BYTES) {
+        await reader.cancel();
+        return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+      }
+      rawBody += decoder.decode(value, { stream: true });
+    }
+    rawBody += decoder.decode();
+  } catch {
+    return NextResponse.json({ error: "Unable to read payload" }, { status: 400 });
+  }
+
+  if (!rawBody.trim()) {
+    return NextResponse.json({ error: "Empty payload" }, { status: 400 });
   }
 
   let body: unknown;
@@ -88,7 +113,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const branch = await prisma.branch.findFirst({
-    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId },
+    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
     select: { id: true },
   });
   if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });

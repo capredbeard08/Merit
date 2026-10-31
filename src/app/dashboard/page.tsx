@@ -23,7 +23,8 @@ export default async function DashboardPage() {
   if (!membership) redirect("/auth");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
+  const canManageBranches = can(membership.role.toLowerCase() as Role, "branches:manage");
+  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, archivedBranches, members, insights, replies] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
@@ -40,7 +41,8 @@ export default async function DashboardPage() {
         branch: { select: { name: true } },
       },
     }),
-    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
+    prisma.branch.findMany({ where: { workspaceId, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
+    canManageBranches ? prisma.branch.findMany({ where: { workspaceId, archivedAt: { not: null } }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }) : Promise.resolve([]),
     prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
     prisma.insight.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.feedbackReply.findMany({
@@ -152,6 +154,7 @@ export default async function DashboardPage() {
             <p className="mt-1 text-sm text-[#69756e]">Recent replies and emerging themes from this workspace.</p>
           </div>
           <Intelligence
+            workspaceId={workspaceId}
             initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
             initialReplies={replies.map((item) => ({
               ...item,
@@ -171,8 +174,8 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Workspace management</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">Your workspace, organised</h2>
           <p className="mt-1 text-sm text-[#69756e]">Manage locations, authorised team members, and supporting files.</p>
-          <div id="branches" className="mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} /></div>
-          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} /></div>
+          <div id="branches" className="mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
+          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(membership.role.toLowerCase() as Role, "files:manage")} canRecover={can(membership.role.toLowerCase() as Role, "files:recover")} canErase={can(membership.role.toLowerCase() as Role, "files:erase")} /></div>
           <div id="team" className="mt-5">
             <MemberManager
               workspaceId={workspaceId}
@@ -181,7 +184,7 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {can(membership.role.toLowerCase() as Role, "workspace:manage") ? <SecurityCenter workspaceId={workspaceId} /> : null}
+        {can(membership.role.toLowerCase() as Role, "security:read") ? <SecurityCenter workspaceId={workspaceId} /> : null}
 
         <footer className="mt-10 flex flex-col gap-2 border-t border-[#dfe4df] pt-5 text-xs text-[#7b887f] sm:flex-row sm:items-center sm:justify-between">
           <span>MERIT · Customer intelligence, quietly automated.</span>
