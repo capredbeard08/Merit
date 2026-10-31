@@ -94,3 +94,15 @@ These remain application-level protections using the global Prisma client. They 
 ## Immediate next implementation step
 
 The first-pass route inventory is now reviewed for the listed API paths. Next, perform a schema-to-route pass for composite tenant foreign keys and relation traversals, add concurrency/replay and cross-workspace negative tests, and design the dedicated worker/RLS bootstrap model. Do not enable RLS until those prerequisites are implemented and tested in a non-production database.
+
+
+## Schema-level integrity follow-up (2026-10-31)
+
+The Prisma schema currently models several tenant relations with single-column foreign keys. Application workspace predicates do not prevent a malformed write from linking a child row to a parent in another workspace if a route misses validation.
+
+A review-only SQL candidate was added at `docs/security/composite-tenant-keys-review.sql`. It:
+- reports existing cross-workspace links before any DDL;
+- proposes composite unique indexes and foreign keys for Customer→Branch, ServiceEvent→Branch/Customer, Feedback→Branch/Customer/ServiceEvent, FollowUp→Feedback, FeedbackReply→Feedback, and WebhookEndpoint→Branch;
+- is intentionally not in `prisma/migrations/` and has not been executed.
+
+This is not yet implemented schema enforcement: Prisma relation definitions must be updated to represent the composite keys, generated-client/type validation must pass, and the PostgreSQL server version must be checked for the optional-branch `ON DELETE SET NULL (branchId)` syntax. Do not promote the candidate to a migration until those steps and a read-only data-integrity review are complete.
