@@ -16,13 +16,59 @@ declare global {
   }
 }
 
+let recaptchaLoader: Promise<void> | null = null;
+
+function loadRecaptcha(siteKey: string): Promise<void> {
+  if (typeof window === "undefined") return Promise.reject(new Error("Security check is unavailable."));
+  if (window.grecaptcha) return Promise.resolve();
+
+  if (!recaptchaLoader) {
+    recaptchaLoader = new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector<HTMLScriptElement>('script[data-merit-recaptcha="true"]');
+      const script = existing ?? document.createElement("script");
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        script.removeEventListener("load", onLoad);
+        script.removeEventListener("error", onError);
+        if (error) {
+          recaptchaLoader = null;
+          reject(error);
+        } else resolve();
+      };
+      const onLoad = () => {
+        if (window.grecaptcha) finish();
+        else finish(new Error("Google reCAPTCHA loaded without its API. Check the site-key configuration and allowed domains."));
+      };
+      const onError = () => finish(new Error("Google reCAPTCHA could not load. Check network access, ad blockers and the allowed domain configuration."));
+      const timeout = window.setTimeout(() => finish(new Error("The security check timed out. Please try again.")), 12000);
+      script.addEventListener("load", onLoad, { once: true });
+      script.addEventListener("error", onError, { once: true });
+      if (!existing) {
+        script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`;
+        script.async = true;
+        script.defer = true;
+        script.dataset.meritRecaptcha = "true";
+        document.head.appendChild(script);
+      } else if (window.grecaptcha) finish();
+    });
+  }
+  return recaptchaLoader;
+}
+
 async function getCaptchaToken(action: "register" | "login") {
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   if (!siteKey) throw new Error("Security check is not configured. Please contact MERIT support.");
-  if (!window.grecaptcha) throw new Error("Security check is still loading. Please try again.");
+  await loadRecaptcha(siteKey);
+  const api = window.grecaptcha;
+  if (!api) throw new Error("Google reCAPTCHA is unavailable. Please refresh and try again.");
   return new Promise<string>((resolve, reject) => {
-    window.grecaptcha!.ready(() => {
-      window.grecaptcha!.execute(siteKey, { action }).then(resolve).catch(() => reject(new Error("Security check failed. Please try again.")));
+    api.ready(() => {
+      api.execute(siteKey, { action })
+        .then((token) => token ? resolve(token) : reject(new Error("Google reCAPTCHA returned an empty token. Please try again.")))
+        .catch(() => reject(new Error("Security check failed. Check that this domain is authorised for the configured reCAPTCHA site key.")));
     });
   });
 }
@@ -38,17 +84,6 @@ export default function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-
-  useEffect(() => {
-    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-    if (!siteKey || document.querySelector('script[data-merit-recaptcha="true"]')) return;
-    const script = document.createElement("script");
-    script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`;
-    script.async = true;
-    script.defer = true;
-    script.dataset.meritRecaptcha = "true";
-    document.head.appendChild(script);
-  }, []);
 
   async function continueIfAuthenticated() {
     const sessionResult = await authClient.getSession();

@@ -1,12 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --ivory: #f7f4ec;
+  --ivory: #f8f5eb;
   --green: #123c2d;
-  --green-soft: #e7eee9;
+  --green-soft: #e7eee0;
   --ink: #17211c;
   --muted: #69756e;
-  --line: #dfe4df;
+  --line: #dce2d8;
 }
 
 * { box-sizing: border-box; }
@@ -14,10 +14,49 @@ html, body { margin: 0; min-height: 100%; }
 body { background: var(--ivory); color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
 button, input, textarea, select { font: inherit; }
 
-
-/* MERIT identity: deep forest green, warm ivory, restrained motion. */
 .merit-brand { display: inline-flex; align-items: center; gap: 0.7rem; color: var(--green); }
 .merit-brand-name { font-weight: 750; letter-spacing: 0.2em; font-size: 0.92rem; }
+.merit-sidebar {
+  background: radial-gradient(ellipse at 10% 90%, rgba(47, 103, 70, .25), transparent 48%), #0d3024;
+  color: #f8f5eb;
+}
+.merit-nav-link {
+  display: flex; align-items: center; gap: .8rem; border-radius: .9rem;
+  padding: .78rem .8rem; color: #c5d5ca; font-size: .875rem; font-weight: 550;
+  transition: background-color .18s ease, color .18s ease;
+}
+.merit-nav-link:hover, .merit-nav-link:focus-visible { background: rgba(255,255,255,.09); color: white; outline: none; }
+.merit-nav-active { background: linear-gradient(110deg, #245d3d, #17452f); color: white; }
+.merit-action-primary, .merit-action-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  min-height: 42px; border-radius: .85rem; padding: .65rem 1rem;
+  font-size: .82rem; font-weight: 650; transition: transform .16s ease, background .16s ease;
+}
+.merit-action-primary { background: #0e3a29; color: #fffdf5; }
+.merit-action-primary:hover { background: #18563b; transform: translateY(-1px); }
+.merit-action-secondary { border: 1px solid #d7dfd3; background: rgba(255,255,255,.62); color: #244b37; }
+.merit-action-secondary:hover { background: white; transform: translateY(-1px); }
+.merit-metric-card, .merit-panel {
+  border: 1px solid #dce1d5; border-radius: 1.45rem; background: rgba(255,255,255,.72);
+  box-shadow: 0 2px 5px rgba(24, 50, 34, .035), 0 12px 30px rgba(24, 50, 34, .025);
+}
+.merit-metric-card { min-height: 132px; padding: 1.2rem 1.35rem; transition: background .18s ease, transform .18s ease; }
+.merit-metric-card:hover { background: rgba(255,255,255,.95); transform: translateY(-2px); }
+.merit-metric-icon {
+  display: inline-flex; width: 34px; height: 34px; flex: 0 0 34px; align-items: center;
+  justify-content: center; border-radius: 50%; background: #10432e; color: #f6f4e9; font-weight: 700;
+}
+.merit-metric-trend { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 12px; background: #e7edda; color: #24573b; font-weight: 800; }
+.merit-info-panel {
+  overflow: hidden; border: 1px solid #d5dfc8; border-radius: 1.5rem;
+  background: radial-gradient(ellipse at 100% 100%, rgba(121, 165, 113, .32), transparent 42%), linear-gradient(115deg, #eaf0dc, #f2f2df 72%, #e3ebd6);
+}
+.merit-chart-baseline {
+  display: flex; height: 44px; align-items: end; justify-content: space-between;
+  border-top: 1px solid #d6ddcf; border-bottom: 1px solid #d6ddcf; position: relative;
+}
+.merit-chart-baseline::after { content: ""; position: absolute; left: 0; right: 0; bottom: 7px; height: 2px; background: #b5cbb9; }
+.merit-chart-baseline span { z-index: 1; width: 7px; height: 7px; margin-bottom: 4px; border-radius: 50%; background: #4f8a68; box-shadow: 0 0 0 3px #e7eee0; }
 .merit-boot {
   position: fixed; inset: 0; z-index: 10000; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 1rem; background: #123c2d; color: #f7f4ec;
@@ -25,7 +64,7 @@ button, input, textarea, select { font: inherit; }
 }
 .merit-boot-mark { animation: merit-mark-arrive 850ms cubic-bezier(.2,.8,.2,1) both; }
 .merit-boot-mark svg { filter: drop-shadow(0 8px 24px rgba(0,0,0,.12)); }
-.merit-boot-word { font-size: 0.85rem; font-weight: 700; letter-spacing: .34em; padding-left: .34em; opacity: 0; animation: merit-word-arrive 500ms ease 180ms forwards; }
+.merit-boot-word { font-size: .85rem; font-weight: 700; letter-spacing: .34em; padding-left: .34em; opacity: 0; animation: merit-word-arrive 500ms ease 180ms forwards; }
 .merit-boot-line { width: 74px; height: 2px; background: rgba(247,244,236,.22); overflow: hidden; position: relative; }
 .merit-boot-line::after { content: ""; position: absolute; inset: 0; background: #f7f4ec; transform-origin: left; animation: merit-line-run 780ms ease 100ms both; }
 @keyframes merit-mark-arrive { from { opacity: 0; transform: translateY(12px) scale(.92); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -34,4 +73,5 @@ button, input, textarea, select { font: inherit; }
 @keyframes merit-boot-fade { 0%, 72% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) {
   .merit-boot, .merit-boot-mark, .merit-boot-word, .merit-boot-line::after { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  .merit-nav-link, .merit-action-primary, .merit-action-secondary, .merit-metric-card { transition: none; }
 }
