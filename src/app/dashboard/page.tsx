@@ -85,14 +85,13 @@ export default async function DashboardPage() {
           <nav aria-label="Dashboard navigation" className="space-y-1">
             {[
               ["overview", "Overview", "⌂"],
-              ["activity", "Activity", "⌁"],
+              ["action-inbox", "Activity", "⌁"],
               ["intelligence", "Feedback", "◌"],
-              ["customers", "Customers", "♧"],
               ["branches", "Locations", "⌖"],
-              ["automation", "Automation", "⚙"],
-              ["test-events", "Test events", "▤"],
+              ["files", "Files", "▤"],
+              ["team", "Team", "♧"],
             ].map(([id, label, icon], index) => (
-              <a key={id} href={id === "activity" ? "#action-inbox" : id === "customers" ? "#intelligence" : id === "automation" ? "#workspace-settings" : id === "test-events" ? "#action-inbox" : `#${id}`} className={`merit-nav-link ${index === 0 ? "merit-nav-active" : ""}`}>
+              <a key={id} href={`#${id}`} className={`merit-nav-link ${index === 0 ? "merit-nav-active" : ""}`}>
                 <span aria-hidden="true" className="w-5 text-center text-lg">{icon}</span>{label}
               </a>
             ))}
@@ -111,7 +110,7 @@ export default async function DashboardPage() {
         <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
           <div className="mx-auto max-w-[1260px]">
             <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-              {["overview", "action-inbox", "intelligence", "branches", "files", "team"].map((id) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dce2d8] bg-white/80 px-4 py-2 text-xs font-semibold capitalize text-[#315b49]">{id.replace("-", " ")}</a>)}
+              {[["overview", "Overview"], ["action-inbox", "Activity"], ["intelligence", "Feedback"], ["branches", "Locations"], ["files", "Files"], ["team", "Team"]].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dce2d8] bg-white/80 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
             </div>
 
             <header id="overview" className="flex scroll-mt-5 flex-col gap-5 border-b border-[#dce2d8] pb-6 sm:flex-row sm:items-center sm:justify-between">
