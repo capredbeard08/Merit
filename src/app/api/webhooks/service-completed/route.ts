@@ -184,8 +184,8 @@ export async function POST(request: Request): Promise<Response> {
       return { eventId: event.id, feedbackId: feedback.id };
     });
 
-    await prisma.webhookEndpoint.update({
-      where: { id: endpoint.id },
+    await prisma.webhookEndpoint.updateMany({
+      where: { id: endpoint.id, workspaceId: parsed.data.workspaceId, revokedAt: null },
       data: { lastUsedAt: new Date() },
     });
 
