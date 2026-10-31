@@ -28,8 +28,6 @@ function MetricCard({ label, value, note, icon }: { label: string; value: string
 }
 
 export default async function DashboardPage() {
-  async function signOutAction() { "use server"; await auth.api.signOut({ headers: await headers() }); redirect("/auth"); }
-
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
@@ -106,7 +104,7 @@ export default async function DashboardPage() {
               <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#4f8067] bg-[#174a36] font-semibold text-white">{(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}</span>
               <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{session.user.name || "Merit"}</p><p className="text-xs text-[#b9cabe]">Workspace member</p></div>
             </div>
-            <form action={signOutAction} className="mt-5"><button type="submit" className="w-full rounded-xl border border-white/25 px-4 py-2.5 text-center text-sm text-[#e3ece5] transition hover:bg-white/10">Sign out</button></form>
+            <form method="post" action="/api/auth/sign-out" className="mt-5"><button type="submit" className="w-full rounded-xl border border-white/25 px-4 py-2.5 text-center text-sm text-[#e3ece5] transition hover:bg-white/10">Sign out</button></form>
           </div>
         </aside>
 
