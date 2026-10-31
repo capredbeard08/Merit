@@ -24,7 +24,7 @@ This document separates confirmed observations from routes that still require so
 | `GET/POST /api/members` | Membership helper, role check, workspace-filtered membership reads/writes; user lookup global by email | Workspace predicates are present. Membership management is security-sensitive and needs careful policy design; do not treat Member as an ordinary tenant table. |
 | `GET /api/insights` | Requires explicit workspace ID, exact membership lookup and `feedback:read` role check | Workspace-selection defect corrected in this branch; tenant query still uses global Prisma pending RLS integration. |
 | `GET /api/security/events` | Auth session, explicit membership and role checks, workspace-filtered event query and groupBy via global Prisma | Application-level filters are present; ensure both queries execute under the same tenant transaction after RLS is introduced. |
-| `POST /api/follow-ups/process` | Cron-secret authentication; global worker scans queued jobs across workspaces and updates follow-ups and feedback | Cross-tenant worker by design. It needs a dedicated, tightly scoped worker role/capability and per-workspace transaction context. Do not expose this worker to ordinary tenant runtime credentials. |
+| `POST /api/follow-ups/process` | Cron-secret authentication; global worker scans queued jobs across workspaces; claims, fetches and state changes now carry workspace ID and expected status | Still a cross-tenant system worker using global Prisma. It needs a dedicated, tightly scoped worker role/capability and per-workspace transaction context. Do not expose this worker to ordinary tenant runtime credentials. |
 
 ## Remaining route inventory
 
@@ -87,10 +87,10 @@ These paths were present in the branch tree but were not fully source-reviewed i
 - `POST /api/invitations/accept`: invitation is conditionally claimed once and membership upserted in the same transaction.
 - `DELETE /api/integrations/webhook`: revocation is conditional on endpoint ID, workspace ID and active status.
 - `POST /api/files/[id]/erase`: final row deletion is conditional on tenant ID and the exact pending-erasure state.
-- `GET /api/replies`: requires explicit workspace ID and validates exact membership/role rather than selecting the oldest membership.
+- `GET /api/replies`: requires explicit workspace ID and validates exact membership/role rather than selecting the oldest membership.\n- `POST /api/follow-ups/process`: worker candidate selection, claims, fetches and follow-up/feedback status mutations now include workspace ID; state changes are conditional on expected status. The worker remains cross-tenant by design and is not RLS-isolated.
 
 These remain application-level protections using the global Prisma client. They are not a substitute for RLS. The signed public feedback token currently has no expiry; it is deterministic from the feedback ID and `AUTH_SECRET`. Before production use, decide on a bounded token lifetime and a safe rotation/compatibility plan for already-issued links. Also review whether GET-based click/opt-out actions should use CSRF-resistant POST flows where practical.
 
 ## Immediate next implementation step
 
-Continue the source audit for file lifecycle routes, insights generation, integrations, workspace management and auth/system routes. Prioritize mutations that perform an unscoped update/delete after a scoped read, and preserve explicit workspace selection consistently across every tenant-facing API.
+The first-pass route inventory is now reviewed for the listed API paths. Next, perform a schema-to-route pass for composite tenant foreign keys and relation traversals, add concurrency/replay and cross-workspace negative tests, and design the dedicated worker/RLS bootstrap model. Do not enable RLS until those prerequisites are implemented and tested in a non-production database.
