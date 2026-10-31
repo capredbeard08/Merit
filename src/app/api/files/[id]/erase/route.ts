@@ -42,6 +42,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "The file is still within its recovery period.", eligibleAt: eligibleAt.toISOString() }, { status: 409 });
   }
 
+  // Atomically claim the transition out of the recoverable state. A concurrent
+  // restore can win this compare-and-set, but it cannot race past this claim.
+  if (file.status === "DELETED") {
+    const claim = await prisma.fileAsset.updateMany({
+      where: { id: file.id, workspaceId: file.workspaceId, status: "DELETED", deletedAt: file.deletedAt },
+      data: { status: "ERASURE_PENDING" },
+    });
+    if (claim.count !== 1) {
+      return NextResponse.json({ error: "File recovery state changed; refresh and try again." }, { status: 409 });
+    }
+  }
+
   await writeAuditLog({
     workspaceId: file.workspaceId,
     actorUserId: session.user.id,
@@ -53,7 +65,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
 
   // Keep the database tombstone if storage deletion fails so the operation can be retried.
-  if (file.status !== "ERASURE_PENDING") await prisma.fileAsset.update({ where: { id: file.id }, data: { status: "ERASURE_PENDING" } });
   try {
     await del(file.pathname);
   } catch {
