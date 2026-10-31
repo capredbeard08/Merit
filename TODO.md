@@ -22,13 +22,16 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Ignore all `.env*` files except the committed `.env.example`.
 - [x] Replace deployment-specific trusted-origin entries with a strict dynamic Better Auth host allowlist for MERIT-owned Vercel domains.
 - [x] Enforce webhook request-body size limits while streaming instead of buffering an unbounded body before checking its size.
+- [x] Make file restore and permanent erasure mutually exclusive through conditional database state transitions.
+- [x] Encrypt PostgreSQL backup dumps before GitHub artifact upload; backup execution remains blocked until the recipient and private identity are safely configured.
+- [x] Require explicit `yes` confirmation and a protected GitHub `production` environment for the manual production-migration workflow; use a dedicated `MERIT_PRODUCTION_DATABASE_URL` environment secret.
 
 ## Still outstanding — security and governance
 
+- [ ] Configure GitHub's `production` environment with required reviewers and verify its protection rules; the workflow's environment declaration alone does not prove approval is enforced.
 - [ ] Verify the Resend sender domain, then enable and enforce email verification on signup; the current callback is configured but sending and enforcement remain disabled. Test verification expiry, resend, callback, and protected-route behavior end to end.
 - [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Vercel environment-variable metadata assigns one DATABASE_URL entry to both targets.
 - [ ] Design and implement PostgreSQL RLS for every tenant-owned table only after defining a non-owner runtime DB role and transaction-scoped tenant context; add cross-workspace isolation tests before claiming database-enforced isolation.
-
 - [ ] Add automated integration tests for soft deletion, recovery, retention enforcement and permanent erasure.
 - [ ] Add tests for branch archival/restoration and webhook rejection for archived branches.
 - [ ] Add durable Warden incident acknowledgement, assignment, investigation, resolution and escalation delivery.
@@ -45,7 +48,7 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Review and reduce CSP `connect-src` origins after mapping actual production integrations; move toward nonce-based scripts.
 - [ ] Add safe retry/backoff policy for failed follow-ups and test provider idempotency.
 - [ ] Add a defined workspace archival/deletion policy that preserves legally required audit history.
-- [ ] Configure `MERIT_BACKUP_AGE_RECIPIENT` and keep the matching private age identity outside GitHub; backup workflow now encrypts dumps before artifact upload. Document controlled decryption, off-platform retention and restore drills.
+- [ ] Configure `MERIT_BACKUP_AGE_RECIPIENT` and keep the matching private age identity outside GitHub; backup workflow encrypts dumps before artifact upload. Document controlled decryption, off-platform retention and restore drills.
 - [ ] Add backup monitoring, recovery objectives and documented disaster procedures.
 - [ ] Add admin audit-log export and investigation PDF reports.
 - [ ] Add incident notification and escalation workflows.
