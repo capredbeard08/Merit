@@ -38,11 +38,13 @@ These paths were present in the branch tree but were not fully source-reviewed i
 - `/api/feedback/[id]/optout` — reviewed; customer opt-out, feedback status and follow-up cancellation now include workspace scope.
 
 - `/api/files/[id]`
-- `/api/files/[id]/erase`
+- `/api/files/[id]/erase` — reviewed; final database deletion is conditional on file ID, workspace ID, erasure-pending status and the exact deletion timestamp.
+
 - `/api/files/[id]/restore`
 - `/api/files/upload`
 - `/api/insights/generate`
-- `/api/integrations/webhook`
+- `/api/integrations/webhook` — reviewed; endpoint revocation uses a workspace-scoped conditional mutation.
+
 - `/api/invitations/accept`
 - `/api/public/feedback/[id]`
 - `/api/replies` — reviewed; now requires explicit workspace ID and validates exact membership instead of silently selecting the oldest membership.
@@ -83,6 +85,8 @@ These paths were present in the branch tree but were not fully source-reviewed i
 - `POST /api/public/feedback/[id]`: atomic claim includes feedback ID and workspace ID.
 - `POST /api/webhooks/service-completed`: endpoint last-used update includes endpoint ID, workspace ID and active status.
 - `POST /api/invitations/accept`: invitation is conditionally claimed once and membership upserted in the same transaction.
+- `DELETE /api/integrations/webhook`: revocation is conditional on endpoint ID, workspace ID and active status.
+- `POST /api/files/[id]/erase`: final row deletion is conditional on tenant ID and the exact pending-erasure state.
 - `GET /api/replies`: requires explicit workspace ID and validates exact membership/role rather than selecting the oldest membership.
 
 These remain application-level protections using the global Prisma client. They are not a substitute for RLS. The signed public feedback token currently has no expiry; it is deterministic from the feedback ID and `AUTH_SECRET`. Before production use, decide on a bounded token lifetime and a safe rotation/compatibility plan for already-issued links. Also review whether GET-based click/opt-out actions should use CSRF-resistant POST flows where practical.
