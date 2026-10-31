@@ -25,16 +25,26 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "File is not in the recovery area" }, { status: 409 });
   }
 
-  const restored = await prisma.fileAsset.update({
-    where: { id: file.id },
+  // Claim restoration only while the record is still soft-deleted. This
+  // prevents a concurrent permanent-erasure request from deleting a file
+  // after a restore has already been accepted.
+  const claim = await prisma.fileAsset.updateMany({
+    where: { id: file.id, workspaceId: file.workspaceId, status: "DELETED", deletedAt: { not: null } },
     data: {
       status: file.priorStatus || "AVAILABLE",
       deletedAt: null,
       deletedById: null,
       priorStatus: null,
     },
+  });
+  if (claim.count !== 1) {
+    return NextResponse.json({ error: "File recovery state changed; refresh and try again." }, { status: 409 });
+  }
+  const restored = await prisma.fileAsset.findUnique({
+    where: { id: file.id },
     select: { id: true, originalName: true, status: true, updatedAt: true },
   });
+  if (!restored) return NextResponse.json({ error: "File could not be restored" }, { status: 409 });
 
   await writeAuditLog({
     workspaceId: file.workspaceId,
