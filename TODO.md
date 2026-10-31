@@ -45,7 +45,8 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Review and reduce CSP `connect-src` origins after mapping actual production integrations; move toward nonce-based scripts.
 - [ ] Add safe retry/backoff policy for failed follow-ups and test provider idempotency.
 - [ ] Add a defined workspace archival/deletion policy that preserves legally required audit history.
-- [ ] Add backup monitoring, restore drills, recovery objectives and documented disaster procedures.
+- [ ] Configure `MERIT_BACKUP_AGE_RECIPIENT` and keep the matching private age identity outside GitHub; backup workflow now encrypts dumps before artifact upload. Document controlled decryption, off-platform retention and restore drills.
+- [ ] Add backup monitoring, recovery objectives and documented disaster procedures.
 - [ ] Add admin audit-log export and investigation PDF reports.
 - [ ] Add incident notification and escalation workflows.
 - [ ] Complete the 14-day guided trial, payment verification, expiry and conversion workflow.
