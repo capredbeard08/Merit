@@ -18,11 +18,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const branch = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: { not: null } } });
   if (!branch) return NextResponse.json({ error: "Archived branch not found" }, { status: 404 });
 
-  const restored = await prisma.branch.update({
-    where: { id },
+  const claim = await prisma.branch.updateMany({
+    where: { id, workspaceId, archivedAt: { not: null } },
     data: { archivedAt: null, archivedById: null },
+  });
+  if (claim.count !== 1) return NextResponse.json({ error: "Archived branch not found" }, { status: 404 });
+  const restored = await prisma.branch.findFirst({
+    where: { id, workspaceId },
     select: { id: true, name: true, externalId: true, updatedAt: true },
   });
+  if (!restored) return NextResponse.json({ error: "Branch could not be restored" }, { status: 409 });
   await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_RESTORED", targetType: "BRANCH", targetId: id, request });
   return NextResponse.json({ branch: restored });
 }
