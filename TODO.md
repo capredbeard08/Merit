@@ -27,6 +27,7 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 
 - [ ] Verify the Resend sender domain, then enable and enforce email verification on signup; the current callback is configured but sending and enforcement remain disabled. Test verification expiry, resend, callback, and protected-route behavior end to end.
 - [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Vercel environment-variable metadata assigns one DATABASE_URL entry to both targets.
+- [ ] Design and implement PostgreSQL RLS for every tenant-owned table only after defining a non-owner runtime DB role and transaction-scoped tenant context; add cross-workspace isolation tests before claiming database-enforced isolation.
 
 - [ ] Add automated integration tests for soft deletion, recovery, retention enforcement and permanent erasure.
 - [ ] Add tests for branch archival/restoration and webhook rejection for archived branches.
