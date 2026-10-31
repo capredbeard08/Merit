@@ -110,10 +110,11 @@ export async function DELETE(request: Request): Promise<Response> {
   }
 
   if (!endpoint.revokedAt) {
-    await prisma.webhookEndpoint.update({
-      where: { id: endpointId },
+    const revoked = await prisma.webhookEndpoint.updateMany({
+      where: { id: endpointId, workspaceId: endpoint.workspaceId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    if (revoked.count !== 1) return NextResponse.json({ error: "Webhook endpoint state changed; refresh and try again." }, { status: 409 });
     await writeAuditLog({
       workspaceId: endpoint.workspaceId,
       actorUserId: session.user.id,
