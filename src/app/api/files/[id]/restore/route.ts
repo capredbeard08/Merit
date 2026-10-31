@@ -25,11 +25,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "File is not in the recovery area" }, { status: 409 });
   }
 
-  // Claim restoration only while the record is still soft-deleted. This
-  // prevents a concurrent permanent-erasure request from deleting a file
-  // after a restore has already been accepted.
+  // Match the exact deletion generation read above. A stale restore request
+  // must not restore a file that was deleted again after this request began.
   const claim = await prisma.fileAsset.updateMany({
-    where: { id: file.id, workspaceId: file.workspaceId, status: "DELETED", deletedAt: { not: null } },
+    where: {
+      id: file.id,
+      workspaceId: file.workspaceId,
+      status: "DELETED",
+      deletedAt: file.deletedAt,
+      priorStatus: file.priorStatus,
+    },
     data: {
       status: file.priorStatus || "AVAILABLE",
       deletedAt: null,
