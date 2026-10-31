@@ -10,6 +10,7 @@ import MeritMark from "@/components/MeritMark";
 import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
 import { can, type Role } from "@/lib/domain";
+import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
 function MetricCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: string }) {
   return (
@@ -40,9 +41,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   if (memberships.length === 0) redirect("/auth");
 
   // A requested workspace is usable only when the signed-in user has a membership.
-  const membership = requestedWorkspaceId
-    ? memberships.find((item) => item.workspaceId === requestedWorkspaceId)
-    : memberships[0];
+  const membership = resolveWorkspaceMembership(memberships, requestedWorkspaceId);
   if (!membership) redirect("/dashboard");
 
   const workspaceId = membership.workspaceId;
