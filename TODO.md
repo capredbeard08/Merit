@@ -14,15 +14,19 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Persist platform-level and workspace-level Security Warden events.
 - [x] Calculate Warden severity totals over a defined 30-day window rather than only the latest 100 rows.
 - [x] Prevent caller-supplied metadata from overriding derived event severity.
-- [x] Require email verification and connect verification messages to the configured Resend sender.
 - [x] Send workspace invitations by email instead of returning raw invitation tokens in API responses.
 - [x] Scope insight generation to an explicitly selected, authorized workspace.
 - [x] Atomically claim follow-up jobs to reduce duplicate sends from concurrent cron workers.
 - [x] Recover stale follow-up claims after worker interruption.
 - [x] Remove production `unsafe-eval` from the Content Security Policy.
 - [x] Ignore all `.env*` files except the committed `.env.example`.
+- [x] Replace deployment-specific trusted-origin entries with a strict dynamic Better Auth host allowlist for MERIT-owned Vercel domains.
+- [x] Enforce webhook request-body size limits while streaming instead of buffering an unbounded body before checking its size.
 
 ## Still outstanding — security and governance
+
+- [ ] Verify the Resend sender domain, then enable and enforce email verification on signup; the current callback is configured but sending and enforcement remain disabled. Test verification expiry, resend, callback, and protected-route behavior end to end.
+- [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Vercel environment-variable metadata assigns one DATABASE_URL entry to both targets.
 
 - [ ] Add automated integration tests for soft deletion, recovery, retention enforcement and permanent erasure.
 - [ ] Add tests for branch archival/restoration and webhook rejection for archived branches.
