@@ -9,7 +9,7 @@ Read-only source review of `capredbeard08/Merit`, branches, open pull requests, 
 - PR #3 (security remediation) is based on `main` and has a successful MERIT CI run and Vercel status at the inspected head.
 - PR #4 (dashboard sidebar restoration) is based on `security/remediation-phase-1`, not `main`. Its Vercel status is successful; no PR-triggered GitHub Actions run was returned for its head.
 - PR #2 (dynamic Vercel auth origins plus dashboard/AI/webhook work) is based on `main` and has successful MERIT CI and Vercel status at the inspected head.
-- PR #1 (static trusted-origin cleanup) has successful MERIT CI but failed Vercel status; its approach is superseded by the dynamic-origin work in PR #2, subject to integration review.
+- PR #1 (static trusted-origin cleanup) had successful MERIT CI but failed Vercel status; it has now been closed as superseded by the dynamic-origin implementation added to PR #3.
 
 ## Blocking integration findings
 
@@ -21,7 +21,7 @@ Read-only source review of `capredbeard08/Merit`, branches, open pull requests, 
 - Required outcome: one reviewed auth configuration combining the approved dynamic-host strategy with the required production CAPTCHA and email-verification behavior. Validate the exact Better Auth version/config semantics before release.
 
 ### 2. Email verification is not currently enforced in PR #3
-In `src/lib/better-auth.ts` on `security/remediation-phase-1`:
+In `src/lib/better-auth.ts` on `security/remediation-phase-1` (the current branch head now includes the dynamic host allowlist):
 - `requireEmailVerification: false`
 - `sendOnSignUp: false`
 - `sendOnSignIn: false`
@@ -40,7 +40,7 @@ Required before enabling AI for real customer data:
 ### 4. Dashboard changes overlap
 PR #2 substantially changes dashboard metrics, branch filtering, click trends and navigation. PR #4 adds a different sidebar/navigation implementation to a dashboard that already contains PR #3's security and recovery components. Select one dashboard implementation and port the needed functionality deliberately; do not merge both implementations blindly.
 
-## Security remediation checks
+## Work performed after the initial review\n- Updated PR #3's Better Auth configuration to use a strict dynamic host allowlist for MERIT-owned Vercel hosts while retaining the CAPTCHA plugin and the dormant verification callback. Better Auth 1.7.x documents that `baseURL.allowedHosts` are automatically added to trusted origins; Vercel's proxy behavior does not require enabling trusted proxy headers.\n- Changed webhook request-body handling to enforce the 256 KiB cap while streaming, rather than buffering the entire body before checking its size.\n- Brought the controlled manual database migration workflow into the security branch. It remains `workflow_dispatch` only and has not been run.\n- Corrected the PR #3 description and TODO status: email verification is configured but not enforced.\n- Latest PR #3 head at this update: `c3d373f2a8ca0552dfac0408ecf4b2d1aa32baac`; GitHub CI is queued and Vercel preview status is pending.\n\n## Security remediation checks
 - Review every workspace-scoped route for membership, role and cross-entity ownership checks.
 - Inspect actual SQL migrations and the live PostgreSQL catalog before claiming Row Level Security is enabled. Prisma schema declarations alone do not prove RLS policies exist.
 - Test recoverable file deletion/restoration and branch archival/restoration, including retention and blob/database consistency.
