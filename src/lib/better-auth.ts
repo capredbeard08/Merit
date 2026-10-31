@@ -10,19 +10,6 @@ if (!secret || secret.length < 32) {
   throw new Error("AUTH_SECRET must be at least 32 characters");
 }
 
-const trustedOrigins = [
-  process.env.BETTER_AUTH_URL,
-  process.env.NEXT_PUBLIC_APP_URL,
-  "https://merit-capredbeard08.vercel.app",
-  "https://merit-git-main-capredbeard08.vercel.app",
-  "https://merit-olive.vercel.app",
-  "https://merit-git-security-remediation-phase-1-capredbeard08.vercel.app",
-  "https://merit-qmi40m6le-capredbeard08.vercel.app",
-  "https://merit-29vvlita4-capredbeard08.vercel.app",
-  "https://merit-mh7b9v2rj-capredbeard08.vercel.app",
-  "https://merit-8q9b8dryg-capredbeard08.vercel.app",
-].filter((origin): origin is string => Boolean(origin));
-
 const captchaSecret = process.env.RECAPTCHA_SECRET_KEY;
 if (!captchaSecret) {
   throw new Error("RECAPTCHA_SECRET_KEY must be configured");
@@ -30,13 +17,27 @@ if (!captchaSecret) {
 
 export const auth = betterAuth({
   secret,
+  // Resolve each request against a strict MERIT-owned hostname allowlist.
+  // Better Auth 1.7.x adds allowedHosts to trustedOrigins automatically.
+  // Vercel rewrites the public host, so trustedProxyHeaders is not required.
+  baseURL: {
+    allowedHosts: [
+      "merit-olive.vercel.app",
+      "merit-capredbeard08.vercel.app",
+      "merit-git-main-capredbeard08.vercel.app",
+      "merit-*-capredbeard08.vercel.app",
+      ...(process.env.NODE_ENV === "development" ? ["localhost:3000"] : []),
+    ],
+    protocol: process.env.NODE_ENV === "development" ? "http" : "https",
+    fallback: "https://merit-olive.vercel.app",
+  },
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
   emailAndPassword: {
     enabled: true,
-    // Temporary pilot configuration: email verification is disabled until
-    // a verified sending domain is configured. Restore this before broad launch.
+    // Keep the pilot behavior explicit until the verified sender domain and
+    // complete verification journey have been confirmed end to end.
     requireEmailVerification: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
@@ -51,7 +52,8 @@ export const auth = betterAuth({
         idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
       });
     },
-    // Keep email delivery dormant until the sender domain is verified.
+    // Deliberately dormant until EMAIL_FROM is a verified sender and delivery
+    // plus callback behavior are tested. Do not claim email verification is enforced.
     sendOnSignUp: false,
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
@@ -67,5 +69,4 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
   },
-  trustedOrigins,
 });
