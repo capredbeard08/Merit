@@ -23,7 +23,7 @@ export async function POST(request: Request): Promise<Response> {
     where: { status: "QUEUED", scheduledAt: { lte: now } },
     orderBy: { scheduledAt: "asc" },
     take: 25,
-    select: { id: true },
+    select: { id: true, workspaceId: true },
   });
 
   let sent = 0;
@@ -32,13 +32,13 @@ export async function POST(request: Request): Promise<Response> {
 
   for (const candidate of due) {
     const claim = await prisma.followUp.updateMany({
-      where: { id: candidate.id, status: "QUEUED" },
+      where: { id: candidate.id, workspaceId: candidate.workspaceId, status: "QUEUED" },
       data: { status: "PROCESSING", processingAt: new Date() },
     });
     if (claim.count !== 1) { skipped++; continue; }
 
     const item = await prisma.followUp.findUnique({
-      where: { id: candidate.id },
+      where: { id: candidate.id, workspaceId: candidate.workspaceId },
       include: {
         workspace: true,
         feedback: { include: { customer: true, branch: true } },
@@ -48,7 +48,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const customer = item.feedback.customer;
     if (!customer.email || customer.optedOutAt || item.feedback.status === "OPTED_OUT") {
-      await prisma.followUp.update({ where: { id: item.id }, data: { status: "CANCELLED", processingAt: null } });
+      await prisma.followUp.updateMany({ where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" }, data: { status: "CANCELLED", processingAt: null } });
       continue;
     }
 
@@ -72,19 +72,19 @@ export async function POST(request: Request): Promise<Response> {
       });
 
       await prisma.$transaction([
-        prisma.followUp.update({
-          where: { id: item.id },
+        prisma.followUp.updateMany({
+          where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
           data: { status: "SENT", sentAt: new Date(), providerId: result.id ?? null, processingAt: null, error: null },
         }),
-        prisma.feedback.update({
-          where: { id: item.feedbackId },
+        prisma.feedback.updateMany({
+          where: { id: item.feedbackId, workspaceId: item.workspaceId },
           data: { sentAt: new Date(), status: "CONTACTED" },
         }),
       ]);
       sent++;
     } catch (error) {
-      await prisma.followUp.update({
-        where: { id: item.id },
+      await prisma.followUp.updateMany({
+        where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
         data: {
           status: "FAILED",
           failedAt: new Date(),
