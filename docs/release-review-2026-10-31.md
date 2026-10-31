@@ -49,7 +49,7 @@ PR #2 substantially changes dashboard metrics, branch filtering, click trends an
 - Confirm production CSP, CORS, rate limits, webhook signature/replay controls, backup retention and a successful isolated restore drill.
 - Confirm production debug settings and secret-file ignore/history checks.
 
-## Release gates
+## Vercel environment finding\n- The Vercel project metadata assigns one `DATABASE_URL` environment-variable record to both `production` and `preview`. Preview therefore currently receives the same database URL value as Production. SSO protection is enabled for non-custom deployment domains, but that is not database isolation and does not prevent accidental writes from preview code. Create and verify a separate Preview database before write-capable preview testing or preview migrations.\n- A Preview-only `NEXT_PUBLIC_DISABLE_CAPTCHA=true` variable is configured for `feat/restore-functional-sidebar`; the corresponding PR #4 code also disables the server CAPTCHA plugin when `VERCEL_ENV=preview`. Keep this behind SSO and separate Preview data; do not copy the bypass into production.\n\n## Release gates
 1. One integrated branch with documented source PRs and no unresolved conflicts.
 2. CI passes: tests, typecheck and production build.
 3. Vercel preview build passes.
