@@ -69,7 +69,7 @@ The current schema has single-column foreign keys for several tenant relationshi
 - FollowUp -> Feedback
 - FeedbackReply -> Feedback
 
-Check existing data for mismatched tenant relationships before adding constraints. Do not silently rewrite or delete records.
+Check existing data for mismatched tenant relationships before adding constraints. Do not silently rewrite or delete records. A non-executable review candidate with mismatch queries and proposed PostgreSQL DDL is in `docs/security/composite-tenant-keys-review.sql`. It is deliberately outside `prisma/migrations/`; it is not approved for execution. The current Prisma schema still needs corresponding composite relation definitions and generated-client validation before this candidate can become a real migration. Confirm PostgreSQL server support for column-list `ON DELETE SET NULL` (PostgreSQL 15+) used to preserve `workspaceId` when an optional branch link is removed.
 
 ## Required automated tests before rollout
 
