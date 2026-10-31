@@ -2,6 +2,15 @@ name: MERIT apply database migrations
 
 on:
   workflow_dispatch:
+    inputs:
+      confirm_production_migration:
+        description: "Type yes only after reviewing the migration diff and confirming the production backup is recoverable."
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+        default: "no"
 
 permissions:
   contents: read
@@ -12,9 +21,12 @@ concurrency:
 
 jobs:
   migrate:
+    if: ${{ inputs.confirm_production_migration == 'yes' }}
     name: Apply reviewed security-branch migrations
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment:
+      name: production
     steps:
       - name: Check out the reviewed migration branch
         uses: actions/checkout@v4
@@ -29,6 +41,15 @@ jobs:
 
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Check production migration secret is present
+        env:
+          DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Configure MERIT_PRODUCTION_DATABASE_URL in the protected production environment."
+            exit 1
+          fi
 
       - name: Check migration status before applying
         shell: bash
@@ -46,14 +67,14 @@ jobs:
             echo "Pending migrations detected as expected; continuing to the deployment step."
           fi
         env:
-          DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
 
       - name: Apply pending migrations
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
 
       - name: Verify migration status after applying
         run: npx prisma migrate status
         env:
-          DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
