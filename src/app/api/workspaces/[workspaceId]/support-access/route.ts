@@ -1,13 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
-import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
-import { can, type Role } from "@/lib/domain";
-import { evaluateSupportAccessDecision } from "@/lib/support-access-decision";
-import { isSameOriginRequest } from "@/lib/founder-bootstrap";
+import { createSupportAccessDecisionHandler } from "@/lib/support-access-api";
 
 const decisionSchema = z.object({
   requestId: z.string().min(1).max(128),
@@ -51,8 +47,6 @@ export async function GET(
     })),
   }, { headers: { "Cache-Control": "no-store" } });
 }
-
-import { createSupportAccessDecisionHandler } from "@/lib/support-access-api";
 
 const handleSupportAccessDecision = createSupportAccessDecisionHandler({
   prisma,
