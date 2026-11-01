@@ -2,9 +2,9 @@ name: MERIT CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/platform-access-foundation]
   pull_request:
-    branches: [main]
+    branches: [main, feat/explicit-workspace-selection]
   workflow_dispatch:
 
 permissions:
