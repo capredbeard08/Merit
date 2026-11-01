@@ -73,6 +73,23 @@ export function PlatformSupportRequests() {
     }
   }
 
+  async function revokeRequest(item: RequestItem) {
+    if (!window.confirm(item.effectiveStatus === "APPROVED" ? "Revoke your support access immediately?" : "Cancel this pending support request?")) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/platform/support-requests/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Unable to revoke request");
+      setMessage("Support request cancelled or access revoked.");
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to revoke request");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="mt-10 rounded-3xl border border-[#dce2d8] bg-white/75 p-6 sm:p-7">
       <div>
@@ -130,6 +147,11 @@ export function PlatformSupportRequests() {
                 <p className="mt-3 text-sm leading-6 text-[#52665a]">{item.reason}</p>
                 {item.effectiveStatus === "APPROVED" && item.expiresAt && <p className="mt-2 text-xs text-[#718178]">Access expires {new Date(item.expiresAt).toLocaleString("en-GB")}.</p>}
                 {item.effectiveStatus === "PENDING" && <p className="mt-2 text-xs text-[#718178]">Awaiting business decision · request deadline {new Date(item.requestExpiresAt).toLocaleString("en-GB")}.</p>}
+                {(item.effectiveStatus === "PENDING" || item.effectiveStatus === "APPROVED") && (
+                  <button type="button" disabled={busy} onClick={() => void revokeRequest(item)} className="mt-3 rounded-lg border border-[#d9c4bd] px-3 py-1.5 text-xs font-semibold text-[#8b493b] disabled:opacity-50">
+                    {item.effectiveStatus === "APPROVED" ? "Revoke my access" : "Cancel request"}
+                  </button>
+                )}
               </article>
             ))}
           </div>
