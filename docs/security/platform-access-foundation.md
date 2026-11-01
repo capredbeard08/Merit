@@ -20,7 +20,7 @@ The database migration adds a partial unique index allowing only one active `FOU
 
 - The one-time founder bootstrap endpoint is implemented on this branch. No hardcoded founder email, seed account, or automatic promotion exists.
 - No platform administrator or engineer can currently grant themselves or another user access.
-- No platform route or dashboard is exposed yet.
+- A server-protected `/platform` console shell is implemented; management panels remain intentionally unavailable until their API authorization and audit controls are complete.
 - No platform role grants access to business customer content.
 - Business-approved Request Authorization, scoped read/write grants, expiry, revocation, and investigation audit exports remain a separate phase.
 
