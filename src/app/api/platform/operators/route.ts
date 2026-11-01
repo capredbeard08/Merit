@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -118,6 +120,7 @@ export async function POST(request: Request): Promise<Response> {
           targetId: target.id,
           metadata: {
             role: access.role,
+            ...(existing ? { previousRole: existing.role } : {}),
             reason: existing ? "founder_reinstated_revoked_operator" : "founder_granted_operator_access",
           },
           ...context,
