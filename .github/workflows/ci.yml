@@ -62,6 +62,9 @@ jobs:
       - name: Apply migrations to disposable CI database
         run: npx prisma migrate deploy
 
+      - name: Run database-backed support authorization tests
+        run: npm run test:integration
+
       - name: Run Security Warden tests
         run: npm run test:security
 
