@@ -6,6 +6,7 @@ import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
 import { executeApprovedSupportReadInTransaction } from "./support-access";
 import { createSupportAccessDecisionHandler } from "./support-access-api";
+import { createSupportAccessRequestHandler, createSupportAccessRequesterCancelHandler } from "./support-access-request-api";
 
 const prisma = new PrismaClient();
 
@@ -64,47 +65,44 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       ), { params: Promise.resolve({ workspaceId: targetWorkspaceId }) });
     };
 
+    const createHandler = createSupportAccessRequestHandler({
+      prisma,
+      authorize: async () => ({ ok: true, session: { user: { id: operatorId } } }),
+    });
+    const createRequest = (payload: unknown) => createHandler(new Request(
+      "https://merit-olive.vercel.app/api/platform/support-requests",
+      {
+        method: "POST",
+        headers: { origin: "https://merit-olive.vercel.app", "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    ));
+
+    const cancelRequest = async (actorId: string, requestId: string, origin = "https://merit-olive.vercel.app") => {
+      const handler = createSupportAccessRequesterCancelHandler({
+        prisma,
+        getSession: async () => ({ user: { id: actorId } }),
+      });
+      return handler(new Request(
+        `https://merit-olive.vercel.app/api/platform/support-requests/${requestId}`,
+        { method: "DELETE", headers: { origin } },
+      ), { params: Promise.resolve({ requestId }) });
+    };
+
     assert.equal(canAccessPlatform(
       { role: PlatformAccessRole.ENGINEER, revokedAt: null },
       "platform:security:read",
     ), true);
 
-    const now = new Date();
-    const requestExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const pending = await prisma.$transaction(async (tx) => {
-      const created = await tx.supportAccessRequest.create({
-        data: {
-          workspaceId,
-          requestedByUserId: operatorId,
-          scope: SupportAccessScope.FEEDBACK_READ,
-          reason: "Investigate a customer-reported feedback display issue.",
-          requestedDurationMinutes: 60,
-          requestExpiresAt,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          workspaceId,
-          actorUserId: operatorId,
-          action: "SUPPORT_ACCESS_REQUESTED",
-          targetType: "SUPPORT_ACCESS_REQUEST",
-          targetId: created.id,
-          metadata: { scope: SupportAccessScope.FEEDBACK_READ },
-        },
-      });
-      await tx.securityEvent.create({
-        data: {
-          workspaceId: null,
-          actorUserId: operatorId,
-          type: "SUPPORT_ACCESS_REQUESTED",
-          severity: "HIGH",
-          targetId: workspaceId,
-          metadata: { supportAccessRequestId: created.id },
-        },
-      });
-      return created;
+    const createResponse = await createRequest({
+      workspaceId,
+      scope: SupportAccessScope.FEEDBACK_READ,
+      reason: "Investigate a customer-reported feedback display issue.",
+      durationMinutes: 60,
     });
-
+    assert.equal(createResponse.status, 201);
+    const createBody = await createResponse.json() as { request: { id: string } };
+    const pending = await prisma.supportAccessRequest.findUniqueOrThrow({ where: { id: createBody.request.id } });
     assert.equal(pending.status, SupportAccessStatus.PENDING);
     assert.equal(await prisma.auditLog.count({
       where: { workspaceId, targetId: pending.id, action: "SUPPORT_ACCESS_REQUESTED" },
@@ -112,6 +110,18 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(await prisma.securityEvent.count({
       where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_REQUESTED" },
     }), 1);
+    assert.equal((await createRequest({
+      workspaceId,
+      scope: SupportAccessScope.FEEDBACK_READ,
+      reason: "A duplicate request must be rejected by the API.",
+      durationMinutes: 30,
+    })).status, 409);
+    assert.equal((await createRequest({
+      workspaceId: "missing-workspace",
+      scope: SupportAccessScope.FEEDBACK_READ,
+      reason: "The API must reject unknown workspace identifiers.",
+      durationMinutes: 30,
+    })).status, 404);
 
     // A pending request never authorizes access, including from a different workspace.
     assert.equal(isSupportAuthorizationActive({
@@ -145,6 +155,24 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     }), 1);
     assert.equal(await prisma.securityEvent.count({
       where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_APPROVED" },
+    }), 1);
+
+    const requesterCancel = await createRequest({
+      workspaceId,
+      scope: SupportAccessScope.CUSTOMER_RECORDS_READ,
+      reason: "Test the operator's ability to cancel a pending request.",
+      durationMinutes: 30,
+    });
+    assert.equal(requesterCancel.status, 201);
+    const cancelBody = await requesterCancel.json() as { request: { id: string } };
+    assert.equal((await cancelRequest(operatorId, cancelBody.request.id)).status, 200);
+    const cancelled = await prisma.supportAccessRequest.findUniqueOrThrow({ where: { id: cancelBody.request.id } });
+    assert.equal(cancelled.status, SupportAccessStatus.REVOKED);
+    assert.equal((await cancelRequest(operatorId, cancelBody.request.id)).status, 409);
+    assert.equal((await cancelRequest(ownerId, pending.id)).status, 404);
+    assert.equal((await cancelRequest(operatorId, cancelBody.request.id, "https://evil.example")).status, 403);
+    assert.equal(await prisma.auditLog.count({
+      where: { workspaceId, targetId: cancelBody.request.id, action: "SUPPORT_ACCESS_REVOKED" },
     }), 1);
 
     const deniedRequest = await prisma.supportAccessRequest.create({
