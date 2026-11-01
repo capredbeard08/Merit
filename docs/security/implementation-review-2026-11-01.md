@@ -121,7 +121,7 @@ The CI workflow was updated to run on pushes to `main` and `feat/platform-access
 
 An earlier run exposed TypeScript response-narrowing errors in platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. Subsequent changes addressed the reported issues, and the recorded successful CI run passed the TypeScript check. A later guard explicitly checks that the support grant exists before accessing its ID.
 
-**Latest verified CI result: PASSED** — GitHub Actions run [#199](https://github.com/capredbeard08/Merit/actions/runs/41339143548), for commit `ec931065056b74bc1e1893877b478c7db42d6d5e`:
+**Latest verified CI result: PASSED** — GitHub Actions run [#212](https://github.com/capredbeard08/Merit/actions/runs/41339492114), for commit `e1960dd26904a3a9a381a2620506d0943e0bd3ea`:
 - Dependency installation: passed.
 - Prisma schema validation: passed.
 - Prisma Client generation: passed.
