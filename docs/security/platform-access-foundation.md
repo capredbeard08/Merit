@@ -16,9 +16,9 @@ The capability policy is explicit and fail-closed in `src/lib/platform-access.ts
 
 The database migration adds a partial unique index allowing only one active `FOUNDER_SUPER_ADMIN` assignment. Transfer requires revoking the current assignment before creating another. Revocation is represented by `revokedAt`; application checks must reject revoked records immediately.
 
-## Not implemented in this foundation
+## Implemented and remaining
 
-- No bootstrap endpoint, hardcoded founder email, seed account, or automatic promotion exists.
+- The one-time founder bootstrap endpoint is implemented on this branch. No hardcoded founder email, seed account, or automatic promotion exists.
 - No platform administrator or engineer can currently grant themselves or another user access.
 - No platform route or dashboard is exposed yet.
 - No platform role grants access to business customer content.
@@ -26,8 +26,8 @@ The database migration adds a partial unique index allowing only one active `FOU
 
 ## Required next controls
 
-1. **Implemented on this branch:** a one-time founder bootstrap requiring an authenticated existing user, verified email, same-origin request, explicit deployment-time bootstrap secret, and serializable database transaction. The endpoint records a high-severity SecurityEvent and rejects any second founder assignment, including revoked assignments. It is not ready for production until email verification is enabled/tested and edge rate limiting is configured. Remove/disable the bootstrap secret immediately after use; never expose it to client code.
-2. Record every role grant/revocation as a platform SecurityEvent with actor, target, reason, and request context; never store secrets or customer content in event metadata.
+1. **Implemented on this branch:** the initial bootstrap records a high-severity SecurityEvent with actor, target, reason, and request context; it never stores the secret or customer content. It is not ready for production until email verification is enabled/tested and edge rate limiting is configured. Remove/disable the bootstrap secret immediately after use; never expose it to client code.
+2. Record every subsequent role grant/revocation as a platform SecurityEvent with actor, target, reason, and request context; never store secrets or customer content in event metadata.
 3. Protect all platform API routes server-side with the capability policy and MFA/step-up authentication for sensitive operations.
 4. Add Request Authorization before any support/investigation access to a business workspace. The grant must identify the workspace, exact resource scope, read/write mode, business approver, expiry, and revocation state.
 5. Add tests for bootstrap races, second-founder rejection, role revocation, session invalidation, cross-workspace denial, and unauthorized direct API calls.
