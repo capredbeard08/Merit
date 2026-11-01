@@ -14,6 +14,7 @@ export const platformCapabilities = [
   "platform:users:read",
   "platform:users:manage",
   "platform:security:read",
+  "platform:audit:export",
   "platform:access:grant",
   "platform:access:revoke",
   "platform:deployments:read",
