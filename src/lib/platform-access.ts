@@ -35,9 +35,8 @@ export type PlatformAccessRecord = {
 export function canAccessPlatform(
   access: PlatformAccessRecord | null | undefined,
   capability: PlatformCapability,
-  now: Date = new Date(),
 ): boolean {
   if (!access || access.revokedAt !== null) return false;
   if (!platformAccessRoles.includes(access.role as PlatformAccessRole)) return false;
-  return capabilities[access.role as PlatformAccessRole].includes(capability) && now.getTime() >= 0;
+  return capabilities[access.role as PlatformAccessRole].includes(capability);
 }
