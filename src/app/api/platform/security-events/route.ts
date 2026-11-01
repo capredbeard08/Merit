@@ -30,7 +30,7 @@ export async function GET(request: Request): Promise<Response> {
     request,
     format === "csv" ? "platform:audit:export" : "platform:security:read",
   );
-  if ("response" in authz) return authz.response;
+  if (!authz.ok) return authz.response;
 
   if (parsed.data.cursor) {
     const cursorEvent = await prisma.securityEvent.findFirst({
