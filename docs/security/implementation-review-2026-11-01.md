@@ -218,7 +218,8 @@ Please review these decisions before the next development step:
 - [x] Resolve the previously reported TypeScript failures; the recorded CI run passed TypeScript and production build.
 - [x] Verify explicit Prisma validation and the full migration chain against disposable PostgreSQL in CI run #165.
 - [x] Add a database-backed support lifecycle and transaction-scoped read-guard integration test.
-- [ ] Add direct HTTP/API integration tests for approval, denial, self-approval, expiry, revocation, and cross-workspace isolation.
+- [x] Add handler-level database integration coverage for request creation, duplicate rejection, cancellation, approval, denial, self-approval rejection, non-member denial, cross-workspace isolation, origin enforcement, and inactive operators.
+- [ ] Add real Better Auth session/capability-middleware tests and concurrent approval/revocation/duplicate-request race tests.
 - [ ] Do not run migrations or deploy until a recoverable backup and all deployment gates are satisfied.
 
 ## 13. Current status
