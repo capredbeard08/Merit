@@ -17,7 +17,7 @@ const panels = [
   {
     title: "Security and audit",
     description: "Review platform security events and privileged actions.",
-    status: "Foundation in progress",
+    status: "Platform security history available below",
   },
   {
     title: "Deployment visibility",
