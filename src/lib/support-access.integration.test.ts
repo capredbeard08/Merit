@@ -14,16 +14,32 @@ const prisma = new PrismaClient();
 
 test("database-backed support authorization is scoped, time-limited, revocable, and audited", async (t) => {
   const suffix = randomUUID();
-  const operatorId = `integration-operator-${suffix}`;
+  let operatorId = "";
+  const operatorEmail = `operator-${suffix}@example.invalid`;
   const ownerId = `integration-owner-${suffix}`;
   const otherOwnerId = `integration-other-owner-${suffix}`;
   let workspaceId = "";
   let otherWorkspaceId = "";
 
   try {
+    // Sign up through Better Auth itself so the test receives a correctly
+    // signed session cookie rather than hand-constructing an invalid token.
+    const signupResponse = await auth.api.signUpEmail({
+      body: {
+        name: "CI Operator",
+        email: operatorEmail,
+        password: "CI-only-strong-password-123!",
+      },
+      asResponse: true,
+    });
+    assert.equal(signupResponse.status, 200, "Better Auth sign-up should create a CI operator session");
+    const signupBody = await signupResponse.json() as { user: { id: string } };
+    operatorId = signupBody.user.id;
+    const sessionCookie = signupResponse.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(sessionCookie, "Better Auth sign-up must issue a signed session cookie");
+
     await prisma.user.createMany({
       data: [
-        { id: operatorId, name: "CI Operator", email: `operator-${suffix}@example.invalid`, emailVerified: true },
         { id: ownerId, name: "CI Workspace Owner", email: `owner-${suffix}@example.invalid`, emailVerified: true },
         { id: otherOwnerId, name: "CI Other Owner", email: `other-owner-${suffix}@example.invalid`, emailVerified: true },
       ],
@@ -40,19 +56,10 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       data: { userId: operatorId, role: PlatformAccessRole.ENGINEER },
     });
 
-    // Exercise Better Auth's actual session lookup and the production platform
-    // capability middleware rather than substituting an injected session.
-    const sessionToken = randomUUID();
-    await prisma.session.create({
-      data: {
-        id: randomUUID(),
-        token: sessionToken,
-        userId: operatorId,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      },
-    });
+    // Exercise Better Auth's actual signed session cookie and the production
+    // platform capability middleware rather than substituting a session.
     const sessionHeaders = new Headers({
-      cookie: `better-auth.session_token=${sessionToken}`,
+      cookie: sessionCookie,
       origin: "https://merit-olive.vercel.app",
     });
     const realSession = await auth.api.getSession({ headers: sessionHeaders });
