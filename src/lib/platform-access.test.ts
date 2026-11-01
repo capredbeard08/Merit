@@ -7,11 +7,13 @@ const active = (role: string) => ({ role, revokedAt: null });
 test("founder super admin receives platform-console capabilities", () => {
   assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:access:grant"), true);
   assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:users:manage"), true);
+  assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:access:revoke"), true);
 });
 
 test("platform administrators cannot grant platform access", () => {
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:users:manage"), true);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:access:grant"), false);
+  assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:access:revoke"), false);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:deployments:read"), false);
 });
 
