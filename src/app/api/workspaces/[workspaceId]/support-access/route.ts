@@ -122,7 +122,7 @@ export async function PATCH(
               expiresAt: new Date(now.getTime() + supportRequest.requestedDurationMinutes * 60_000),
             }
           : parsed.data.decision === "DENY"
-            ? { status: "DENIED", decidedAt: now, approvedByUserId: session.user.id }
+            ? { status: "DENIED", decidedAt: now, decidedByUserId: session.user.id }
             : { status: "REVOKED", revokedAt: now, revokedByUserId: session.user.id },
         select: { id: true, status: true, scope: true, expiresAt: true },
       });
