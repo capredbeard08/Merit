@@ -24,16 +24,20 @@ The database migration adds a partial unique index allowing only one active `FOU
 - A platform-only security event feed is implemented at `GET /api/platform/security-events`, with severity/type filters and cursor pagination. It queries only allow-listed platform event types with `workspaceId: null`; workspace audit history and customer records are excluded.
 - Founder-only CSV export is available through the same endpoint using `format=csv`. Exported metadata is allow-listed, CSV formula injection is neutralized, and responses are marked no-store. Export is capped at 500 most recent matching records per request.
 - No platform role grants access to business customer content.
-- Business-approved Request Authorization, scoped read/write grants, expiry, revocation, and investigation audit exports remain a separate phase.
+- Business-approved read-only Support Authorization request, approval, denial, expiry, and revocation workflows are implemented. Actual support data-view routes remain disabled until each route is explicitly wired through the authorization guard.
 
 ## Required next controls
 
 1. **Implemented on this branch:** the initial bootstrap records a high-severity SecurityEvent with actor, target, reason, and request context; it never stores the secret or customer content. It is not ready for production until email verification is enabled/tested and edge rate limiting is configured. Remove/disable the bootstrap secret immediately after use; never expose it to client code.
 2. **Implemented on this branch:** operator grants, reinstatements, and revocations are recorded as high-severity SecurityEvents in the same serializable transaction as the access change. Metadata excludes secrets and customer content.
 3. Protect all platform API routes server-side with the capability policy; the security feed is read-only for Platform Admin and Engineer, while CSV export is Founder-only. MFA/step-up authentication and edge rate limiting are still required for sensitive operations.
-4. Add Request Authorization before any support/investigation access to a business workspace. The grant must identify the workspace, exact resource scope, read/write mode, business approver, expiry, and revocation state.
-5. Add integration tests for operator grant/revoke races, verified-account enforcement, founder protection, and unauthorized direct API calls; configure edge rate limiting and MFA/step-up for sensitive operations.
-6. Validate the Prisma schema, generate the client, run the complete security suite, and run a production build before merging or deploying.
+4. **Implemented on this branch:** platform operators can request one of four read-only scopes: customer records, feedback, feedback replies, or uploaded files. Requests require a 20–500 character reason, a 30/60/120/240-minute duration, and expire if not reviewed within 24 hours. Duplicate pending or currently active requests for the same operator/workspace/scope are rejected.
+5. **Implemented on this branch:** workspace Owners and Admins can review requests in the business dashboard, approve, deny, or revoke active grants. The requester cannot approve their own request. The requester can also cancel a pending request or revoke their own approved access.
+6. **Implemented on this branch:** approvals are bound to one workspace, one resource scope, one operator, read-only access, and a maximum four-hour expiry. Revocation and expiry are checked server-side. Requests, decisions, revocations, and each guarded support read are recorded in the workspace audit log; request/decision events are also recorded in the platform security event feed.
+7. **Guard requirement:** every future support route that returns business data must call `requireApprovedSupportRead` with the exact workspace and scope immediately before the query, and the data query itself must remain constrained to that workspace. The helper writes a workspace audit event for each use. Do not create a generic unscoped support endpoint. No support data-view route is enabled by this increment.
+8. Add integration tests for request creation, self-approval denial, workspace isolation, expiry, revocation races, and unauthorized direct API calls.
+9. Add integration tests for operator grant/revoke races, verified-account enforcement, founder protection, and unauthorized direct API calls; configure edge rate limiting and MFA/step-up for sensitive operations.
+10. Validate the Prisma schema, generate the client, run the complete security suite, and run a production build before merging or deploying.
 
 ## Deployment gate
 
