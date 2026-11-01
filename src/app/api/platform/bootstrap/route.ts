@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { isSameOriginRequest, matchesFounderBootstrapSecret } from "@/lib/founder-bootstrap";
+import { consumePlatformRateLimit } from "@/lib/platform-rate-limit";
 
 const bodySchema = z.object({
   bootstrapSecret: z.string().min(32).max(256),
@@ -18,8 +19,17 @@ export async function POST(request: Request): Promise<Response> {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
+  const authenticatedAt = new Date(session.session.createdAt).getTime();
+  if (!Number.isFinite(authenticatedAt) || Date.now() - authenticatedAt > 10 * 60 * 1000 || Date.now() < authenticatedAt) {
+    return NextResponse.json({ error: "Fresh authentication required. Sign in again before founder bootstrap." }, { status: 428 });
+  }
   if (!session.user.emailVerified) {
     return NextResponse.json({ error: "A verified email address is required" }, { status: 403 });
+  }
+
+  const rateLimit = await consumePlatformRateLimit(session.user.id, "founder-bootstrap", 3, 60 * 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Too many bootstrap attempts. Try again later." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } });
   }
 
   const configuredSecret = process.env.FOUNDER_BOOTSTRAP_SECRET;
