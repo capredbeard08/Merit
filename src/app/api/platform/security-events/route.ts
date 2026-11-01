@@ -32,6 +32,21 @@ export async function GET(request: Request): Promise<Response> {
   );
   if ("response" in authz) return authz.response;
 
+  if (parsed.data.cursor) {
+    const cursorEvent = await prisma.securityEvent.findFirst({
+      where: {
+        id: parsed.data.cursor,
+        workspaceId: null,
+        type: { in: parsed.data.type ? [parsed.data.type] : [...platformSecurityEventTypes] },
+        ...(parsed.data.severity ? { severity: parsed.data.severity } : {}),
+      },
+      select: { id: true },
+    });
+    if (!cursorEvent) {
+      return NextResponse.json({ error: "Invalid security-event cursor" }, { status: 400 });
+    }
+  }
+
   const limit = format === "csv" ? 500 : parsed.data.limit;
   const events = await prisma.securityEvent.findMany({
     where: {
