@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSupportAuthorizationActive } from "./support-access";
+import { isSupportAuthorizationActive } from "./support-access-policy";
 
 const now = new Date("2026-11-01T12:00:00.000Z");
 const approved = {
