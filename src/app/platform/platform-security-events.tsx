@@ -136,6 +136,9 @@ export function PlatformSecurityEvents({ canExport }: { canExport: boolean }) {
                   <div><dt className="inline font-semibold text-[#52675b]">Target: </dt><dd className="inline break-all">{event.targetId ?? "—"}</dd></div>
                   {event.metadata.role && <div><dt className="inline font-semibold text-[#52675b]">Role: </dt><dd className="inline">{event.metadata.role.replaceAll("_", " ")}</dd></div>}
                   {event.metadata.previousRole && <div><dt className="inline font-semibold text-[#52675b]">Previous role: </dt><dd className="inline">{event.metadata.previousRole.replaceAll("_", " ")}</dd></div>}
+                  {event.metadata.scope && <div><dt className="inline font-semibold text-[#52675b]">Scope: </dt><dd className="inline">{event.metadata.scope.replaceAll("_", " ")}</dd></div>}
+                  {event.metadata.durationMinutes && <div><dt className="inline font-semibold text-[#52675b]">Duration: </dt><dd className="inline">{event.metadata.durationMinutes} minutes</dd></div>}
+                  {event.metadata.supportAccessRequestId && <div className="sm:col-span-2"><dt className="inline font-semibold text-[#52675b]">Request: </dt><dd className="inline break-all">{event.metadata.supportAccessRequestId}</dd></div>}
                   {event.metadata.reason && <div className="sm:col-span-2"><dt className="inline font-semibold text-[#52675b]">Reason: </dt><dd className="inline break-words">{event.metadata.reason.replaceAll("_", " ")}</dd></div>}
                   {event.ipAddress && <div><dt className="inline font-semibold text-[#52675b]">IP: </dt><dd className="inline">{event.ipAddress}</dd></div>}
                 </dl>
