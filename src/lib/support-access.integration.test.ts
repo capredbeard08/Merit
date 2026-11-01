@@ -9,10 +9,22 @@ import { createSupportAccessDecisionHandler } from "./support-access-api";
 import { createSupportAccessRequestHandler, createSupportAccessRequesterCancelHandler } from "./support-access-request-api";
 import { auth } from "./better-auth";
 import { requirePlatformCapability } from "./platform-admin";
+import { consumePlatformRateLimit } from "./platform-rate-limit";
 import { POST as founderBootstrapPost } from "../app/api/platform/bootstrap/route";
 import { POST as grantPlatformOperator, DELETE as revokePlatformOperator } from "../app/api/platform/operators/route";
 
 const prisma = new PrismaClient();
+
+test("platform rate limiting is shared, fixed-window, and fails closed on excess", async () => {
+  const subject = "rate-limit-integration-" + randomUUID();
+  const first = await consumePlatformRateLimit(subject, "test-action", 2, 60_000);
+  const second = await consumePlatformRateLimit(subject, "test-action", 2, 60_000);
+  const third = await consumePlatformRateLimit(subject, "test-action", 2, 60_000);
+  assert.equal(first.allowed, true);
+  assert.equal(second.allowed, true);
+  assert.equal(third.allowed, false);
+  if (!third.allowed) assert.ok(third.retryAfterSeconds > 0);
+});
 
 test("database-backed support authorization is scoped, time-limited, revocable, and audited", async (t) => {
   const suffix = randomUUID();
@@ -66,6 +78,24 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     });
     const realSession = await auth.api.getSession({ headers: sessionHeaders });
     assert.equal(realSession?.user.id, operatorId, "Better Auth must resolve the persisted CI session");
+    assert.ok(realSession?.session.id, "Better Auth session identifier should be available");
+    const originalCreatedAt = realSession!.session.createdAt;
+    await prisma.session.update({
+      where: { id: realSession!.session.id },
+      data: { createdAt: new Date(Date.now() - 11 * 60 * 1000) },
+    });
+    const staleStepUp = await requirePlatformCapability(
+      new Request("https://merit-olive.vercel.app/api/platform/operators", { headers: sessionHeaders }),
+      "platform:access:grant",
+      true,
+      { requireRecentAuthentication: true },
+    );
+    assert.equal(staleStepUp.ok, false, "sensitive actions must reject sessions older than ten minutes");
+    if (!staleStepUp.ok) assert.equal(staleStepUp.response.status, 428);
+    await prisma.session.update({
+      where: { id: realSession!.session.id },
+      data: { createdAt: originalCreatedAt },
+    });
     const realMiddlewareRequest = new Request(
       "https://merit-olive.vercel.app/api/platform/security-events",
       { headers: sessionHeaders },
