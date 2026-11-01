@@ -17,7 +17,7 @@ const revokeSchema = z.object({
 
 export async function GET(request: Request): Promise<Response> {
   const authz = await requirePlatformCapability(request, "platform:users:read");
-  if ("response" in authz) return authz.response;
+  if (!authz.ok) return authz.response;
 
   const operators = await prisma.platformAccess.findMany({
     orderBy: [{ revokedAt: "asc" }, { createdAt: "asc" }],
@@ -53,7 +53,7 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   const authz = await requirePlatformCapability(request, "platform:access:grant", true);
-  if ("response" in authz) return authz.response;
+  if (!authz.ok) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") {
@@ -147,7 +147,7 @@ export async function POST(request: Request): Promise<Response> {
 
 export async function DELETE(request: Request): Promise<Response> {
   const authz = await requirePlatformCapability(request, "platform:access:revoke", true);
-  if ("response" in authz) return authz.response;
+  if (!authz.ok) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") {
