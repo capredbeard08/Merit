@@ -129,7 +129,7 @@ export async function PATCH(
         data: {
           workspaceId,
           actorUserId: session.user.id,
-          action: `SUPPORT_ACCESS_${parsed.data.decision}D`,
+          action: `SUPPORT_ACCESS_${nextStatus}`,
           targetType: "SUPPORT_ACCESS_REQUEST",
           targetId: supportRequest.id,
           metadata: {
@@ -147,7 +147,7 @@ export async function PATCH(
         data: {
           workspaceId: null,
           actorUserId: session.user.id,
-          type: `SUPPORT_ACCESS_${parsed.data.decision}D`,
+          type: `SUPPORT_ACCESS_${nextStatus}`,
           severity: "HIGH",
           targetId: workspaceId,
           metadata: {
