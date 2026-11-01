@@ -13,6 +13,8 @@ export async function executeApprovedSupportReadInTransaction<T>(
     scope: SupportAccessScope;
     targetType: string;
     targetId?: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
     read: (tx: Prisma.TransactionClient, requestId: string) => Promise<T>;
   },
   now = new Date(),
@@ -62,6 +64,8 @@ export async function executeApprovedSupportReadInTransaction<T>(
       targetType: input.targetType.slice(0, 80),
       targetId: input.targetId?.slice(0, 128) ?? null,
       metadata: { supportAccessRequestId: grant.id, scope: input.scope, accessMode: "READ" },
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
     },
   });
 
@@ -99,6 +103,9 @@ export async function withApprovedSupportRead<T>(input: {
       scope: input.scope,
       targetType: input.targetType,
       targetId: input.targetId,
+      ipAddress: input.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64)
+        ?? input.request.headers.get("x-real-ip")?.slice(0, 64) ?? null,
+      userAgent: input.request.headers.get("user-agent")?.slice(0, 300) ?? null,
       read: input.read,
     });
     if (!result.authorized) {
