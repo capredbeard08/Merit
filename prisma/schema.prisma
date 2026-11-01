@@ -396,6 +396,17 @@ model FileAsset {
 }
 
 
+/// Fixed-window, database-backed limiter for privileged platform actions.
+/// Keys are HMAC digests; raw user identifiers are never stored here.
+model RateLimitBucket {
+  id              String   @id
+  key             String   @unique
+  windowStartedAt DateTime
+  count           Int
+  expiresAt       DateTime
+  @@index([expiresAt])
+}
+
 model SecurityEvent {
   id          String   @id @default(cuid())
   workspaceId String?
