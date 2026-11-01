@@ -37,7 +37,7 @@ export async function GET(
       requestedDurationMinutes: true, requestExpiresAt: true, decidedAt: true,
       expiresAt: true, revokedAt: true, createdAt: true,
       requestedBy: { select: { name: true, email: true } },
-      approvedBy: { select: { name: true, email: true } },
+      decidedBy: { select: { name: true, email: true } },
     },
   });
   const now = new Date();
@@ -115,7 +115,7 @@ export async function PATCH(
         data: parsed.data.decision === "APPROVE"
           ? {
               status: "APPROVED",
-              approvedByUserId: session.user.id,
+              decidedByUserId: session.user.id,
               decidedAt: now,
               expiresAt: new Date(now.getTime() + supportRequest.requestedDurationMinutes * 60_000),
             }
