@@ -6,7 +6,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
-import { canAccessPlatform } from "@/lib/platform-access";
+import { evaluateSupportAccessDecision } from "@/lib/support-access-decision";
 import { isSameOriginRequest } from "@/lib/founder-bootstrap";
 
 const decisionSchema = z.object({
@@ -88,26 +88,20 @@ export async function PATCH(
         },
       });
       if (!supportRequest) return { kind: "not_found" as const };
-      if (supportRequest.requestedByUserId === session.user.id) return { kind: "self_approval" as const };
-
-      const now = new Date();
-      if (parsed.data.decision === "APPROVE" || parsed.data.decision === "DENY") {
-        if (supportRequest.status !== "PENDING" || supportRequest.requestExpiresAt <= now) {
-          return { kind: "not_pending" as const };
-        }
-      } else if (supportRequest.status !== "APPROVED" || !supportRequest.expiresAt || supportRequest.expiresAt <= now) {
-        return { kind: "not_active" as const };
-      }
-
-      if (parsed.data.decision === "APPROVE") {
-        const operatorAccess = await tx.platformAccess.findUnique({
-          where: { userId: supportRequest.requestedByUserId },
-          select: { role: true, revokedAt: true },
-        });
-        if (!canAccessPlatform(operatorAccess, "platform:security:read")) {
-          return { kind: "operator_inactive" as const };
-        }
-      }
+      const operatorAccess = parsed.data.decision === "APPROVE"
+        ? await tx.platformAccess.findUnique({
+            where: { userId: supportRequest.requestedByUserId },
+            select: { role: true, revokedAt: true },
+          })
+        : null;
+      const decisionPolicy = evaluateSupportAccessDecision({
+        decision: parsed.data.decision,
+        request: supportRequest,
+        actorUserId: session.user.id,
+        operatorAccess,
+      });
+      if (decisionPolicy !== "allowed") return { kind: decisionPolicy as
+        | "self_approval" | "not_pending" | "not_active" | "operator_inactive" };
 
       const nextStatus = parsed.data.decision === "APPROVE"
         ? "APPROVED"
