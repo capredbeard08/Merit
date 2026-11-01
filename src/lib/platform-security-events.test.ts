@@ -27,7 +27,7 @@ test("non-object event metadata returns an empty object", () => {
 test("CSV cells are quoted and formula-like strings remain text", () => {
   assert.equal(escapeCsvCell('hello,"world"'), '"hello,""world"""');
   assert.equal(escapeCsvCell("=1+1"), "\"'=1+1\"");
-  assert.equal(escapeCsvCell("  @SUM(1,1)"), "\"  '@SUM(1,1)\"");
+  assert.equal(escapeCsvCell("  @SUM(1,1)"), "\"'  @SUM(1,1)\"");
 });
 
 test("CSV export contains only the approved event columns", () => {
@@ -42,7 +42,7 @@ test("CSV export contains only the approved event columns", () => {
     userAgent: null,
     createdAt: new Date("2026-11-01T12:00:00.000Z"),
   }]);
-  assert.match(csv, /Timestamp \(UTC\),/);
+  assert.match(csv, /"Timestamp \(UTC\)","Event"/);
   assert.match(csv, /PLATFORM_ACCESS_GRANTED/);
   assert.match(csv, /ENGINEER/);
   assert.doesNotMatch(csv, /secret|customerEmail/);
