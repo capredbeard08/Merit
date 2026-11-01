@@ -7,6 +7,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { canAccessPlatform } from "@/lib/platform-access";
+import { isSameOriginRequest } from "@/lib/founder-bootstrap";
 
 const decisionSchema = z.object({
   requestId: z.string().min(1).max(128),
@@ -55,6 +56,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ workspaceId: string }> },
 ): Promise<Response> {
+  if (!isSameOriginRequest(request.headers.get("origin"), request.url)) return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const { workspaceId } = await context.params;
