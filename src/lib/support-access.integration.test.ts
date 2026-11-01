@@ -7,6 +7,8 @@ import { isSupportAuthorizationActive } from "./support-access-policy";
 import { executeApprovedSupportReadInTransaction } from "./support-access";
 import { createSupportAccessDecisionHandler } from "./support-access-api";
 import { createSupportAccessRequestHandler, createSupportAccessRequesterCancelHandler } from "./support-access-request-api";
+import { auth } from "./better-auth";
+import { requirePlatformCapability } from "./platform-admin";
 
 const prisma = new PrismaClient();
 
@@ -37,6 +39,49 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     await prisma.platformAccess.create({
       data: { userId: operatorId, role: PlatformAccessRole.ENGINEER },
     });
+
+    // Exercise Better Auth's actual session lookup and the production platform
+    // capability middleware rather than substituting an injected session.
+    const sessionToken = randomUUID();
+    await prisma.session.create({
+      data: {
+        id: randomUUID(),
+        token: sessionToken,
+        userId: operatorId,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+    const sessionHeaders = new Headers({
+      cookie: `better-auth.session_token=${sessionToken}`,
+      origin: "https://merit-olive.vercel.app",
+    });
+    const realSession = await auth.api.getSession({ headers: sessionHeaders });
+    assert.equal(realSession?.user.id, operatorId, "Better Auth must resolve the persisted CI session");
+    const realMiddlewareRequest = new Request(
+      "https://merit-olive.vercel.app/api/platform/security-events",
+      { headers: sessionHeaders },
+    );
+    const allowedByRealMiddleware = await requirePlatformCapability(
+      realMiddlewareRequest,
+      "platform:security:read",
+      true,
+    );
+    assert.equal(allowedByRealMiddleware.ok, true, "active Engineer must pass real middleware for security read");
+    const deniedByRealMiddleware = await requirePlatformCapability(
+      realMiddlewareRequest,
+      "platform:users:manage",
+      true,
+    );
+    assert.equal(deniedByRealMiddleware.ok, false, "Engineer must fail real middleware for user administration");
+    const unauthenticatedByRealMiddleware = await requirePlatformCapability(
+      new Request("https://merit-olive.vercel.app/api/platform/security-events", {
+        headers: { origin: "https://merit-olive.vercel.app" },
+      }),
+      "platform:security:read",
+      true,
+    );
+    assert.equal(unauthenticatedByRealMiddleware.ok, false, "missing Better Auth session must fail closed");
+
     await prisma.member.createMany({
       data: [
         { workspaceId, userId: ownerId, email: `owner-${suffix}@example.invalid`, role: Role.OWNER },
