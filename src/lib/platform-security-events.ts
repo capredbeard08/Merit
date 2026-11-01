@@ -48,7 +48,7 @@ export function escapeCsvCell(value: string | null | undefined): string {
 }
 
 export function platformEventsToCsv(events: SafePlatformSecurityEvent[]): string {
-  const header = ["Timestamp (UTC)", "Event", "Severity", "Actor user ID", "Target user ID", "Role", "Previous role", "Reason", "IP address", "User agent"];
+  const header = ["Timestamp (UTC)", "Event", "Severity", "Actor user ID", "Target ID", "Role", "Previous role", "Scope", "Support request ID", "Duration minutes", "Reason", "IP address", "User agent"];
   const rows = events.map((event) => [
     event.createdAt.toISOString(),
     event.type,
@@ -57,6 +57,9 @@ export function platformEventsToCsv(events: SafePlatformSecurityEvent[]): string
     event.targetId ?? "",
     event.metadata.role ?? "",
     event.metadata.previousRole ?? "",
+    event.metadata.scope ?? "",
+    event.metadata.supportAccessRequestId ?? "",
+    event.metadata.durationMinutes ?? "",
     event.metadata.reason ?? "",
     event.ipAddress ?? "",
     event.userAgent ?? "",
