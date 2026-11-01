@@ -246,3 +246,10 @@ MERIT should provide an individual workspace deletion workflow, separate from ac
 **Do not implement direct `prisma.workspace.delete()` as the customer-facing action.** The current Prisma model cascades deletion through workspace members, branches, customers, feedback, service events, invitations, integrations, files, support-access requests, and audit logs. A direct delete would immediately destroy business records and the workspace's own audit history; it would also fail to account for external object storage, queued jobs, provider subscriptions, or integration credentials.
 
 The deletion implementation is intentionally not included in this platform-access increment. Before release, map the complete data graph and external side effects, block all access and writes to deletion-pending workspaces, implement cancellation and idempotent purge, preserve a minimal external audit tombstone, and add database-backed cross-workspace and concurrency tests. A verified recoverable production backup remains a hard gate.
+
+
+## 15. Additional authorization test coverage in progress
+
+The support authorization integration test now also creates a persisted Better Auth session in the disposable CI database and exercises `auth.api.getSession` plus the production `requirePlatformCapability` middleware. It checks that an active Engineer can read platform security events, cannot administer platform users, and that a request without a session fails closed. This uses the real Better Auth session lookup and real capability middleware; the route-handler tests still use injected adapters for their handler-specific cases.
+
+The integration test also now exercises simultaneous duplicate support-request creation and simultaneous APPROVE/DENY decisions. These concurrency assertions are not considered validated until the updated integration suite passes in CI. A separate concurrent grant-revocation versus guarded support-read test is still required to demonstrate the transaction serialization guarantee under contention.
