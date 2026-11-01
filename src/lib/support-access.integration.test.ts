@@ -123,6 +123,7 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       durationMinutes: 30,
     })).status, 404);
 
+    const now = new Date();
     // A pending request never authorizes access, including from a different workspace.
     assert.equal(isSupportAuthorizationActive({
       workspaceId, requestedByUserId: operatorId, scope: pending.scope,
