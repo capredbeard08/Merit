@@ -58,7 +58,11 @@ export const auth = betterAuth({
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
   },
-  plugins: [
+  // The CI integration suite exercises real Better Auth sign-up/session
+  // issuance without making external reCAPTCHA network calls. This explicit
+  // test-only switch is set only on that CI step and must never be configured
+  // in a deployed environment.
+  plugins: process.env.MERIT_CI_AUTH_TESTS === "true" ? [] : [
     captcha({
       provider: "google-recaptcha",
       secretKey: captchaSecret,
