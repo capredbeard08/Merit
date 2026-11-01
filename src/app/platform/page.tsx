@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccessPlatform } from "@/lib/platform-access";
 import { PlatformAccountsManager } from "./platform-accounts-manager";
 import { PlatformSecurityEvents } from "./platform-security-events";
+import { PlatformSupportRequests } from "./platform-support-requests";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ const panels = [
   {
     title: "Business authorization",
     description: "Request narrowly scoped, time-limited access only after a business approves it.",
-    status: "Required before support access",
+    status: "Business approval workflow available below",
   },
 ];
 
@@ -120,6 +121,8 @@ export default async function PlatformConsolePage() {
         )}
 
         <PlatformSecurityEvents canExport={canAccessPlatform(access, "platform:audit:export")} />
+
+        <PlatformSupportRequests />
 
         <footer className="mt-10 border-t border-[#dce2d8] pt-5 text-xs leading-5 text-[#718178]">
           Platform role: {access.role}. Access created {access.createdAt.toLocaleDateString("en-GB")}. Workspace permissions remain separate.
