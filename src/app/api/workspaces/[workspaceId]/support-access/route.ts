@@ -3,12 +3,8 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
+import { can, type Role } from "@/lib/domain";
 import { createSupportAccessDecisionHandler } from "@/lib/support-access-api";
-
-const decisionSchema = z.object({
-  requestId: z.string().min(1).max(128),
-  decision: z.enum(["APPROVE", "DENY", "REVOKE"]),
-}).strict();
 
 export async function GET(
   request: Request,
