@@ -4,7 +4,7 @@
 **Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
 **Working branch:** `feat/platform-access-foundation`  
 **Base branch:** `feat/explicit-workspace-selection`  
-**Recorded head commit at review:** `ec931065056b74bc1e1893877b478c7db42d6d5e`
+**Recorded head commit at review:** `e1960dd26904a3a9a381a2620506d0943e0bd3ea`
 
 > **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
 
@@ -126,14 +126,14 @@ An earlier run exposed TypeScript response-narrowing errors in platform API rout
 - Prisma schema validation: passed.
 - Prisma Client generation: passed.
 - Full migration chain applied to disposable PostgreSQL 16: passed.
-- Database-backed support authorization integration test: passed — 1 test, 0 failures. It covers the request/approval/revocation lifecycle, exact workspace/scope binding, audit writes, and fail-closed behavior of the transaction-scoped read guard.
+- Database-backed support authorization integration test: passed — 1 test, 0 failures. It exercises the actual support decision handler with a real CI database for approval, denial, self-approval rejection, non-member denial, cross-workspace request isolation, same-origin enforcement, inactive-operator rejection, requester/business lifecycle, audit writes, and fail-closed behavior of the transaction-scoped read guard.
 - Security and policy suite: passed — 35 tests, 0 failures, including the shared decision policy used by the workspace support-access API.
 - TypeScript check: passed.
 - Production build: passed.
 
 The disposable PostgreSQL service uses CI-only credentials and is destroyed after the job. This validates migration execution and the tested transaction behavior in a clean CI database; it does not validate the live database's current state, create a backup, or apply migrations to the live MERIT database. No live database mutation or production deployment occurred.
 ### Further tests still needed
-- Direct HTTP/API integration tests for support request creation, business approval/denial, self-approval rejection, requester cancellation, and business revocation.
+- Direct HTTP/API integration tests for support request creation and requester cancellation; decision-handler tests for approval, denial, self-approval rejection, business revocation, and the tested membership/origin boundaries. The request-creation and requester-cancellation endpoints still need their own direct handler tests.
 - Cross-workspace isolation and direct API authorization tests against real route handlers and authenticated sessions.
 - Concurrent approval/revocation tests to validate serialization-conflict handling; the transaction-scoped read guard is in place, but this concurrency scenario still needs an explicit integration test.
 - Founder bootstrap and operator grant/revoke integration tests.
@@ -188,7 +188,11 @@ The database backup issue remains unresolved because the available Prisma backup
 - `src/lib/platform-security-events.ts`
 - `src/lib/platform-security-events.test.ts`
 - `src/lib/support-access.ts`
+- `src/lib/support-access-api.ts`
 - `src/lib/support-access-policy.ts`
+- `src/lib/support-access-decision.ts`
+- `src/lib/support-access-decision.test.ts`
+- `src/lib/support-access.integration.test.ts`
 - `src/lib/support-access.test.ts`
 
 ### Documentation and workflow
@@ -219,9 +223,9 @@ Please review these decisions before the next development step:
 ## 13. Current status
 
 **Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, a transaction-scoped support read guard, explicit Prisma validation, and disposable PostgreSQL migration validation.  
-**Branch head:** `ec931065056b74bc1e1893877b478c7db42d6d5e`.  
+**Branch head:** `e1960dd26904a3a9a381a2620506d0943e0bd3ea`.  
 **Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest verified CI run:** [#199](https://github.com/capredbeard08/Merit/actions/runs/41339143548) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, 1 database-backed integration test, 35 security/policy tests, TypeScript, and production build.  
+**Latest verified CI run:** [#212](https://github.com/capredbeard08/Merit/actions/runs/41339492114) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, 1 database-backed integration test covering actual decision-handler behavior, 35 security/policy tests, TypeScript, and production build.  
 **Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
