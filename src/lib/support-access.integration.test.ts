@@ -12,8 +12,8 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
   const operatorId = `integration-operator-${suffix}`;
   const ownerId = `integration-owner-${suffix}`;
   const otherOwnerId = `integration-other-owner-${suffix}`;
-  let workspaceId: string | undefined;
-  let otherWorkspaceId: string | undefined;
+  let workspaceId = "";
+  let otherWorkspaceId = "";
 
   try {
     await prisma.user.createMany({
