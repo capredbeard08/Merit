@@ -222,7 +222,7 @@ model User {
   platformAccess PlatformAccess? @relation("PlatformAccessSubject")
   platformAccessGrants PlatformAccess[] @relation("PlatformAccessGrantor")
   supportAccessRequestsMade SupportAccessRequest[] @relation("SupportAccessRequester")
-  supportAccessDecisions SupportAccessRequest[] @relation("SupportAccessApprover")
+  supportAccessDecisions SupportAccessRequest[] @relation("SupportAccessDecider")
   supportAccessRevocations SupportAccessRequest[] @relation("SupportAccessRevoker")
 }
 
@@ -248,7 +248,7 @@ model SupportAccessRequest {
   id                      String              @id @default(cuid())
   workspaceId             String
   requestedByUserId       String
-  approvedByUserId        String?
+  decidedByUserId         String?
   revokedByUserId         String?
   scope                   SupportAccessScope
   status                  SupportAccessStatus @default(PENDING)
@@ -262,7 +262,7 @@ model SupportAccessRequest {
   updatedAt               DateTime            @updatedAt
   workspace               Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   requestedBy             User                @relation("SupportAccessRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  approvedBy              User?               @relation("SupportAccessApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  decidedBy               User?               @relation("SupportAccessDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
   revokedBy               User?               @relation("SupportAccessRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
   @@index([workspaceId, status, createdAt])
   @@index([requestedByUserId, status, createdAt])
