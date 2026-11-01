@@ -9,6 +9,8 @@ import { createSupportAccessDecisionHandler } from "./support-access-api";
 import { createSupportAccessRequestHandler, createSupportAccessRequesterCancelHandler } from "./support-access-request-api";
 import { auth } from "./better-auth";
 import { requirePlatformCapability } from "./platform-admin";
+import { POST as founderBootstrapPost } from "../app/api/platform/bootstrap/route";
+import { POST as grantPlatformOperator, DELETE as revokePlatformOperator } from "../app/api/platform/operators/route";
 
 const prisma = new PrismaClient();
 
@@ -428,5 +430,181 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     if (workspaceId) await prisma.workspace.delete({ where: { id: workspaceId } }).catch(() => undefined);
     if (otherWorkspaceId) await prisma.workspace.delete({ where: { id: otherWorkspaceId } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { id: { in: [operatorId, ownerId, otherOwnerId] } } }).catch(() => undefined);
+  }
+});
+
+
+test("Founder bootstrap and operator grant/revoke require real verified sessions and audit changes", async () => {
+  const suffix = randomUUID();
+  const founderEmail = `founder-${suffix}@example.invalid`;
+  const targetEmail = `target-${suffix}@example.invalid`;
+  const unverifiedEmail = `unverified-${suffix}@example.invalid`;
+  const bootstrapSecret = `ci-founder-bootstrap-secret-${suffix}-with-more-than-32-bytes`;
+  const previousSecret = process.env.FOUNDER_BOOTSTRAP_SECRET;
+  let founderId = "";
+  let targetId = "";
+  let unverifiedId = "";
+
+  try {
+    process.env.FOUNDER_BOOTSTRAP_SECRET = bootstrapSecret;
+    const signupResponse = await auth.api.signUpEmail({
+      body: {
+        name: "CI Founder",
+        email: founderEmail,
+        password: "CI-only-strong-password-123!",
+      },
+      asResponse: true,
+    });
+    assert.equal(signupResponse.status, 200);
+    const signupBody = await signupResponse.json() as { user: { id: string } };
+    founderId = signupBody.user.id;
+    const sessionCookie = signupResponse.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(sessionCookie, "Founder bootstrap must use a real Better Auth session cookie");
+
+    await prisma.user.update({ where: { id: founderId }, data: { emailVerified: true } });
+    const founderHeaders = {
+      cookie: sessionCookie,
+      origin: "https://merit-olive.vercel.app",
+      "content-type": "application/json",
+      "user-agent": "MERIT-CI-Integration-Test",
+    };
+    const bootstrapRequest = () => new Request(
+      "https://merit-olive.vercel.app/api/platform/bootstrap",
+      {
+        method: "POST",
+        headers: founderHeaders,
+        body: JSON.stringify({ bootstrapSecret }),
+      },
+    );
+
+    const bootstrapResponse = await founderBootstrapPost(bootstrapRequest());
+    assert.equal(bootstrapResponse.status, 200, "verified signed-in account with the one-time secret should bootstrap");
+    const bootstrapBody = await bootstrapResponse.json() as { success: boolean; role: string };
+    assert.equal(bootstrapBody.success, true);
+    assert.equal(bootstrapBody.role, "FOUNDER_SUPER_ADMIN");
+
+    const founderAccess = await prisma.platformAccess.findUniqueOrThrow({ where: { userId: founderId } });
+    assert.equal(founderAccess.role, PlatformAccessRole.FOUNDER_SUPER_ADMIN);
+    assert.equal(founderAccess.revokedAt, null);
+    assert.equal(await prisma.securityEvent.count({
+      where: { actorUserId: founderId, targetId: founderId, type: "FOUNDER_SUPER_ADMIN_BOOTSTRAPPED" },
+    }), 1);
+
+    assert.equal(
+      (await founderBootstrapPost(bootstrapRequest())).status,
+      409,
+      "bootstrap must be one-time, including repeated use by the original founder",
+    );
+    assert.equal(
+      (await founderBootstrapPost(new Request("https://merit-olive.vercel.app/api/platform/bootstrap", {
+        method: "POST",
+        headers: { ...founderHeaders, origin: "https://attacker.example" },
+        body: JSON.stringify({ bootstrapSecret }),
+      }))).status,
+      403,
+      "bootstrap must reject cross-origin requests",
+    );
+
+    const target = await prisma.user.create({
+      data: {
+        id: `ci-platform-target-${suffix}`,
+        name: "CI Platform Target",
+        email: targetEmail,
+        emailVerified: true,
+      },
+    });
+    targetId = target.id;
+    const unverified = await prisma.user.create({
+      data: {
+        id: `ci-platform-unverified-${suffix}`,
+        name: "CI Unverified Target",
+        email: unverifiedEmail,
+        emailVerified: false,
+      },
+    });
+    unverifiedId = unverified.id;
+
+    const grantRequest = (payload: unknown, origin = "https://merit-olive.vercel.app") => new Request(
+      "https://merit-olive.vercel.app/api/platform/operators",
+      {
+        method: "POST",
+        headers: { ...founderHeaders, origin },
+        body: JSON.stringify(payload),
+      },
+    );
+    const revokeRequest = (payload: unknown) => new Request(
+      "https://merit-olive.vercel.app/api/platform/operators",
+      {
+        method: "DELETE",
+        headers: founderHeaders,
+        body: JSON.stringify(payload),
+      },
+    );
+
+    assert.equal((await grantPlatformOperator(grantRequest({
+      email: "missing-account@example.invalid",
+      role: "ENGINEER",
+    }))).status, 404);
+    assert.equal((await grantPlatformOperator(grantRequest({
+      email: unverifiedEmail,
+      role: "ENGINEER",
+    }))).status, 409, "unverified accounts must not receive platform access");
+    assert.equal((await grantPlatformOperator(grantRequest({
+      email: targetEmail,
+      role: "FOUNDER_SUPER_ADMIN",
+    }))).status, 400, "operator grants must not accept the Founder role");
+    assert.equal((await grantPlatformOperator(grantRequest({
+      email: targetEmail,
+      role: "ENGINEER",
+    }, "https://attacker.example"))).status, 403, "operator grant must enforce same-origin");
+
+    const grantResponse = await grantPlatformOperator(grantRequest({
+      email: targetEmail,
+      role: "ENGINEER",
+    }));
+    assert.equal(grantResponse.status, 201);
+    const granted = await prisma.platformAccess.findUniqueOrThrow({ where: { userId: targetId } });
+    assert.equal(granted.role, PlatformAccessRole.ENGINEER);
+    assert.equal(granted.grantedByUserId, founderId);
+    assert.equal(granted.revokedAt, null);
+    assert.equal(await prisma.securityEvent.count({
+      where: { actorUserId: founderId, targetId, type: "PLATFORM_ACCESS_GRANTED" },
+    }), 1);
+
+    assert.equal((await grantPlatformOperator(grantRequest({
+      email: targetEmail,
+      role: "PLATFORM_ADMIN",
+    }))).status, 409, "an already-active operator must not be silently overwritten");
+
+    assert.equal((await revokePlatformOperator(revokeRequest({ userId: founderId }))).status, 409,
+      "Founder must not be able to revoke their own Founder access through operator management");
+    assert.equal((await revokePlatformOperator(revokeRequest({ userId: targetId }))).status, 200);
+    const revoked = await prisma.platformAccess.findUniqueOrThrow({ where: { userId: targetId } });
+    assert.ok(revoked.revokedAt, "operator revocation must persist");
+    assert.equal(await prisma.securityEvent.count({
+      where: { actorUserId: founderId, targetId, type: "PLATFORM_ACCESS_REVOKED" },
+    }), 1);
+    assert.equal((await revokePlatformOperator(revokeRequest({ userId: targetId }))).status, 409,
+      "repeat revocation must be rejected");
+
+    const reinstatedResponse = await grantPlatformOperator(grantRequest({
+      email: targetEmail,
+      role: "PLATFORM_ADMIN",
+    }));
+    assert.equal(reinstatedResponse.status, 201, "Founder must be able to reinstate a revoked operator");
+    const reinstated = await prisma.platformAccess.findUniqueOrThrow({ where: { userId: targetId } });
+    assert.equal(reinstated.role, PlatformAccessRole.PLATFORM_ADMIN);
+    assert.equal(reinstated.revokedAt, null);
+    assert.equal(await prisma.securityEvent.count({
+      where: { actorUserId: founderId, targetId, type: "PLATFORM_ACCESS_REINSTATED" },
+    }), 1);
+
+    assert.equal((await revokePlatformOperator(revokeRequest({ userId: "missing-platform-user" }))).status, 404);
+  } finally {
+    if (founderId) await prisma.user.delete({ where: { id: founderId } }).catch(() => undefined);
+    if (targetId) await prisma.user.delete({ where: { id: targetId } }).catch(() => undefined);
+    if (unverifiedId) await prisma.user.delete({ where: { id: unverifiedId } }).catch(() => undefined);
+    if (previousSecret === undefined) delete process.env.FOUNDER_BOOTSTRAP_SECRET;
+    else process.env.FOUNDER_BOOTSTRAP_SECRET = previousSecret;
   }
 });
