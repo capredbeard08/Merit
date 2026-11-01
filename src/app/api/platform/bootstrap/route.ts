@@ -27,6 +27,11 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Founder bootstrap is not configured" }, { status: 503 });
   }
 
+  const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (contentType !== "application/json") {
+    return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
+  }
+
   const rawBody = await request.text();
   if (Buffer.byteLength(rawBody, "utf8") > 2048) {
     return NextResponse.json({ error: "Request body is too large" }, { status: 413 });
