@@ -9,6 +9,7 @@ import Intelligence from "./intelligence";
 import MeritMark from "@/components/MeritMark";
 import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
+import SupportAccessApprovals from "./support-access-approvals";
 import { can, type Role } from "@/lib/domain";
 import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
@@ -191,6 +192,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <div id="branches" className="mt-5 scroll-mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
               <div id="files" className="mt-5 scroll-mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(role, "files:manage")} canRecover={can(role, "files:recover")} canErase={can(role, "files:erase")} /></div>
               <div id="team" className="mt-5 scroll-mt-5"><MemberManager workspaceId={workspaceId} initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))} /></div>
+              {can(role, "members:manage") ? <SupportAccessApprovals workspaceId={workspaceId} currentUserId={session.user.id} /> : null}
             </section>
             {can(role, "security:read") ? <div id="security-center" className="mt-8 scroll-mt-5"><SecurityCenter workspaceId={workspaceId} /></div> : null}
             <footer className="mt-10 flex flex-col gap-2 border-t border-[#dce2d8] pt-5 text-xs text-[#7b887f] sm:flex-row sm:justify-between"><span>MERIT · Customer intelligence, quietly automated.</span><span>Workspace data is shown within your authorised membership.</span></footer>
