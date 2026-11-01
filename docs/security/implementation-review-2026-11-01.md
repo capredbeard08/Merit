@@ -4,7 +4,7 @@
 **Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
 **Working branch:** `feat/platform-access-foundation`  
 **Base branch:** `feat/explicit-workspace-selection`  
-**Recorded head commit at review:** `74e005760ab8eda51394e3ee675f5022569d3209`
+**Recorded head commit at review:** `d7480608187252ac69ec5bebe48ef820be184f2f`
 
 > **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
 
@@ -119,20 +119,16 @@ The migrations add platform role storage, the one-active-founder constraint, sup
 
 The CI workflow was updated to run on pushes to `main` and `feat/platform-access-foundation`, and on pull requests targeting `main` or `feat/explicit-workspace-selection`.
 
-The latest recorded GitHub Actions run for head commit `74e005760ab8eda51394e3ee675f5022569d3209` was **failed**:
+The first run against this branch exposed TypeScript response-narrowing errors in the platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. These were corrected by giving `requirePlatformCapability` an explicit `ok` discriminant and guarding the support grant before use.
+
+**Latest CI result: PASSED** — GitHub Actions run [#160](https://github.com/capredbeard08/Merit/actions/runs/41337614001), for head commit `d7480608187252ac69ec5bebe48ef820be184f2f`:
 - Dependency installation: passed.
 - Prisma Client generation: passed.
 - Security test suite: passed — 30 tests, 0 failures.
-- TypeScript check: failed.
-- Production build: skipped because the TypeScript step failed.
+- TypeScript check: passed.
+- Production build: passed.
 
-### TypeScript errors reported by CI
-1. `src/app/api/platform/operators/route.ts` — lines 20, 56, and 150: a returned `response` value is inferred as possibly `undefined`, but the route return type requires a `Response`.
-2. `src/app/api/platform/security-events/route.ts` — line 33: same possibly-undefined response typing issue.
-3. `src/app/api/platform/support-requests/route.ts` — lines 19 and 46: same possibly-undefined response typing issue.
-4. `src/lib/support-access.ts` — lines 64 and 71: TypeScript reports that `grant` may be null after the policy check.
-
-These errors must be fixed and CI rerun. A passing unit-test step does not make the full build pass.
+Prisma Client generation validates and generates from the current Prisma schema. A separate explicit `prisma validate` step has not yet been added to CI. The SQL migrations have been inspected but have not been applied to any database.
 
 ### Further tests still needed
 - Database-backed integration tests for support request creation and approval.
@@ -141,7 +137,10 @@ These errors must be fixed and CI rerun. A passing unit-test step does not make 
 - Expiry and revocation race-condition tests.
 - Founder bootstrap and operator grant/revoke integration tests.
 - End-to-end email verification and account recovery checks.
-- Full production build after the type errors are fixed.
+- Explicit Prisma schema validation and migration-diff checks in CI.
+- Review migration ordering against the prerequisite security PR chain.
+
+A passing unit-test suite and production build are a meaningful milestone, but do not establish production readiness or prove every authorization path end-to-end.
 
 ## 10. Security controls not yet completed
 
@@ -215,13 +214,14 @@ Please review these decisions before the next development step:
 
 ## 13. Current status
 
-**Development branch:** updated.  
-**Pull request:** open and marked draft.  
-**Unit/security tests:** 30 passed in the latest CI run.  
-**TypeScript:** failed; fixes required.  
-**Production build:** not reached in the latest CI run.  
-**Database migrations:** committed, not applied.  
+**Development branch:** updated with TypeScript fixes and this review-record update.  
+**Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
+**Latest CI run:** passed — 30 security tests, TypeScript, Prisma Client generation, and production build.  
+**Prisma schema:** Prisma Client generation passed; explicit `prisma validate` CI step remains to be added.  
+**Database migrations:** inspected, committed, not applied.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
+
+**Release status: NOT READY TO MERGE OR DEPLOY.** Integration tests, email verification, rate limiting, MFA/step-up authentication, backup verification, and remaining security review gates are still outstanding.
 
 This is a review document, not a release approval.
