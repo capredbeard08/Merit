@@ -39,7 +39,8 @@ export function sanitizePlatformEventMetadata(
 
 export function escapeCsvCell(value: string | null | undefined): string {
   const safe = value ?? "";
-  return '"' + safe.replace(/"/g, '""') + '"';
+  const formulaSafe = /^[\\s]*[=+@-]/.test(safe) ? "'" + safe : safe;
+  return '"' + formulaSafe.replace(/"/g, '""') + '"';
 }
 
 export function platformEventsToCsv(events: SafePlatformSecurityEvent[]): string {
