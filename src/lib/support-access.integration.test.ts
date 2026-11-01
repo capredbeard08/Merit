@@ -147,6 +147,23 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_APPROVED" },
     }), 1);
 
+    const deniedRequest = await prisma.supportAccessRequest.create({
+      data: {
+        workspaceId,
+        requestedByUserId: operatorId,
+        scope: SupportAccessScope.FILE_ASSETS_READ,
+        reason: "Review the access denial flow using the actual decision handler.",
+        requestedDurationMinutes: 30,
+        requestExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+    assert.equal((await callDecision(ownerId, workspaceId, deniedRequest.id, "DENY")).status, 200);
+    const denied = await prisma.supportAccessRequest.findUniqueOrThrow({ where: { id: deniedRequest.id } });
+    assert.equal(denied.status, SupportAccessStatus.DENIED);
+    assert.equal(await prisma.auditLog.count({
+      where: { workspaceId, targetId: deniedRequest.id, action: "SUPPORT_ACCESS_DENIED" },
+    }), 1);
+
     const activeGrant = {
       workspaceId: approved.workspaceId,
       requestedByUserId: approved.requestedByUserId,
@@ -267,6 +284,18 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       select: { role: true, revokedAt: true },
     });
     assert.equal(canAccessPlatform(revokedPlatformAccess, "platform:security:read"), false);
+
+    const inactiveOperatorRequest = await prisma.supportAccessRequest.create({
+      data: {
+        workspaceId,
+        requestedByUserId: operatorId,
+        scope: SupportAccessScope.FEEDBACK_REPLIES_READ,
+        reason: "Confirm inactive operators cannot receive a business-approved grant.",
+        requestedDurationMinutes: 30,
+        requestExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+    assert.equal((await callDecision(ownerId, workspaceId, inactiveOperatorRequest.id, "APPROVE")).status, 409);
   } finally {
     if (workspaceId) await prisma.workspace.delete({ where: { id: workspaceId } }).catch(() => undefined);
     if (otherWorkspaceId) await prisma.workspace.delete({ where: { id: otherWorkspaceId } }).catch(() => undefined);
