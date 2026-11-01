@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { canAccessPlatform } from "@/lib/platform-access";
 import type { SupportAccessScope } from "@prisma/client";
 
-export { isSupportAuthorizationActive } from "@/lib/support-access-policy";
 import { isSupportAuthorizationActive } from "@/lib/support-access-policy";
+export { isSupportAuthorizationActive } from "@/lib/support-access-policy";
 
 /**
  * Gate for future support/investigation read routes. Call immediately before
