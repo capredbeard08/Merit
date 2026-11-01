@@ -404,6 +404,75 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_REVOKED" },
     }), 2); // requester cancellation plus business revocation
 
+    // Race semantics: a read that has already passed authorization may
+    // serialize before a concurrent revocation. Once revocation commits, however,
+    // every newly-started read must be denied. Do not promise cancellation of
+    // already-authorized in-flight work.
+    const raceRequest = await prisma.supportAccessRequest.create({
+      data: {
+        workspaceId,
+        requestedByUserId: operatorId,
+        scope: SupportAccessScope.FEEDBACK_READ,
+        reason: "Verify support-read behavior during concurrent revocation.",
+        requestedDurationMinutes: 30,
+        requestExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+    assert.equal((await callDecision(ownerId, workspaceId, raceRequest.id, "APPROVE")).status, 200);
+
+    let markReadAuthorized!: () => void;
+    let releaseRead!: () => void;
+    const readAuthorized = new Promise<void>((resolve) => { markReadAuthorized = resolve; });
+    const release = new Promise<void>((resolve) => { releaseRead = resolve; });
+    const inFlightRead = prisma.$transaction(async (tx) => {
+      const result = await executeApprovedSupportReadInTransaction(tx, {
+        actorUserId: operatorId,
+        workspaceId,
+        scope: SupportAccessScope.FEEDBACK_READ,
+        targetType: "INTEGRATION_TEST_REVOCATION_RACE",
+        read: async (readTx) => {
+          markReadAuthorized();
+          await release;
+          return readTx.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+        },
+      });
+      return result;
+    }, { isolationLevel: "Serializable" }).then(
+      (value) => ({ kind: "completed" as const, value }),
+      (error: unknown) => ({ kind: "failed" as const, error }),
+    );
+
+    await readAuthorized;
+    const raceRevokeResponse = await callDecision(ownerId, workspaceId, raceRequest.id, "REVOKE");
+    assert.equal(raceRevokeResponse.status, 200, "business revocation must commit while a read is in flight");
+    releaseRead();
+
+    const inFlightOutcome = await inFlightRead;
+    if (inFlightOutcome.kind === "completed") {
+      assert.equal(inFlightOutcome.value.authorized, true,
+        "a read authorized before revocation may validly serialize before it");
+    } else {
+      const error = inFlightOutcome.error as { code?: string };
+      assert.equal(error.code, "P2034",
+        "a conflicting serializable read must fail closed with a retryable transaction conflict");
+    }
+
+    let postRevocationQueryExecuted = false;
+    const postRevocationRead = await prisma.$transaction((tx) =>
+      executeApprovedSupportReadInTransaction(tx, {
+        actorUserId: operatorId,
+        workspaceId,
+        scope: SupportAccessScope.FEEDBACK_READ,
+        targetType: "INTEGRATION_TEST_AFTER_REVOCATION",
+        read: async () => { postRevocationQueryExecuted = true; return "must-not-run"; },
+      }),
+      { isolationLevel: "Serializable" },
+    );
+    assert.equal(postRevocationRead.authorized, false,
+      "a new support read after committed revocation must be denied");
+    assert.equal(postRevocationQueryExecuted, false,
+      "the protected data query must not execute after revocation commits");
+
     // Revoking the platform role independently blocks platform capability.
     await prisma.platformAccess.update({
       where: { userId: operatorId },
