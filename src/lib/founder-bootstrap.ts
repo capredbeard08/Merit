@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 
-/** Compare deployment secrets without leaking length or character comparisons. */
+/** Compare equal-length deployment secrets using a constant-time byte comparison. */
 export function matchesFounderBootstrapSecret(
   supplied: string,
   configured: string | undefined,
