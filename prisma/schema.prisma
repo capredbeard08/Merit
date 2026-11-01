@@ -252,7 +252,7 @@ model SupportAccessRequest {
   revokedByUserId         String?
   scope                   SupportAccessScope
   status                  SupportAccessStatus @default(PENDING)
-  reason                  String
+  reason                  String              @db.VarChar(500)
   requestedDurationMinutes Int
   requestExpiresAt        DateTime
   decidedAt               DateTime?
