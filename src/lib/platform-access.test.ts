@@ -11,7 +11,7 @@ test("founder super admin receives platform-console capabilities", () => {
 });
 
 test("platform administrators cannot grant platform access", () => {
-  assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:users:manage"), true);
+  assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:users:manage"), false);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:access:grant"), false);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:access:revoke"), false);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:deployments:read"), false);
