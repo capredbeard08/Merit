@@ -4,7 +4,7 @@
 **Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
 **Working branch:** `feat/platform-access-foundation`  
 **Base branch:** `feat/explicit-workspace-selection`  
-**Recorded head commit at review:** `b38ba3be9ee99580a423201be32d93099b6b5f2f`
+**Recorded head commit at review:** `ec931065056b74bc1e1893877b478c7db42d6d5e`
 
 > **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
 
@@ -87,9 +87,9 @@ Workspace Owners and Admins can see requests for their own workspace and approve
 An approval is bound to the requesting operator, one workspace, one resource scope, and a time limit. It does not grant write access. Business decisions and operator actions are recorded in workspace audit history and platform security events.
 
 ### Guard for future support data routes
-Added `requireApprovedSupportRead` in `src/lib/support-access.ts` and a pure policy helper in `src/lib/support-access-policy.ts`. A future endpoint that returns business data must call this guard for the exact workspace and scope immediately before its query, and the query must itself be restricted to that workspace.
+Added `withApprovedSupportRead` and `executeApprovedSupportReadInTransaction` in `src/lib/support-access.ts`, alongside the pure grant policy in `src/lib/support-access-policy.ts`. The transaction-scoped helper checks active platform access and the exact workspace/operator/scope grant, runs the caller's data query, and writes the access-use audit record inside one serializable transaction. A future endpoint must use this helper and its callback must constrain every returned row to the requested workspace and scope. Serialization conflicts must fail closed; callers must not fall back to an unguarded query.
 
-**Important limitation:** this increment does not add a general-purpose endpoint that displays customer or feedback data to support staff. The authorization workflow and guard exist; individual data-view routes still need to be implemented and reviewed one by one.
+**Important limitation:** this increment does not add a general-purpose endpoint that displays customer or feedback data to support staff. The authorization workflow and transaction-scoped guard exist; individual data-view routes still need to be implemented and reviewed one by one. The integration test exercises the transaction-scoped guard against the CI database, not a production support-data endpoint.
 
 ## 7. User-interface changes
 
@@ -121,23 +121,24 @@ The CI workflow was updated to run on pushes to `main` and `feat/platform-access
 
 An earlier run exposed TypeScript response-narrowing errors in platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. Subsequent changes addressed the reported issues, and the recorded successful CI run passed the TypeScript check. A later guard explicitly checks that the support grant exists before accessing its ID.
 
-**Latest verified CI result: PASSED** — GitHub Actions run [#160](https://github.com/capredbeard08/Merit/actions/runs/41337614001), for commit `d7480608187252ac69ec5bebe48ef820be184f2f`:
+**Latest verified CI result: PASSED** — GitHub Actions run [#199](https://github.com/capredbeard08/Merit/actions/runs/41339143548), for commit `ec931065056b74bc1e1893877b478c7db42d6d5e`:
 - Dependency installation: passed.
+- Prisma schema validation: passed.
 - Prisma Client generation: passed.
-- Security test suite: passed — 30 tests, 0 failures.
+- Full migration chain applied to disposable PostgreSQL 16: passed.
+- Database-backed support authorization integration test: passed — 1 test, 0 failures. It covers the request/approval/revocation lifecycle, exact workspace/scope binding, audit writes, and fail-closed behavior of the transaction-scoped read guard.
+- Security and policy suite: passed — 35 tests, 0 failures, including the shared decision policy used by the workspace support-access API.
 - TypeScript check: passed.
 - Production build: passed.
 
-Since that run, the CI workflow has been strengthened to run explicit `npx prisma validate` and apply all committed migrations to a disposable PostgreSQL service before running the security tests. Those additional CI steps are present in the branch workflow but have not yet been confirmed by a completed run on the latest commit. This CI migration test is isolated from the live MERIT database. The committed SQL migrations have not been applied to the live database.
-
+The disposable PostgreSQL service uses CI-only credentials and is destroyed after the job. This validates migration execution and the tested transaction behavior in a clean CI database; it does not validate the live database's current state, create a backup, or apply migrations to the live MERIT database. No live database mutation or production deployment occurred.
 ### Further tests still needed
-- Database-backed integration tests for support request creation and approval.
-- Self-approval rejection through the real API.
-- Cross-workspace isolation and direct API authorization tests.
-- Expiry and revocation race-condition tests.
+- Direct HTTP/API integration tests for support request creation, business approval/denial, self-approval rejection, requester cancellation, and business revocation.
+- Cross-workspace isolation and direct API authorization tests against real route handlers and authenticated sessions.
+- Concurrent approval/revocation tests to validate serialization-conflict handling; the transaction-scoped read guard is in place, but this concurrency scenario still needs an explicit integration test.
 - Founder bootstrap and operator grant/revoke integration tests.
 - End-to-end email verification and account recovery checks.
-- Migration-diff review and database-backed integration tests in CI.
+- Migration-diff review against the live database's migration history and schema.
 - Review migration ordering against the prerequisite security PR chain.
 
 A passing unit-test suite and production build are a meaningful milestone, but do not establish production readiness or prove every authorization path end-to-end.
@@ -211,19 +212,20 @@ Please review these decisions before the next development step:
 - [ ] Confirm the four-hour maximum grant duration and 24-hour request expiry.
 - [x] Resolve the previously reported TypeScript failures; the recorded CI run passed TypeScript and production build.
 - [x] Verify explicit Prisma validation and the full migration chain against disposable PostgreSQL in CI run #165.
-- [ ] Add database-backed security integration tests for approval, denial, expiry, revocation, and cross-workspace isolation.
+- [x] Add a database-backed support lifecycle and transaction-scoped read-guard integration test.
+- [ ] Add direct HTTP/API integration tests for approval, denial, self-approval, expiry, revocation, and cross-workspace isolation.
 - [ ] Do not run migrations or deploy until a recoverable backup and all deployment gates are satisfied.
 
 ## 13. Current status
 
-**Development branch:** includes TypeScript fixes, support-authorization null guard, malformed-Origin handling fix, explicit Prisma validation, and disposable PostgreSQL migration validation.  
-**Branch head:** `b38ba3be9ee99580a423201be32d93099b6b5f2f`.  
+**Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, a transaction-scoped support read guard, explicit Prisma validation, and disposable PostgreSQL migration validation.  
+**Branch head:** `ec931065056b74bc1e1893877b478c7db42d6d5e`.  
 **Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest verified CI run:** [#165](https://github.com/capredbeard08/Merit/actions/runs/41337875822) passed all steps, including 30 security tests, TypeScript, production build, Prisma validation, and full migration deployment to disposable PostgreSQL 16.  
+**Latest verified CI run:** [#199](https://github.com/capredbeard08/Merit/actions/runs/41339143548) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, 1 database-backed integration test, 35 security/policy tests, TypeScript, and production build.  
 **Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
 
-**Release status: NOT READY TO MERGE OR DEPLOY.** Database-backed authorization integration tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, and remaining security review gates are still outstanding.
+**Release status: NOT READY TO MERGE OR DEPLOY.** Direct HTTP/API authorization integration tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, migration-history review, and remaining security gates are still outstanding.
 
 This is a review document, not a release approval.
