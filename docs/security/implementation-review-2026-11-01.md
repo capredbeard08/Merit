@@ -235,3 +235,14 @@ Please review these decisions before the next development step:
 **Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth/capability-middleware end-to-end tests, concurrency/race tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, migration-history review, and remaining security gates are still outstanding.
 
 This is a review document, not a release approval.
+
+
+## 14. Workspace deletion product/security decision
+
+The workspace lifecycle decision is recorded in [`docs/security/workspace-deletion-lifecycle.md`](./workspace-deletion-lifecycle.md).
+
+MERIT should provide an individual workspace deletion workflow, separate from account deletion. Only the workspace Owner may initiate it. The intended lifecycle is a soft-delete/deletion-pending state, a proposed 30-day recovery window, and a separately executed, retry-safe permanent purge after retention and legal/privacy requirements are confirmed.
+
+**Do not implement direct `prisma.workspace.delete()` as the customer-facing action.** The current Prisma model cascades deletion through workspace members, branches, customers, feedback, service events, invitations, integrations, files, support-access requests, and audit logs. A direct delete would immediately destroy business records and the workspace's own audit history; it would also fail to account for external object storage, queued jobs, provider subscriptions, or integration credentials.
+
+The deletion implementation is intentionally not included in this platform-access increment. Before release, map the complete data graph and external side effects, block all access and writes to deletion-pending workspaces, implement cancellation and idempotent purge, preserve a minimal external audit tombstone, and add database-backed cross-workspace and concurrency tests. A verified recoverable production backup remains a hard gate.
