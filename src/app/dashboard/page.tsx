@@ -189,6 +189,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
             <section id="workspace-settings" className="mt-10 border-t border-[#dce2d8] pt-8">
               <p className="text-xs font-semibold uppercase tracking-[0.17em] text-[#557565]">Workspace management</p><h2 className="mt-1 text-2xl font-semibold text-[#123c2d]">Your workspace, organised</h2><p className="mt-1 text-sm text-[#718178]">Manage locations, authorised team members, and supporting files.</p>
+              <p className="mt-2 text-xs text-[#718178]">Workspace reference: <code className="select-all rounded bg-white px-2 py-1 text-[#315345]">{workspaceId}</code> · Share this ID with MERIT support only when you open a support request.</p>
               <div id="branches" className="mt-5 scroll-mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
               <div id="files" className="mt-5 scroll-mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(role, "files:manage")} canRecover={can(role, "files:recover")} canErase={can(role, "files:erase")} /></div>
               <div id="team" className="mt-5 scroll-mt-5"><MemberManager workspaceId={workspaceId} initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))} /></div>
