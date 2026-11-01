@@ -11,15 +11,17 @@ export async function requirePlatformCapability(
 ) {
   if (enforceSameOrigin && !isSameOriginRequest(request.headers.get("origin"), request.url)) {
     return {
+      ok: false as const,
       response: NextResponse.json({ error: "Invalid request origin" }, { status: 403 }),
-    } as const;
+    };
   }
 
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) {
     return {
+      ok: false as const,
       response: NextResponse.json({ error: "Authentication required" }, { status: 401 }),
-    } as const;
+    };
   }
 
   const access = await prisma.platformAccess.findUnique({
@@ -29,11 +31,12 @@ export async function requirePlatformCapability(
 
   if (!canAccessPlatform(access, capability)) {
     return {
+      ok: false as const,
       response: NextResponse.json({ error: "Insufficient platform permissions" }, { status: 403 }),
-    } as const;
+    };
   }
 
-  return { session, access } as const;
+  return { ok: true as const, session, access };
 }
 
 export function platformRequestContext(request: Request) {
