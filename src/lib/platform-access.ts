@@ -23,7 +23,7 @@ export type PlatformCapability = (typeof platformCapabilities)[number];
 
 const capabilities: Record<PlatformAccessRole, readonly PlatformCapability[]> = {
   FOUNDER_SUPER_ADMIN: [...platformCapabilities],
-  PLATFORM_ADMIN: ["platform:users:read", "platform:users:manage", "platform:security:read"],
+  PLATFORM_ADMIN: ["platform:users:read", "platform:security:read"],
   ENGINEER: ["platform:security:read", "platform:deployments:read"],
 };
 
