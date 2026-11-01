@@ -21,6 +21,8 @@ The database migration adds a partial unique index allowing only one active `FOU
 - The one-time founder bootstrap endpoint is implemented on this branch. No hardcoded founder email, seed account, or automatic promotion exists.
 - No platform administrator or engineer can currently grant themselves or another user access.
 - A server-protected `/platform` console and operator directory are implemented. Founder Super Admin can grant or revoke `PLATFORM_ADMIN` and `ENGINEER` access for existing verified accounts. Platform Admin can view the directory but cannot grant, change, or revoke roles.
+- A platform-only security event feed is implemented at `GET /api/platform/security-events`, with severity/type filters and cursor pagination. It queries only allow-listed platform event types with `workspaceId: null`; workspace audit history and customer records are excluded.
+- Founder-only CSV export is available through the same endpoint using `format=csv`. Exported metadata is allow-listed, CSV formula injection is neutralized, and responses are marked no-store. Export is capped at 500 most recent matching records per request.
 - No platform role grants access to business customer content.
 - Business-approved Request Authorization, scoped read/write grants, expiry, revocation, and investigation audit exports remain a separate phase.
 
@@ -28,7 +30,7 @@ The database migration adds a partial unique index allowing only one active `FOU
 
 1. **Implemented on this branch:** the initial bootstrap records a high-severity SecurityEvent with actor, target, reason, and request context; it never stores the secret or customer content. It is not ready for production until email verification is enabled/tested and edge rate limiting is configured. Remove/disable the bootstrap secret immediately after use; never expose it to client code.
 2. **Implemented on this branch:** operator grants, reinstatements, and revocations are recorded as high-severity SecurityEvents in the same serializable transaction as the access change. Metadata excludes secrets and customer content.
-3. Protect all platform API routes server-side with the capability policy and MFA/step-up authentication for sensitive operations.
+3. Protect all platform API routes server-side with the capability policy; the security feed is read-only for Platform Admin and Engineer, while CSV export is Founder-only. MFA/step-up authentication and edge rate limiting are still required for sensitive operations.
 4. Add Request Authorization before any support/investigation access to a business workspace. The grant must identify the workspace, exact resource scope, read/write mode, business approver, expiry, and revocation state.
 5. Add integration tests for operator grant/revoke races, verified-account enforcement, founder protection, and unauthorized direct API calls; configure edge rate limiting and MFA/step-up for sensitive operations.
 6. Validate the Prisma schema, generate the client, run the complete security suite, and run a production build before merging or deploying.
