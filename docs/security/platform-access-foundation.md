@@ -7,7 +7,7 @@ Platform access is an identity separate from workspace membership. A user may be
 ## Initial platform roles
 
 - `FOUNDER_SUPER_ADMIN`: platform governance and controlled platform-role grants.
-- `PLATFORM_ADMIN`: platform user administration and platform security visibility; cannot grant platform roles.
+- `PLATFORM_ADMIN`: read-only platform operator directory and platform security visibility; cannot grant, change, or revoke platform roles.
 - `ENGINEER`: technical security and deployment visibility; cannot administer users or grant platform roles.
 
 The capability policy is explicit and fail-closed in `src/lib/platform-access.ts`. Do not infer access from email address, workspace role, account age, or client-provided metadata.
