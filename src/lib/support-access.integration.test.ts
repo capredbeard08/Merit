@@ -301,7 +301,7 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     }), 1);
     assert.equal(await prisma.securityEvent.count({
       where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_REVOKED" },
-    }), 1);
+    }), 2); // requester cancellation plus business revocation
 
     // Revoking the platform role independently blocks platform capability.
     await prisma.platformAccess.update({
