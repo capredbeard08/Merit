@@ -45,7 +45,7 @@ export async function requireApprovedSupportRead(input: {
     select: { id: true, workspaceId: true, requestedByUserId: true, scope: true, status: true, revokedAt: true, expiresAt: true },
   });
 
-  if (!isSupportAuthorizationActive(grant, {
+  if (!grant || !isSupportAuthorizationActive(grant, {
     workspaceId: input.workspaceId,
     userId: session.user.id,
     scope: input.scope,
