@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 
 type Operator = {
   id: string;
@@ -37,7 +38,7 @@ export function PlatformAccountsManager({ canManage }: { canManage: boolean }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function grant(event: React.FormEvent<HTMLFormElement>) {
+  async function grant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
