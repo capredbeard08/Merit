@@ -5,6 +5,7 @@ import { PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStat
 import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
 import { executeApprovedSupportReadInTransaction } from "./support-access";
+import { createSupportAccessDecisionHandler } from "./support-access-api";
 
 const prisma = new PrismaClient();
 
@@ -41,6 +42,27 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
         { workspaceId: otherWorkspaceId, userId: otherOwnerId, email: `other-owner-${suffix}@example.invalid`, role: Role.OWNER },
       ],
     });
+
+    const callDecision = async (
+      actorId: string,
+      targetWorkspaceId: string,
+      requestId: string,
+      decision: "APPROVE" | "DENY" | "REVOKE",
+      origin = "https://merit-olive.vercel.app",
+    ) => {
+      const handler = createSupportAccessDecisionHandler({
+        prisma,
+        getSession: async () => ({ user: { id: actorId } }),
+      });
+      return handler(new Request(
+        `https://merit-olive.vercel.app/api/workspaces/${targetWorkspaceId}/support-access`,
+        {
+          method: "PATCH",
+          headers: { origin, "content-type": "application/json" },
+          body: JSON.stringify({ requestId, decision }),
+        },
+      ), { params: Promise.resolve({ workspaceId: targetWorkspaceId }) });
+    };
 
     assert.equal(canAccessPlatform(
       { role: PlatformAccessRole.ENGINEER, revokedAt: null },
@@ -97,39 +119,33 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       status: pending.status, revokedAt: pending.revokedAt, expiresAt: pending.expiresAt,
     }, { workspaceId, userId: operatorId, scope: SupportAccessScope.FEEDBACK_READ, now }), false);
 
-    const approvedAt = new Date();
-    const approved = await prisma.$transaction(async (tx) => {
-      const updated = await tx.supportAccessRequest.update({
-        where: { id: pending.id },
-        data: {
-          status: SupportAccessStatus.APPROVED,
-          decidedByUserId: ownerId,
-          decidedAt: approvedAt,
-          expiresAt: new Date(approvedAt.getTime() + 60 * 60 * 1000),
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          workspaceId,
-          actorUserId: ownerId,
-          action: "SUPPORT_ACCESS_APPROVED",
-          targetType: "SUPPORT_ACCESS_REQUEST",
-          targetId: pending.id,
-          metadata: { scope: SupportAccessScope.FEEDBACK_READ },
-        },
-      });
-      await tx.securityEvent.create({
-        data: {
-          workspaceId: null,
-          actorUserId: ownerId,
-          type: "SUPPORT_ACCESS_APPROVED",
-          severity: "HIGH",
-          targetId: workspaceId,
-          metadata: { supportAccessRequestId: pending.id },
-        },
-      });
-      return updated;
+    const selfApprovalRequest = await prisma.supportAccessRequest.create({
+      data: {
+        workspaceId,
+        requestedByUserId: ownerId,
+        scope: SupportAccessScope.CUSTOMER_RECORDS_READ,
+        reason: "Verify that a workspace owner cannot approve their own request.",
+        requestedDurationMinutes: 30,
+        requestExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
     });
+    assert.equal((await callDecision(ownerId, workspaceId, selfApprovalRequest.id, "APPROVE")).status, 409);
+    assert.equal((await callDecision(otherOwnerId, workspaceId, pending.id, "APPROVE")).status, 403);
+    assert.equal((await callDecision(otherOwnerId, otherWorkspaceId, pending.id, "APPROVE")).status, 404);
+    assert.equal((await callDecision(ownerId, workspaceId, pending.id, "APPROVE", "https://evil.example")).status, 403);
+
+    const approvalResponse = await callDecision(ownerId, workspaceId, pending.id, "APPROVE");
+    assert.equal(approvalResponse.status, 200);
+    const approved = await prisma.supportAccessRequest.findUniqueOrThrow({ where: { id: pending.id } });
+    assert.equal(approved.status, SupportAccessStatus.APPROVED);
+    assert.equal(approved.decidedByUserId, ownerId);
+    assert.ok(approved.expiresAt && approved.expiresAt > new Date());
+    assert.equal(await prisma.auditLog.count({
+      where: { workspaceId, targetId: pending.id, action: "SUPPORT_ACCESS_APPROVED" },
+    }), 1);
+    assert.equal(await prisma.securityEvent.count({
+      where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_APPROVED" },
+    }), 1);
 
     const activeGrant = {
       workspaceId: approved.workspaceId,
@@ -208,38 +224,9 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     });
     assert.equal(matchingGrant, null, "an approval for one workspace must not match another workspace");
 
-    const revokedAt = new Date();
-    const revoked = await prisma.$transaction(async (tx) => {
-      const updated = await tx.supportAccessRequest.update({
-        where: { id: pending.id },
-        data: {
-          status: SupportAccessStatus.REVOKED,
-          revokedAt,
-          revokedByUserId: ownerId,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          workspaceId,
-          actorUserId: ownerId,
-          action: "SUPPORT_ACCESS_REVOKED",
-          targetType: "SUPPORT_ACCESS_REQUEST",
-          targetId: pending.id,
-          metadata: { scope: SupportAccessScope.FEEDBACK_READ },
-        },
-      });
-      await tx.securityEvent.create({
-        data: {
-          workspaceId: null,
-          actorUserId: ownerId,
-          type: "SUPPORT_ACCESS_REVOKED",
-          severity: "HIGH",
-          targetId: workspaceId,
-          metadata: { supportAccessRequestId: pending.id },
-        },
-      });
-      return updated;
-    });
+    const revokeResponse = await callDecision(ownerId, workspaceId, pending.id, "REVOKE");
+    assert.equal(revokeResponse.status, 200);
+    const revoked = await prisma.supportAccessRequest.findUniqueOrThrow({ where: { id: pending.id } });
 
     assert.equal(isSupportAuthorizationActive({
       workspaceId: revoked.workspaceId,
