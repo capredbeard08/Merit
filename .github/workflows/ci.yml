@@ -63,6 +63,8 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Run database-backed support authorization tests
+        env:
+          MERIT_CI_AUTH_TESTS: "true"
         run: npm run test:integration
 
       - name: Run Security Warden tests
