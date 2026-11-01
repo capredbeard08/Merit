@@ -4,7 +4,7 @@
 **Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
 **Working branch:** `feat/platform-access-foundation`  
 **Base branch:** `feat/explicit-workspace-selection`  
-**Recorded head commit at review:** `e1960dd26904a3a9a381a2620506d0943e0bd3ea`
+**Recorded head commit at review:** `e083c3f985bb178ba7fb9862fe787cbd61501c1c`
 
 > **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
 
@@ -121,21 +121,21 @@ The CI workflow was updated to run on pushes to `main` and `feat/platform-access
 
 An earlier run exposed TypeScript response-narrowing errors in platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. Subsequent changes addressed the reported issues, and the recorded successful CI run passed the TypeScript check. A later guard explicitly checks that the support grant exists before accessing its ID.
 
-**Latest verified CI result: PASSED** — GitHub Actions run [#212](https://github.com/capredbeard08/Merit/actions/runs/41339492114), for commit `e1960dd26904a3a9a381a2620506d0943e0bd3ea`:
+**Latest verified CI result: PASSED** — GitHub Actions run [#228](https://github.com/capredbeard08/Merit/actions/runs/41339953333), for commit `e083c3f985bb178ba7fb9862fe787cbd61501c1c`:
 - Dependency installation: passed.
 - Prisma schema validation: passed.
 - Prisma Client generation: passed.
 - Full migration chain applied to disposable PostgreSQL 16: passed.
-- Database-backed support authorization integration test: passed — 1 test, 0 failures. It exercises the actual support decision handler with a real CI database for approval, denial, self-approval rejection, non-member denial, cross-workspace request isolation, same-origin enforcement, inactive-operator rejection, requester/business lifecycle, audit writes, and fail-closed behavior of the transaction-scoped read guard.
+- Database-backed support authorization integration test: passed — 1 test, 0 failures. It exercises the extracted request-creation, requester-cancellation, and business-decision handlers against a real CI database, covering creation, duplicate rejection, unknown workspace rejection, requester cancellation, denial, approval, self-approval rejection, non-member denial, cross-workspace request isolation, same-origin enforcement, inactive-operator rejection, audit writes, and fail-closed behavior of the transaction-scoped read guard. The handlers use injected session/capability adapters in this test; real Better Auth session issuance and the full capability middleware are not yet exercised end-to-end.
 - Security and policy suite: passed — 35 tests, 0 failures, including the shared decision policy used by the workspace support-access API.
 - TypeScript check: passed.
 - Production build: passed.
 
 The disposable PostgreSQL service uses CI-only credentials and is destroyed after the job. This validates migration execution and the tested transaction behavior in a clean CI database; it does not validate the live database's current state, create a backup, or apply migrations to the live MERIT database. No live database mutation or production deployment occurred.
 ### Further tests still needed
-- Direct HTTP/API integration tests for support request creation and requester cancellation; decision-handler tests for approval, denial, self-approval rejection, business revocation, and the tested membership/origin boundaries. The request-creation and requester-cancellation endpoints still need their own direct handler tests.
-- Cross-workspace isolation and direct API authorization tests against real route handlers and authenticated sessions.
-- Concurrent approval/revocation tests to validate serialization-conflict handling; the transaction-scoped read guard is in place, but this concurrency scenario still needs an explicit integration test.
+- End-to-end tests using real Better Auth sessions and the actual `requirePlatformCapability` middleware for platform request creation and cancellation; current handler tests inject those adapters.
+- Concurrent approval/revocation and concurrent duplicate-request tests to validate serializable conflict handling.
+- A focused transaction race test proving support-data reads and business revocation serialize as intended; the transaction-scoped guard is in place, but this concurrency scenario still needs an explicit integration test.
 - Founder bootstrap and operator grant/revoke integration tests.
 - End-to-end email verification and account recovery checks.
 - Migration-diff review against the live database's migration history and schema.
@@ -189,6 +189,7 @@ The database backup issue remains unresolved because the available Prisma backup
 - `src/lib/platform-security-events.test.ts`
 - `src/lib/support-access.ts`
 - `src/lib/support-access-api.ts`
+- `src/lib/support-access-request-api.ts`
 - `src/lib/support-access-policy.ts`
 - `src/lib/support-access-decision.ts`
 - `src/lib/support-access-decision.test.ts`
@@ -223,13 +224,13 @@ Please review these decisions before the next development step:
 ## 13. Current status
 
 **Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, a transaction-scoped support read guard, explicit Prisma validation, and disposable PostgreSQL migration validation.  
-**Branch head:** `e1960dd26904a3a9a381a2620506d0943e0bd3ea`.  
+**Branch head:** `e083c3f985bb178ba7fb9862fe787cbd61501c1c`.  
 **Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest verified CI run:** [#212](https://github.com/capredbeard08/Merit/actions/runs/41339492114) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, 1 database-backed integration test covering actual decision-handler behavior, 35 security/policy tests, TypeScript, and production build.  
+**Latest verified CI run:** [#228](https://github.com/capredbeard08/Merit/actions/runs/41339953333) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, 1 database-backed integration test covering the request, cancellation, and decision handlers, 35 security/policy tests, TypeScript, and production build.  
 **Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
 
-**Release status: NOT READY TO MERGE OR DEPLOY.** Direct HTTP/API authorization integration tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, migration-history review, and remaining security gates are still outstanding.
+**Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth/capability-middleware end-to-end tests, concurrency/race tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, migration-history review, and remaining security gates are still outstanding.
 
 This is a review document, not a release approval.
