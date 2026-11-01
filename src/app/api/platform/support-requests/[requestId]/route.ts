@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/better-auth";
+import { isSameOriginRequest } from "@/lib/founder-bootstrap";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
@@ -11,8 +12,7 @@ export async function DELETE(
 ): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) {
+  if (!isSameOriginRequest(request.headers.get("origin"), request.url)) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
   const { requestId } = await context.params;
