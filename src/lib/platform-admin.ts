@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessPlatform, type PlatformCapability } from "@/lib/platform-access";
+import { isSameOriginRequest } from "@/lib/founder-bootstrap";
 
 export async function requirePlatformCapability(
   request: Request,
   capability: PlatformCapability,
+  enforceSameOrigin = false,
 ) {
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) {
+  if (enforceSameOrigin && !isSameOriginRequest(request.headers.get("origin"), request.url)) {
     return {
       response: NextResponse.json({ error: "Invalid request origin" }, { status: 403 }),
     } as const;
   }
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) {
     return {
       response: NextResponse.json({ error: "Authentication required" }, { status: 401 }),
