@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStatus, Role } from "@prisma/client";
 import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
+import { executeApprovedSupportReadInTransaction } from "./support-access";
 
 const prisma = new PrismaClient();
 
@@ -141,6 +142,53 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(isSupportAuthorizationActive(activeGrant, {
       workspaceId, userId: operatorId, scope: SupportAccessScope.FEEDBACK_READ, now: new Date(),
     }), true);
+
+    const scopedRead = await prisma.$transaction((tx) =>
+      executeApprovedSupportReadInTransaction(tx, {
+        actorUserId: operatorId,
+        workspaceId,
+        scope: SupportAccessScope.FEEDBACK_READ,
+        targetType: "INTEGRATION_TEST",
+        read: async (readTx) => readTx.workspace.findUnique({
+          where: { id: workspaceId },
+          select: { id: true },
+        }),
+      }),
+      { isolationLevel: "Serializable" },
+    );
+    assert.equal(scopedRead.authorized, true);
+    if (scopedRead.authorized) assert.equal(scopedRead.data?.id, workspaceId);
+    assert.equal(await prisma.auditLog.count({
+      where: { workspaceId, action: "SUPPORT_ACCESS_USED", targetType: "INTEGRATION_TEST" },
+    }), 1);
+
+    let wrongWorkspaceQueryExecuted = false;
+    const wrongWorkspaceRead = await prisma.$transaction((tx) =>
+      executeApprovedSupportReadInTransaction(tx, {
+        actorUserId: operatorId,
+        workspaceId: otherWorkspaceId,
+        scope: SupportAccessScope.FEEDBACK_READ,
+        targetType: "INTEGRATION_TEST",
+        read: async () => { wrongWorkspaceQueryExecuted = true; return "should-not-run"; },
+      }),
+      { isolationLevel: "Serializable" },
+    );
+    assert.equal(wrongWorkspaceRead.authorized, false);
+    assert.equal(wrongWorkspaceQueryExecuted, false);
+
+    let wrongScopeQueryExecuted = false;
+    const wrongScopeRead = await prisma.$transaction((tx) =>
+      executeApprovedSupportReadInTransaction(tx, {
+        actorUserId: operatorId,
+        workspaceId,
+        scope: SupportAccessScope.FILE_ASSETS_READ,
+        targetType: "INTEGRATION_TEST",
+        read: async () => { wrongScopeQueryExecuted = true; return "should-not-run"; },
+      }),
+      { isolationLevel: "Serializable" },
+    );
+    assert.equal(wrongScopeRead.authorized, false);
+    assert.equal(wrongScopeQueryExecuted, false);
     assert.equal(isSupportAuthorizationActive(activeGrant, {
       workspaceId: otherWorkspaceId, userId: operatorId, scope: SupportAccessScope.FEEDBACK_READ,
     }), false);
@@ -201,6 +249,20 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       revokedAt: revoked.revokedAt,
       expiresAt: revoked.expiresAt,
     }, { workspaceId, userId: operatorId, scope: SupportAccessScope.FEEDBACK_READ }), false);
+
+    let revokedQueryExecuted = false;
+    const revokedRead = await prisma.$transaction((tx) =>
+      executeApprovedSupportReadInTransaction(tx, {
+        actorUserId: operatorId,
+        workspaceId,
+        scope: SupportAccessScope.FEEDBACK_READ,
+        targetType: "INTEGRATION_TEST",
+        read: async () => { revokedQueryExecuted = true; return "should-not-run"; },
+      }),
+      { isolationLevel: "Serializable" },
+    );
+    assert.equal(revokedRead.authorized, false);
+    assert.equal(revokedQueryExecuted, false);
     assert.equal(await prisma.auditLog.count({
       where: { workspaceId, targetId: pending.id, action: "SUPPORT_ACCESS_REVOKED" },
     }), 1);
