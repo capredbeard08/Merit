@@ -52,7 +52,7 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const authz = await requirePlatformCapability(request, "platform:access:grant", true, { requireRecentAuthentication: true, rateLimit: { action: "operator-grant", limit: 5, windowMs: 15 * 60 * 1000 } });
+  const authz = await requirePlatformCapability(request, "platform:access:grant", true, { requireRecentAuthentication: true, rateLimit: { action: "operator-grant", limit: 10, windowMs: 15 * 60 * 1000 } });
   if (!authz.ok) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
@@ -146,7 +146,7 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function DELETE(request: Request): Promise<Response> {
-  const authz = await requirePlatformCapability(request, "platform:access:revoke", true, { requireRecentAuthentication: true, rateLimit: { action: "operator-revoke", limit: 5, windowMs: 15 * 60 * 1000 } });
+  const authz = await requirePlatformCapability(request, "platform:access:revoke", true, { requireRecentAuthentication: true, rateLimit: { action: "operator-revoke", limit: 10, windowMs: 15 * 60 * 1000 } });
   if (!authz.ok) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
