@@ -5,6 +5,10 @@ export const platformSecurityEventTypes = [
   "PLATFORM_ACCESS_GRANTED",
   "PLATFORM_ACCESS_REINSTATED",
   "PLATFORM_ACCESS_REVOKED",
+  "SUPPORT_ACCESS_REQUESTED",
+  "SUPPORT_ACCESS_APPROVED",
+  "SUPPORT_ACCESS_DENIED",
+  "SUPPORT_ACCESS_REVOKED",
 ] as const;
 
 export type SafePlatformSecurityEvent = {
@@ -28,7 +32,7 @@ export function sanitizePlatformEventMetadata(
 ): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const source = value as Prisma.JsonObject;
-  const allowed = ["role", "previousRole", "reason", "accessId"] as const;
+  const allowed = ["role", "previousRole", "reason", "accessId", "scope", "supportAccessRequestId", "durationMinutes"] as const;
   const safe: Record<string, string> = {};
   for (const key of allowed) {
     const item = source[key];
