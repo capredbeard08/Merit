@@ -26,7 +26,8 @@ test("non-object event metadata returns an empty object", () => {
 
 test("CSV cells are quoted and formula-like strings remain text", () => {
   assert.equal(escapeCsvCell('hello,"world"'), '"hello,""world"""');
-  assert.equal(escapeCsvCell("=HYPERLINK(\"https://evil.example\")"), '"=HYPERLINK(""https://evil.example"")"');
+  assert.equal(escapeCsvCell("=1+1"), "\"'=1+1\"");
+  assert.equal(escapeCsvCell("  @SUM(1,1)"), "\"  '@SUM(1,1)\"");
 });
 
 test("CSV export contains only the approved event columns", () => {
