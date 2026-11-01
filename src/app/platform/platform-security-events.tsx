@@ -105,6 +105,10 @@ export function PlatformSecurityEvents({ canExport }: { canExport: boolean }) {
             <option value="PLATFORM_ACCESS_GRANTED">Operator granted</option>
             <option value="PLATFORM_ACCESS_REINSTATED">Operator reinstated</option>
             <option value="PLATFORM_ACCESS_REVOKED">Operator revoked</option>
+            <option value="SUPPORT_ACCESS_REQUESTED">Support access requested</option>
+            <option value="SUPPORT_ACCESS_APPROVED">Support access approved</option>
+            <option value="SUPPORT_ACCESS_DENIED">Support access denied</option>
+            <option value="SUPPORT_ACCESS_REVOKED">Support access revoked</option>
           </select>
         </label>
       </div>
