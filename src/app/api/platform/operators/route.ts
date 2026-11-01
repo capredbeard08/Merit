@@ -50,7 +50,7 @@ export async function GET(request: Request): Promise<Response> {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const authz = await requirePlatformCapability(request, "platform:access:grant");
+  const authz = await requirePlatformCapability(request, "platform:access:grant", true);
   if ("response" in authz) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
@@ -118,7 +118,6 @@ export async function POST(request: Request): Promise<Response> {
           targetId: target.id,
           metadata: {
             role: access.role,
-            targetEmail: target.email,
             reason: existing ? "founder_reinstated_revoked_operator" : "founder_granted_operator_access",
           },
           ...context,
@@ -144,7 +143,7 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 export async function DELETE(request: Request): Promise<Response> {
-  const authz = await requirePlatformCapability(request, "platform:access:revoke");
+  const authz = await requirePlatformCapability(request, "platform:access:revoke", true);
   if ("response" in authz) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
@@ -191,7 +190,6 @@ export async function DELETE(request: Request): Promise<Response> {
           targetId: targetUserId,
           metadata: {
             previousRole: target.role,
-            targetEmail: target.user.email,
             reason: "founder_revoked_operator_access",
           },
           ...platformRequestContext(request),
