@@ -53,7 +53,7 @@ ALTER TABLE "SupportAccessRequest"
   ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "SupportAccessRequest"
   ADD CONSTRAINT "SupportAccessRequest_decidedByUserId_fkey"
-  FOREIGN KEY ("approvedByUserId") REFERENCES "User"("id")
+  FOREIGN KEY ("decidedByUserId") REFERENCES "User"("id")
   ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "SupportAccessRequest"
   ADD CONSTRAINT "SupportAccessRequest_revokedByUserId_fkey"
