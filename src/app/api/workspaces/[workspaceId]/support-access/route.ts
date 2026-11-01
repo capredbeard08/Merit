@@ -88,6 +88,7 @@ export async function PATCH(
         },
       });
       if (!supportRequest) return { kind: "not_found" as const };
+      const now = new Date();
       const operatorAccess = parsed.data.decision === "APPROVE"
         ? await tx.platformAccess.findUnique({
             where: { userId: supportRequest.requestedByUserId },
@@ -99,6 +100,7 @@ export async function PATCH(
         request: supportRequest,
         actorUserId: session.user.id,
         operatorAccess,
+        now,
       });
       if (decisionPolicy !== "allowed") return { kind: decisionPolicy as
         | "self_approval" | "not_pending" | "not_active" | "operator_inactive" };
