@@ -265,3 +265,15 @@ The support authorization integration suite now passes in GitHub Actions run [#2
 Coverage includes real Better Auth signup/session issuance and actual capability middleware; concurrent duplicate support-request creation; concurrent conflicting business decisions; Founder bootstrap and operator grant/revoke route integration; and a support-read/revocation transaction race. The race test accepts either valid serializable ordering (the already-authorized read commits before revocation) or a serialization conflict, and confirms that a fresh read after revocation is denied without executing the protected query.
 
 This remains CI evidence only. It does not prove email verification is enabled in production, validate the live database's migration history/schema, establish a recoverable production backup, or authorize a live migration, merge, or deployment.
+
+
+## 17. Migration-chain inspection — 1 November 2026
+
+Compared `feat/platform-access-foundation` with its declared base `feat/explicit-workspace-selection`. The base contains five existing migration entries, ending with `20261030030000_followup_claims`. The feature branch preserves those existing migration entries and adds only:
+
+1. `20261101010000_platform_access_foundation`
+2. `20261101020000_business_support_authorization`
+
+The added migrations are timestamp-ordered after the base chain. Their SQL adds two enum types, two tables, indexes, a partial unique index enforcing one active Founder assignment, a duration check constraint, and foreign keys. No `DROP`, `TRUNCATE`, or alteration/removal of existing tables was found in the two new migration files. The schema changes correspond to the new platform-access and support-authorization models. The base migration files and migration lock file are unchanged in the branch comparison.
+
+**Migration review result: branch-level review passed; live-database review remains open.** CI run #255 successfully applied the complete migration chain to a disposable PostgreSQL 16 database. This confirms clean-chain execution, not parity with the live MERIT database. Before production, compare the live `_prisma_migrations` records and actual schema with this exact chain, inspect any drift or manually applied SQL, and verify a recoverable backup. No live database was queried or changed during this branch-level review.
