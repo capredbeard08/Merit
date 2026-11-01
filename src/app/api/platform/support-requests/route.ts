@@ -68,8 +68,10 @@ export async function POST(request: Request): Promise<Response> {
           workspaceId: workspace.id,
           requestedByUserId: authz.session.user.id,
           scope: parsed.data.scope,
-          status: "PENDING",
-          requestExpiresAt: { gt: now },
+          OR: [
+            { status: "PENDING", requestExpiresAt: { gt: now } },
+            { status: "APPROVED", revokedAt: null, expiresAt: { gt: now } },
+          ],
         },
         select: { id: true },
       });
