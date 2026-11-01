@@ -119,7 +119,7 @@ The migrations add platform role storage, the one-active-founder constraint, sup
 
 The CI workflow was updated to run on pushes to `main` and `feat/platform-access-foundation`, and on pull requests targeting `main` or `feat/explicit-workspace-selection`.
 
-The first run against this branch exposed TypeScript response-narrowing errors in the platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. These were corrected by giving `requirePlatformCapability` an explicit `ok` discriminant and guarding the support grant before use.
+An earlier run exposed TypeScript response-narrowing errors in platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. Subsequent changes addressed the reported issues, and the recorded successful CI run passed the TypeScript check. A later guard explicitly checks that the support grant exists before accessing its ID.
 
 **Latest verified CI result: PASSED** — GitHub Actions run [#160](https://github.com/capredbeard08/Merit/actions/runs/41337614001), for commit `d7480608187252ac69ec5bebe48ef820be184f2f`:
 - Dependency installation: passed.
