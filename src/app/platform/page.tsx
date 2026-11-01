@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessPlatform } from "@/lib/platform-access";
+import { PlatformAccountsManager } from "./platform-accounts-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,7 @@ const panels = [
   {
     title: "Platform accounts",
     description: "Review platform operators and their separate platform roles.",
-    status: "Not enabled yet",
+    status: "Operator management available below",
   },
   {
     title: "Security and audit",
@@ -107,6 +108,15 @@ export default async function PlatformConsolePage() {
             ))}
           </div>
         </section>
+
+        {canAccessPlatform(access, "platform:users:read") ? (
+          <PlatformAccountsManager canManage={canAccessPlatform(access, "platform:access:grant")} />
+        ) : (
+          <section className="mt-10 rounded-2xl border border-[#dce2d8] bg-white/65 p-6">
+            <h2 className="text-xl font-semibold text-[#123c2d]">Platform operator directory</h2>
+            <p className="mt-2 text-sm leading-6 text-[#69756e]">Your current platform role does not include permission to view operator accounts.</p>
+          </section>
+        )}
 
         <footer className="mt-10 border-t border-[#dce2d8] pt-5 text-xs leading-5 text-[#718178]">
           Platform role: {access.role}. Access created {access.createdAt.toLocaleDateString("en-GB")}. Workspace permissions remain separate.
