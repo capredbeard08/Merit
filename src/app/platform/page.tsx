@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { canAccessPlatform } from "@/lib/platform-access";
 import { PlatformAccountsManager } from "./platform-accounts-manager";
+import { PlatformSecurityEvents } from "./platform-security-events";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +118,8 @@ export default async function PlatformConsolePage() {
             <p className="mt-2 text-sm leading-6 text-[#69756e]">Your current platform role does not include permission to view operator accounts.</p>
           </section>
         )}
+
+        <PlatformSecurityEvents canExport={canAccessPlatform(access, "platform:audit:export")} />
 
         <footer className="mt-10 border-t border-[#dce2d8] pt-5 text-xs leading-5 text-[#718178]">
           Platform role: {access.role}. Access created {access.createdAt.toLocaleDateString("en-GB")}. Workspace permissions remain separate.
