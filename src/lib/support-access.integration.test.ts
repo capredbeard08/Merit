@@ -123,6 +123,53 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       durationMinutes: 30,
     })).status, 404);
 
+    // Two simultaneous requests for the same operator/workspace/scope must
+    // never create two live grants or pending requests.
+    const concurrentPayload = {
+      workspaceId,
+      scope: SupportAccessScope.FEEDBACK_REPLIES_READ,
+      reason: "Exercise concurrent duplicate request serialization safely.",
+      durationMinutes: 30,
+    };
+    const concurrentCreates = await Promise.all([
+      createRequest(concurrentPayload),
+      createRequest(concurrentPayload),
+    ]);
+    assert.deepEqual(concurrentCreates.map((response) => response.status).sort(), [201, 409]);
+    assert.equal(await prisma.supportAccessRequest.count({
+      where: {
+        workspaceId,
+        requestedByUserId: operatorId,
+        scope: SupportAccessScope.FEEDBACK_REPLIES_READ,
+        status: SupportAccessStatus.PENDING,
+        requestExpiresAt: { gt: new Date() },
+      },
+    }), 1, "concurrent duplicate submissions must produce exactly one pending request");
+
+    const concurrentDecisionRequest = await prisma.supportAccessRequest.create({
+      data: {
+        workspaceId,
+        requestedByUserId: operatorId,
+        scope: SupportAccessScope.FILE_ASSETS_READ,
+        reason: "Exercise concurrent business decisions on one pending request.",
+        requestedDurationMinutes: 30,
+        requestExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+    const concurrentDecisions = await Promise.all([
+      callDecision(ownerId, workspaceId, concurrentDecisionRequest.id, "APPROVE"),
+      callDecision(ownerId, workspaceId, concurrentDecisionRequest.id, "DENY"),
+    ]);
+    assert.deepEqual(concurrentDecisions.map((response) => response.status).sort(), [200, 409]);
+    const concurrentDecisionFinal = await prisma.supportAccessRequest.findUniqueOrThrow({
+      where: { id: concurrentDecisionRequest.id },
+    });
+    assert.ok(
+      concurrentDecisionFinal.status === SupportAccessStatus.APPROVED ||
+      concurrentDecisionFinal.status === SupportAccessStatus.DENIED,
+      "exactly one concurrent business decision must win",
+    );
+
     const now = new Date();
     // A pending request never authorizes access, including from a different workspace.
     assert.equal(isSupportAuthorizationActive({
