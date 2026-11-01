@@ -38,7 +38,7 @@ export default async function PlatformConsolePage() {
     select: { role: true, revokedAt: true, createdAt: true },
   });
 
-  if (!canAccessPlatform(access, "platform:security:read")) {
+  if (!access || !canAccessPlatform(access, "platform:security:read")) {
     return (
       <main className="min-h-screen px-6 py-16 md:px-12">
         <section className="mx-auto max-w-2xl rounded-3xl border border-[#dce2d8] bg-white/75 p-8 shadow-sm">
