@@ -121,14 +121,14 @@ The CI workflow was updated to run on pushes to `main` and `feat/platform-access
 
 The first run against this branch exposed TypeScript response-narrowing errors in the platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. These were corrected by giving `requirePlatformCapability` an explicit `ok` discriminant and guarding the support grant before use.
 
-**Latest CI result: PASSED** — GitHub Actions run [#160](https://github.com/capredbeard08/Merit/actions/runs/41337614001), for head commit `d7480608187252ac69ec5bebe48ef820be184f2f`:
+**Latest verified CI result: PASSED** — GitHub Actions run [#160](https://github.com/capredbeard08/Merit/actions/runs/41337614001), for commit `d7480608187252ac69ec5bebe48ef820be184f2f`:
 - Dependency installation: passed.
 - Prisma Client generation: passed.
 - Security test suite: passed — 30 tests, 0 failures.
 - TypeScript check: passed.
 - Production build: passed.
 
-Prisma Client generation validates and generates from the current Prisma schema. A separate explicit `prisma validate` step has not yet been added to CI. The SQL migrations have been inspected but have not been applied to any database.
+Since that run, the CI workflow has been strengthened to run explicit `npx prisma validate` and apply all committed migrations to a disposable PostgreSQL service before running the security tests. Those additional CI steps are present in the branch workflow but have not yet been confirmed by a completed run on the latest commit. This CI migration test is isolated from the live MERIT database. The committed SQL migrations have not been applied to the live database.
 
 ### Further tests still needed
 - Database-backed integration tests for support request creation and approval.
@@ -209,15 +209,17 @@ Please review these decisions before the next development step:
 - [ ] Confirm whether the four support scopes are the right initial boundaries.
 - [ ] Confirm whether workspace Owners and Admins should both be allowed to approve.
 - [ ] Confirm the four-hour maximum grant duration and 24-hour request expiry.
-- [ ] Review the TypeScript failures and security integration-test gaps before merge.
+- [x] Resolve the previously reported TypeScript failures; the recorded CI run passed TypeScript and production build.
+- [ ] Verify the new explicit Prisma validation and disposable-database migration steps in a completed CI run.
+- [ ] Add database-backed security integration tests for approval, denial, expiry, revocation, and cross-workspace isolation.
 - [ ] Do not run migrations or deploy until a recoverable backup and all deployment gates are satisfied.
 
 ## 13. Current status
 
-**Development branch:** updated with TypeScript fixes and this review-record update.  
+**Development branch:** includes the TypeScript fixes, support-authorization null guard, and a further malformed-Origin handling fix in requester cancellation.  
 **Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest CI run:** passed — 30 security tests, TypeScript, Prisma Client generation, and production build.  
-**Prisma schema:** Prisma Client generation passed; explicit `prisma validate` CI step remains to be added.  
+**Latest verified CI run:** passed — 30 security tests, TypeScript, Prisma Client generation, and production build.  
+**Current CI workflow:** now includes explicit `prisma validate` and migration deployment against a disposable PostgreSQL service; awaiting a completed run that verifies those newer steps.  
 **Database migrations:** inspected, committed, not applied.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
