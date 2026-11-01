@@ -15,6 +15,12 @@ enum Role {
   VIEWER
 }
 
+enum PlatformAccessRole {
+  FOUNDER_SUPER_ADMIN
+  PLATFORM_ADMIN
+  ENGINEER
+}
+
 enum FeedbackStatus {
   PENDING
   CONTACTED
@@ -197,6 +203,24 @@ model User {
   sessions      Session[]
   accounts      Account[]
   members       Member[]
+  platformAccess PlatformAccess? @relation("PlatformAccessSubject")
+  platformAccessGrants PlatformAccess[] @relation("PlatformAccessGrantor")
+}
+
+/// Platform identity and privileges are separate from workspace Member roles.
+/// This record grants platform-console capabilities only; it never grants
+/// access to customer feedback, replies, files, or other workspace content.
+model PlatformAccess {
+  id              String            @id @default(cuid())
+  userId          String            @unique
+  role            PlatformAccessRole
+  grantedByUserId String?
+  revokedAt       DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  user            User              @relation("PlatformAccessSubject", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy       User?             @relation("PlatformAccessGrantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  @@index([role, revokedAt])
 }
 
 model Session {
