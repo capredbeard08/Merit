@@ -17,7 +17,7 @@ CREATE TABLE "SupportAccessRequest" (
   "id" TEXT NOT NULL,
   "workspaceId" TEXT NOT NULL,
   "requestedByUserId" TEXT NOT NULL,
-  "approvedByUserId" TEXT,
+  "decidedByUserId" TEXT,
   "revokedByUserId" TEXT,
   "scope" "SupportAccessScope" NOT NULL,
   "status" "SupportAccessStatus" NOT NULL DEFAULT 'PENDING',
@@ -52,7 +52,7 @@ ALTER TABLE "SupportAccessRequest"
   FOREIGN KEY ("requestedByUserId") REFERENCES "User"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "SupportAccessRequest"
-  ADD CONSTRAINT "SupportAccessRequest_approvedByUserId_fkey"
+  ADD CONSTRAINT "SupportAccessRequest_decidedByUserId_fkey"
   FOREIGN KEY ("approvedByUserId") REFERENCES "User"("id")
   ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "SupportAccessRequest"
