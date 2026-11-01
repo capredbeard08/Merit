@@ -16,7 +16,7 @@ const requestSchema = z.object({
 
 export async function GET(request: Request): Promise<Response> {
   const authz = await requirePlatformCapability(request, "platform:security:read");
-  if ("response" in authz) return authz.response;
+  if (!authz.ok) return authz.response;
 
   const requests = await prisma.supportAccessRequest.findMany({
     where: { requestedByUserId: authz.session.user.id },
@@ -43,7 +43,7 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   const authz = await requirePlatformCapability(request, "platform:security:read", true);
-  if ("response" in authz) return authz.response;
+  if (!authz.ok) return authz.response;
 
   const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
