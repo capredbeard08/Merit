@@ -4,7 +4,7 @@
 **Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
 **Working branch:** `feat/platform-access-foundation`  
 **Base branch:** `feat/explicit-workspace-selection`  
-**Recorded head commit at review:** `d7480608187252ac69ec5bebe48ef820be184f2f`
+**Recorded head commit at review:** `b38ba3be9ee99580a423201be32d93099b6b5f2f`
 
 > **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
 
@@ -137,7 +137,7 @@ Since that run, the CI workflow has been strengthened to run explicit `npx prism
 - Expiry and revocation race-condition tests.
 - Founder bootstrap and operator grant/revoke integration tests.
 - End-to-end email verification and account recovery checks.
-- Explicit Prisma schema validation and migration-diff checks in CI.
+- Migration-diff review and database-backed integration tests in CI.
 - Review migration ordering against the prerequisite security PR chain.
 
 A passing unit-test suite and production build are a meaningful milestone, but do not establish production readiness or prove every authorization path end-to-end.
@@ -210,20 +210,20 @@ Please review these decisions before the next development step:
 - [ ] Confirm whether workspace Owners and Admins should both be allowed to approve.
 - [ ] Confirm the four-hour maximum grant duration and 24-hour request expiry.
 - [x] Resolve the previously reported TypeScript failures; the recorded CI run passed TypeScript and production build.
-- [ ] Verify the new explicit Prisma validation and disposable-database migration steps in a completed CI run.
+- [x] Verify explicit Prisma validation and the full migration chain against disposable PostgreSQL in CI run #165.
 - [ ] Add database-backed security integration tests for approval, denial, expiry, revocation, and cross-workspace isolation.
 - [ ] Do not run migrations or deploy until a recoverable backup and all deployment gates are satisfied.
 
 ## 13. Current status
 
-**Development branch:** includes the TypeScript fixes, support-authorization null guard, and a further malformed-Origin handling fix in requester cancellation.  
+**Development branch:** includes TypeScript fixes, support-authorization null guard, malformed-Origin handling fix, explicit Prisma validation, and disposable PostgreSQL migration validation.  
+**Branch head:** `b38ba3be9ee99580a423201be32d93099b6b5f2f`.  
 **Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest verified CI run:** passed — 30 security tests, TypeScript, Prisma Client generation, and production build.  
-**Current CI workflow:** now includes explicit `prisma validate` and migration deployment against a disposable PostgreSQL service; awaiting a completed run that verifies those newer steps.  
-**Database migrations:** inspected, committed, not applied.  
+**Latest verified CI run:** [#165](https://github.com/capredbeard08/Merit/actions/runs/41337875822) passed all steps, including 30 security tests, TypeScript, production build, Prisma validation, and full migration deployment to disposable PostgreSQL 16.  
+**Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
 
-**Release status: NOT READY TO MERGE OR DEPLOY.** Integration tests, email verification, rate limiting, MFA/step-up authentication, backup verification, and remaining security review gates are still outstanding.
+**Release status: NOT READY TO MERGE OR DEPLOY.** Database-backed authorization integration tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, and remaining security review gates are still outstanding.
 
 This is a review document, not a release approval.
