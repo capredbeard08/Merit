@@ -4,7 +4,7 @@
 **Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
 **Working branch:** `feat/platform-access-foundation`  
 **Base branch:** `feat/explicit-workspace-selection`  
-**Recorded head commit at review:** `e083c3f985bb178ba7fb9862fe787cbd61501c1c`
+**Recorded head commit at review:** `fedb7e7b63c15878308800bc977332de7bcaf61d`
 
 > **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
 
@@ -121,7 +121,7 @@ The CI workflow was updated to run on pushes to `main` and `feat/platform-access
 
 An earlier run exposed TypeScript response-narrowing errors in platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. Subsequent changes addressed the reported issues, and the recorded successful CI run passed the TypeScript check. A later guard explicitly checks that the support grant exists before accessing its ID.
 
-**Latest verified CI result: PASSED** — GitHub Actions run [#228](https://github.com/capredbeard08/Merit/actions/runs/41339953333), for commit `e083c3f985bb178ba7fb9862fe787cbd61501c1c`:
+**Latest verified CI result: PASSED** — GitHub Actions run [#255](https://github.com/capredbeard08/Merit/actions/runs/41342841439), for commit `fedb7e7b63c15878308800bc977332de7bcaf61d`:
 - Dependency installation: passed.
 - Prisma schema validation: passed.
 - Prisma Client generation: passed.
@@ -133,10 +133,9 @@ An earlier run exposed TypeScript response-narrowing errors in platform API rout
 
 The disposable PostgreSQL service uses CI-only credentials and is destroyed after the job. This validates migration execution and the tested transaction behavior in a clean CI database; it does not validate the live database's current state, create a backup, or apply migrations to the live MERIT database. No live database mutation or production deployment occurred.
 ### Further tests still needed
-- End-to-end tests using real Better Auth sessions and the actual `requirePlatformCapability` middleware for platform request creation and cancellation; current handler tests inject those adapters.
-- Concurrent approval/revocation and concurrent duplicate-request tests to validate serializable conflict handling.
-- A focused transaction race test proving support-data reads and business revocation serialize as intended; the transaction-scoped guard is in place, but this concurrency scenario still needs an explicit integration test.
-- Founder bootstrap and operator grant/revoke integration tests.
+- End-to-end email verification and account recovery checks.
+- Migration-diff review against the live database's migration history and schema.
+- Review migration ordering against the prerequisite security PR chain.
 - End-to-end email verification and account recovery checks.
 - Migration-diff review against the live database's migration history and schema.
 - Review migration ordering against the prerequisite security PR chain.
@@ -219,20 +218,21 @@ Please review these decisions before the next development step:
 - [x] Verify explicit Prisma validation and the full migration chain against disposable PostgreSQL in CI run #165.
 - [x] Add a database-backed support lifecycle and transaction-scoped read-guard integration test.
 - [x] Add handler-level database integration coverage for request creation, duplicate rejection, cancellation, approval, denial, self-approval rejection, non-member denial, cross-workspace isolation, origin enforcement, and inactive operators.
-- [ ] Add real Better Auth session/capability-middleware tests and concurrent approval/revocation/duplicate-request race tests.
+- [x] Add real Better Auth session/capability-middleware tests and concurrent duplicate-request/decision race tests.
+- [x] Add a support-read versus business-revocation transaction race test; valid serializable ordering or a serialization conflict is accepted, and fresh post-revocation reads must be denied.
 - [ ] Do not run migrations or deploy until a recoverable backup and all deployment gates are satisfied.
 
 ## 13. Current status
 
-**Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, a transaction-scoped support read guard, explicit Prisma validation, and disposable PostgreSQL migration validation.  
-**Branch head:** `e083c3f985bb178ba7fb9862fe787cbd61501c1c`.  
+**Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, real Better Auth session/capability-middleware coverage, concurrent duplicate-request and decision coverage, support-read/revocation race coverage, explicit Prisma validation, and disposable PostgreSQL migration validation.  
+**Branch head:** `fedb7e7b63c15878308800bc977332de7bcaf61d`.  
 **Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest verified CI run:** [#228](https://github.com/capredbeard08/Merit/actions/runs/41339953333) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, 1 database-backed integration test covering the request, cancellation, and decision handlers, 35 security/policy tests, TypeScript, and production build.  
+**Latest verified CI run:** [#255](https://github.com/capredbeard08/Merit/actions/runs/41342841439) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, database-backed authorization integration suite, Security Warden tests, TypeScript, and production build.  
 **Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
 
-**Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth/capability-middleware end-to-end tests, concurrency/race tests, email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, migration-history review, and remaining security gates are still outstanding.
+**Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth session/capability middleware, concurrency tests, and the support-read/revocation race test have passed CI. Email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, live migration-history/schema review, and remaining security gates are still outstanding.
 
 This is a review document, not a release approval.
 
@@ -252,7 +252,16 @@ The deletion implementation is intentionally not included in this platform-acces
 
 The support authorization integration test now also creates a persisted Better Auth session in the disposable CI database and exercises `auth.api.getSession` plus the production `requirePlatformCapability` middleware. It checks that an active Engineer can read platform security events, cannot administer platform users, and that a request without a session fails closed. This uses the real Better Auth session lookup and real capability middleware; the route-handler tests still use injected adapters for their handler-specific cases.
 
-The integration test also now exercises simultaneous duplicate support-request creation and simultaneous APPROVE/DENY decisions. These concurrency assertions are not considered validated until the updated integration suite passes in CI. A separate concurrent grant-revocation versus guarded support-read test is still required to demonstrate the transaction serialization guarantee under contention.
+The integration test also now exercises simultaneous duplicate support-request creation and simultaneous APPROVE/DENY decisions. These concurrency assertions are not considered validated until the updated integration suite passes in CI. The separate support-read/revocation race test is now included and passed in CI run #255.
 
 
 The real-session integration test now creates its operator via Better Auth's own sign-up API and forwards the signed session cookie into the actual middleware. The CI integration step sets `MERIT_CI_AUTH_TESTS=true`, which omits only the external Google reCAPTCHA plugin for this disposable test run; production configuration retains CAPTCHA by default. This avoids an external network dependency while testing Better Auth session issuance, signed-cookie parsing, session lookup, and platform capability enforcement. CI must validate this path before it is considered complete.
+
+
+## 16. Verified authorization and revocation concurrency coverage — 1 November 2026
+
+The support authorization integration suite now passes in GitHub Actions run [#255](https://github.com/capredbeard08/Merit/actions/runs/41342841439), on commit `fedb7e7b63c15878308800bc977332de7bcaf61d`. The run completed successfully through Prisma validation, Prisma Client generation, the complete migration chain on disposable PostgreSQL 16, database-backed support authorization tests, Security Warden tests, TypeScript, and the production build.
+
+Coverage includes real Better Auth signup/session issuance and actual capability middleware; concurrent duplicate support-request creation; concurrent conflicting business decisions; Founder bootstrap and operator grant/revoke route integration; and a support-read/revocation transaction race. The race test accepts either valid serializable ordering (the already-authorized read commits before revocation) or a serialization conflict, and confirms that a fresh read after revocation is denied without executing the protected query.
+
+This remains CI evidence only. It does not prove email verification is enabled in production, validate the live database's migration history/schema, establish a recoverable production backup, or authorize a live migration, merge, or deployment.
