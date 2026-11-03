@@ -75,12 +75,12 @@ Record each run with commit SHA, CI run URL, test environment, date, tester, res
 
 | Check | Commit SHA / run | Tester / date | Result / defect |
 |---|---|---|---|
-| Prisma validation and generation | Pending | Pending | Pending |
-| Disposable migration replay | Pending | Pending | Pending |
-| Cross-tenant FK rejection | Pending | Pending | Pending |
-| Public submission/idempotency | Pending | Pending | Pending |
-| QR lifecycle and concurrency | Pending | Pending | Pending |
-| Rate-limit/audit behavior | Pending | Pending | Pending |
+| Prisma validation and generation | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed |
+| Disposable migration replay | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed on disposable PostgreSQL |
+| Cross-tenant FK rejection | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed |
+| Public submission/idempotency | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed |
+| QR lifecycle and concurrency | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed in integration test |
+| Rate-limit/audit behavior | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed |
 | Android QR scan | Pending | Pending | Pending |
 | iOS QR scan | Pending | Pending | Pending |
 | Dashboard/branch isolation | Pending | Pending | Pending |
