@@ -213,17 +213,32 @@ model User {
   name          String
   email         String    @unique
   emailVerified Boolean   @default(false)
+  twoFactorEnabled Boolean @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  twoFactor     TwoFactor?
   members       Member[]
   platformAccess PlatformAccess? @relation("PlatformAccessSubject")
   platformAccessGrants PlatformAccess[] @relation("PlatformAccessGrantor")
   supportAccessRequestsMade SupportAccessRequest[] @relation("SupportAccessRequester")
   supportAccessDecisions SupportAccessRequest[] @relation("SupportAccessDecider")
   supportAccessRevocations SupportAccessRequest[] @relation("SupportAccessRevoker")
+}
+
+
+/// Better Auth TOTP authenticator and one-time backup-code storage.
+model TwoFactor {
+  id                     String   @id
+  userId                 String   @unique
+  secret                 String
+  backupCodes            String
+  verified               Boolean  @default(false)
+  failedVerificationCount Int     @default(0)
+  lockedUntil            DateTime?
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Platform identity and privileges are separate from workspace Member roles.
