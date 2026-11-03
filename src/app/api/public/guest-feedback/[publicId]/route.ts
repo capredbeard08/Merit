@@ -1,9 +1,9 @@
-import { createHmac } from "node:crypto";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { consumePlatformRateLimit } from "@/lib/platform-rate-limit";
+import { feedbackRatingValue, hashGuestSubmissionKey, isGuestPublicId, safeGoogleReviewUrl } from "@/lib/guest-feedback";
 
 const submissionSchema = z.object({
   rating: z.number().int().min(1).max(5),
@@ -11,36 +11,12 @@ const submissionSchema = z.object({
   submissionKey: z.string().uuid(),
 });
 
-function hashSubmissionKey(qrCodeId: string, submissionKey: string) {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 32) throw new Error("AUTH_SECRET is not configured correctly");
-  return createHmac("sha256", secret)
-    .update("merit-guest-feedback:v1:" + qrCodeId + ":" + submissionKey)
-    .digest("hex");
-}
-
-function safeGoogleReviewUrl(value: string | null) {
-  if (!value) return null;
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    const allowed = host === "google.com" || host.endsWith(".google.com") || host === "g.page" || host === "maps.app.goo.gl";
-    return url.protocol === "https:" && allowed ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-function ratingValue(rating: number) {
-  return (["ONE", "TWO", "THREE", "FOUR", "FIVE"] as const)[rating - 1];
-}
-
 export async function POST(
   request: Request,
   context: { params: Promise<{ publicId: string }> },
 ): Promise<Response> {
   const { publicId } = await context.params;
-  if (!/^[A-Za-z0-9_-]{24,128}$/.test(publicId)) {
+  if (!isGuestPublicId(publicId)) {
     return NextResponse.json({ error: "This feedback link is invalid or unavailable." }, { status: 404 });
   }
 
@@ -92,7 +68,7 @@ export async function POST(
     );
   }
 
-  const submissionKeyHash = hashSubmissionKey(qrCode.id, parsed.data.submissionKey);
+  const submissionKeyHash = hashGuestSubmissionKey(qrCode.id, parsed.data.submissionKey);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -101,7 +77,7 @@ export async function POST(
           workspaceId: qrCode.workspaceId,
           branchId: qrCode.branchId,
           qrCodeId: qrCode.id,
-          rating: ratingValue(parsed.data.rating),
+          rating: feedbackRatingValue(parsed.data.rating),
           message: parsed.data.message || null,
           submissionKeyHash,
           source: "PERMANENT_QR",
@@ -123,5 +99,5 @@ export async function POST(
     return NextResponse.json({ error: "We couldn't save your feedback. Please try again." }, { status: 500 });
   }
 
-  return NextResponse.json({ accepted: true, googleReviewUrl: qrCode.branch.googleReviewUrl });
+  return NextResponse.json({ accepted: true, googleReviewUrl: safeGoogleReviewUrl(qrCode.branch.googleReviewUrl) });
 }
