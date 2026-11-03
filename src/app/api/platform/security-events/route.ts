@@ -29,6 +29,12 @@ export async function GET(request: Request): Promise<Response> {
   const authz = await requirePlatformCapability(
     request,
     format === "csv" ? "platform:audit:export" : "platform:security:read",
+    format === "csv",
+    format === "csv" ? {
+      requireRecentAuthentication: true,
+      requireMfa: true,
+      rateLimit: { action: "platform-audit-export", limit: 5, windowMs: 15 * 60 * 1000 },
+    } : {},
   );
   if (!authz.ok) return authz.response;
 
