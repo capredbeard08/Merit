@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
+import { after } from "next/server";
 import { captcha } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
@@ -44,21 +45,25 @@ export const auth = betterAuth({
     resetPasswordTokenExpiresIn: 60 * 60,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url, token }) => {
-      await sendEmail({
-        to: user.email,
-        subject: "Reset your MERIT password",
-        html: passwordResetEmailHtml(url),
-        idempotencyKey: "merit-password-reset-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+      after(async () => {
+        await sendEmail({
+          to: user.email,
+          subject: "Reset your MERIT password",
+          html: passwordResetEmailHtml(url),
+          idempotencyKey: "merit-password-reset-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+        });
       });
     },
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url, token }) => {
-      await sendEmail({
-        to: user.email,
-        subject: "Verify your MERIT email address",
-        html: verificationEmailHtml(url),
-        idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+      after(async () => {
+        await sendEmail({
+          to: user.email,
+          subject: "Verify your MERIT email address",
+          html: verificationEmailHtml(url),
+          idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+        });
       });
     },
     // Deliberately dormant until EMAIL_FROM is a verified sender and delivery
