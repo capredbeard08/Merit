@@ -7,6 +7,7 @@
 
 ### Authentication email and recovery
 - Added a password-reset email template with escaped link content and a clear one-hour expiry notice.
+- Added `/forgot-password` and `/reset-password` pages, linked the request page from sign-in, and used generic request confirmation text to avoid disclosing whether an account exists.
 - Configured Better Auth password-reset tokens to expire after one hour.
 - Enabled session revocation after a successful password reset.
 - Added token-derived idempotency keys to verification and password-reset email delivery.
@@ -19,8 +20,9 @@
 - Added Better Auth's TOTP two-factor plugin and client plugin.
 - Added Prisma storage for `twoFactorEnabled` and the `TwoFactor` record.
 - Configured encrypted backup-code storage.
-- Added an authenticator enrollment screen at `/dashboard/security`.
+- Added an authenticator enrollment screen at `/dashboard/security`, linked from the dashboard navigation, with persisted enrollment status and password-confirmed disable control.
 - Added a second-factor challenge screen at `/two-factor`; users can use a TOTP code or a single-use backup code.
+- Kept the TOTP plugin enabled in CI while disabling only the external reCAPTCHA plugin, and added a real Better Auth TOTP enrollment/verification integration test using a generated current code.
 - Required enrolled MFA in addition to the existing 10-minute fresh-session check for Founder bootstrap and platform operator grant/revoke actions.
 - Kept the platform actions fail-closed when MFA is not enabled.
 
