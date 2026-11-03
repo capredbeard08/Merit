@@ -10,6 +10,7 @@ import MeritMark from "@/components/MeritMark";
 import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
 import SupportAccessApprovals from "./support-access-approvals";
+import GuestFeedbackManager from "./guest-feedback";
 import { can, type Role } from "@/lib/domain";
 import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
@@ -95,6 +96,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               ["action-inbox", "Activity", "⌁"],
               ["intelligence", "Feedback", "◌"],
               ["branches", "Locations", "⌖"],
+              ["guest-feedback", "Guest feedback", "▣"],
               ["files", "Files", "▤"],
               ["team", "Team", "♧"],
             ].map(([id, label, icon], index) => (
@@ -127,7 +129,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
           <div className="mx-auto max-w-[1260px]">
             <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-              {[["overview", "Overview"], ["action-inbox", "Activity"], ["intelligence", "Feedback"], ["branches", "Locations"], ["files", "Files"], ["team", "Team"]].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dce2d8] bg-white/80 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
+              {[["overview", "Overview"], ["action-inbox", "Activity"], ["intelligence", "Feedback"], ["branches", "Locations"], ["guest-feedback", "Guest feedback"], ["files", "Files"], ["team", "Team"]].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dce2d8] bg-white/80 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
             </div>
 
             <header id="overview" className="flex scroll-mt-5 flex-col gap-5 border-b border-[#dce2d8] pb-6 sm:flex-row sm:items-center sm:justify-between">
@@ -187,6 +189,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <div className="mb-4"><p className="text-xs font-semibold uppercase tracking-[0.17em] text-[#557565]">Understand the signal</p><h2 className="mt-1 text-2xl font-semibold text-[#123c2d]">Feedback intelligence</h2><p className="mt-1 text-sm text-[#718178]">Recent replies and emerging themes from this workspace.</p></div>
               <Intelligence workspaceId={workspaceId} initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))} initialReplies={replies.map((item) => ({ ...item, createdAt: item.createdAt.toISOString(), feedback: { ...item.feedback, customer: { ...item.feedback.customer, optedOutAt: item.feedback.customer.optedOutAt ? item.feedback.customer.optedOutAt.toISOString() : null } } }))} />
             </section>
+
+            {can(role, "feedback:read") ? <GuestFeedbackManager workspaceId={workspaceId} branches={branches} canManage={canManageBranches} /> : null}
 
             <section id="workspace-settings" className="mt-10 border-t border-[#dce2d8] pt-8">
               <p className="text-xs font-semibold uppercase tracking-[0.17em] text-[#557565]">Workspace management</p><h2 className="mt-1 text-2xl font-semibold text-[#123c2d]">Your workspace, organised</h2><p className="mt-1 text-sm text-[#718178]">Manage locations, authorised team members, and supporting files.</p>
