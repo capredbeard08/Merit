@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isGuestPublicId } from "@/lib/guest-feedback";
 import GuestFeedbackForm from "./guest-feedback-form";
 
 export const metadata = {
@@ -13,7 +14,7 @@ export default async function GuestFeedbackPage({
   params: Promise<{ publicId: string }>;
 }) {
   const { publicId } = await params;
-  if (!/^[A-Za-z0-9_-]{24,128}$/.test(publicId)) notFound();
+  if (!isGuestPublicId(publicId)) notFound();
 
   const qrCode = await prisma.guestQrCode.findFirst({
     where: {
