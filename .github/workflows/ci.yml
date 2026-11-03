@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, feat/platform-access-foundation]
   pull_request:
-    branches: [main, feat/explicit-workspace-selection]
+    branches: [main, feat/explicit-workspace-selection, feat/platform-access-foundation]
   workflow_dispatch:
 
 permissions:
