@@ -163,6 +163,32 @@ test("public guest feedback handles idempotency, rate limits, and QR lifecycle s
     }), "198.51.100.44")).status, 400,
       "oversized comments must be rejected");
 
+    const hostileText = "<script>alert(1)</script>";
+    const hostileResponse = await submitRaw(qr.publicId, JSON.stringify({
+      rating: 4, message: hostileText, submissionKey: randomUUID(),
+    }), "198.51.100.46");
+    assert.equal(hostileResponse.status, 200);
+    const storedHostileText = await prisma.guestFeedback.findFirstOrThrow({
+      where: { qrCodeId: qr.id, message: hostileText },
+    });
+    assert.equal(storedHostileText.message, hostileText,
+      "hostile-looking feedback is stored as plain text and must be rendered as text by React");
+
+    const staleQr = await prisma.guestQrCode.create({
+      data: { workspaceId: workspace.id, branchId: branch.id, publicId: publicId(), status: "PAUSED" },
+    });
+    const staleSnapshot = await prisma.guestQrCode.findUniqueOrThrow({
+      where: { id: staleQr.id }, select: { status: true },
+    });
+    await prisma.guestQrCode.update({ where: { id: staleQr.id }, data: { status: "REVOKED" } });
+    const staleReactivation = await prisma.guestQrCode.updateMany({
+      where: { id: staleQr.id, workspaceId: workspace.id, status: staleSnapshot.status },
+      data: { status: "ACTIVE" },
+    });
+    assert.equal(staleReactivation.count, 0,
+      "a stale reactivation write must not overwrite a committed revocation");
+    assert.equal((await prisma.guestQrCode.findUniqueOrThrow({ where: { id: staleQr.id } })).status, "REVOKED");
+
     const raceQr = await prisma.guestQrCode.create({
       data: { workspaceId: workspace.id, branchId: branch.id, publicId: publicId() },
     });
