@@ -195,6 +195,7 @@ export default function AuthPage() {
           password,
           fetchOptions: { headers: { "x-captcha-response": captchaToken } },
         });
+        if (result.data?.twoFactorRedirect) return;
         if (result.error) throw new Error(result.error.message || "Unable to sign in.");
         const continued = await continueIfAuthenticated();
         if (!continued) throw new Error("We couldn't confirm your session. Please try signing in again.");
@@ -265,6 +266,7 @@ export default function AuthPage() {
               <input id="password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={12} maxLength={128} autoComplete={isSignup ? "new-password" : "current-password"} aria-describedby={isSignup ? "password-help" : undefined} className="mt-2 w-full rounded-xl border border-[#d7ded6] bg-white px-4 py-3 outline-none focus:border-[#173b2f] focus-visible:ring-2 focus-visible:ring-[#47795f]" />
               {isSignup && <span id="password-help" className="mt-1 block text-xs text-[#6b7c72]">Use at least 12 characters.</span>}
             </label>
+            {!isSignup && <div className="text-right"><a href="/forgot-password" className="text-xs font-semibold text-[#315b49] underline underline-offset-2">Forgot your password?</a></div>}
             {error && <div id="auth-error" role="alert" aria-live="polite" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
             <button type="submit" disabled={busy} className="w-full rounded-xl bg-[#173b2f] px-4 py-3 font-semibold text-white transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#173b2f] disabled:cursor-not-allowed disabled:opacity-60">
               {busy ? "Working..." : isSignup ? "Create MERIT account" : "Sign in"}
