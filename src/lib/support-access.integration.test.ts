@@ -145,11 +145,11 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(deniedByRealMiddleware.ok, false, "Engineer must fail real middleware for user administration");
     const deniedWithoutMfa = await requirePlatformCapability(
       realMiddlewareRequest,
-      "platform:access:grant",
+      "platform:security:read",
       true,
       { requireMfa: true },
     );
-    assert.equal(deniedWithoutMfa.ok, false, "sensitive platform actions must reject accounts without enrolled MFA");
+    assert.equal(deniedWithoutMfa.ok, false, "MFA-protected requests must reject accounts without enrolled MFA");
     if (!deniedWithoutMfa.ok) assert.equal(deniedWithoutMfa.response.status, 403);
     // Enrol a real TOTP authenticator through Better Auth in CI, then verify
     // a time-based code generated from the returned otpauth URI.
@@ -173,11 +173,11 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
 
     const allowedWithMfa = await requirePlatformCapability(
       realMiddlewareRequest,
-      "platform:access:grant",
+      "platform:security:read",
       true,
       { requireMfa: true },
     );
-    assert.equal(allowedWithMfa.ok, true, "enrolled MFA account may proceed to sensitive platform action");
+    assert.equal(allowedWithMfa.ok, true, "MFA-enrolled account may pass the MFA gate when its role permits the capability");
     const unauthenticatedByRealMiddleware = await requirePlatformCapability(
       new Request("https://merit-olive.vercel.app/api/platform/security-events", {
         headers: { origin: "https://merit-olive.vercel.app" },
