@@ -110,7 +110,7 @@ export async function POST(
           AND q."publicId" = ${publicId}
           AND q."status" = 'ACTIVE'::"GuestQrCodeStatus"
           AND b."archivedAt" IS NULL
-        FOR UPDATE OF q
+        FOR UPDATE OF q, b
       `);
 
       const currentQr = activeQr[0];
