@@ -22,7 +22,7 @@ The authenticated workspace is desktop-first for managers and operations teams. 
 - Production migrations require a verified backup and restore drill and the controlled protected workflow.
 
 ## Security posture
-Platform-role separation, fail-closed authorization, privileged-action rate limiting, MFA foundations, and upload quarantine have implementation and CI coverage. They are not a certification of production readiness.
+Platform-role separation, fail-closed authorization, privileged-action rate limiting, MFA foundations, and upload quarantine have implementation work and earlier CI evidence. Current branch changes still require fresh CI. Guest-feedback tenant constraints, QR lifecycle locking, and rate-limit audit events are now in the draft branch but remain unverified until the current CI and integration tests pass.
 
 Outstanding release gates include email verification and recovery testing, MFA browser/recovery testing, malware scanning, PostgreSQL RLS and tenant-integrity enforcement, CORS review, live schema/migration comparison, and a verified backup/restore drill. Files remain quarantined until a real scanner records a durable clean verdict.
 
