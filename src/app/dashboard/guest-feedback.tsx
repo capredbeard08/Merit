@@ -110,13 +110,8 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
   }
 
   function printTableTent(code: QrCode) {
-    const image = qrImageUrl(code.publicUrl, 520);
-    const popup = window.open("", "_blank", "noopener,noreferrer,width=720,height=900");
-    if (!popup) { setError("Allow pop-ups to print the table tent."); return; }
-    popup.document.write(`<!doctype html><html><head><title>MERIT Guest Feedback</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-      *{box-sizing:border-box}body{margin:0;padding:28px;background:#f8f5eb;color:#173b2f;font-family:Arial,sans-serif}.tent{max-width:520px;margin:0 auto;background:white;border:1px solid #dce2d8;border-radius:24px;padding:34px;text-align:center}.brand{font-weight:800;letter-spacing:.22em;font-size:15px}.branch{color:#718178;font-size:13px;margin-top:20px}.headline{font-size:30px;line-height:1.15;margin:12px 0}.copy{color:#64746a;line-height:1.5}.qr{width:260px;height:260px;object-fit:contain;margin:20px auto}.foot{font-size:11px;color:#879189;margin-top:18px}@media print{body{padding:0;background:white}.tent{border:0;margin:0 auto;break-inside:avoid}}
-    </style></head><body><main class="tent"><div class="brand">MERIT</div><div class="branch">${escapeHtml(code.branch.name)}</div><h1 class="headline">How was your experience?</h1><p class="copy">Scan the code to share your feedback.<br>Your thoughts help us serve you better.</p><img class="qr" src="${image}" alt="Guest feedback QR code"><p class="copy">No account needed · Your feedback is shared privately</p><div class="foot">Customer feedback, quietly automated.</div></main><script>window.onload=()=>setTimeout(()=>window.print(),500)</script></body></html>`);
-    popup.document.close();
+    if (selected?.id !== code.id) setSelected(code);
+    window.setTimeout(() => window.print(), 80);
   }
 
   return (
@@ -171,16 +166,16 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
       </div>
 
       {selected && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#10251c]/65 p-4" role="dialog" aria-modal="true" aria-labelledby="guest-qr-title">
-        <div className="my-auto w-full max-w-lg rounded-3xl bg-[#fbfaf5] p-5 shadow-2xl sm:p-7">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#557565]">Permanent QR code</p><h3 id="guest-qr-title" className="mt-1 text-xl font-semibold text-[#123c2d]">{selected.label || selected.branch.name}</h3><p className="text-sm text-[#718178]">{selected.branch.name}</p></div><button type="button" onClick={() => setSelected(null)} aria-label="Close QR preview" className="rounded-full border border-[#dce2d8] px-3 py-1 text-lg">×</button></div>
+        <div id="guest-qr-print-sheet" className="guest-qr-print-sheet my-auto w-full max-w-lg rounded-3xl bg-[#fbfaf5] p-5 shadow-2xl sm:p-7">
+          <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#557565]">Permanent QR code</p><h3 id="guest-qr-title" className="mt-1 text-xl font-semibold text-[#123c2d]">{selected.label || selected.branch.name}</h3><p className="text-sm text-[#718178]">{selected.branch.name}</p><p className="mt-4 text-center text-xl font-semibold text-[#123c2d]">How was your experience?</p><p className="mt-1 text-center text-sm text-[#718178]">Scan the code to share your feedback.</p></div><button type="button" onClick={() => setSelected(null)} aria-label="Close QR preview" className="guest-qr-close rounded-full border border-[#dce2d8] px-3 py-1 text-lg">×</button></div>
           <div className="mx-auto mt-5 w-fit rounded-2xl border border-[#dce2d8] bg-white p-3"><img src={qrImageUrl(selected.publicUrl, 360)} width="260" height="260" alt={"QR code for " + selected.branch.name} className="h-[260px] w-[260px]"/></div>
           <p className="mt-3 break-all text-center text-xs text-[#718178]">{selected.publicUrl}</p>
           {selected.status !== "ACTIVE" && <p className="mt-3 rounded-lg bg-[#f5f0df] p-2 text-center text-xs text-[#856b2d]">This QR code is {selected.status.toLowerCase()} and will not accept submissions.</p>}
-          <div className="mt-5 grid grid-cols-2 gap-2">
+          <div className="guest-qr-print-controls mt-5 grid grid-cols-2 gap-2">
             <a href={qrImageUrl(selected.publicUrl, 1000)} download={"merit-guest-qr-" + selected.branch.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".png"} target="_blank" rel="noreferrer" className="rounded-xl border border-[#cfd9cf] px-3 py-3 text-center text-xs font-semibold text-[#315b49]">Download PNG</a>
             <button type="button" onClick={() => printTableTent(selected)} className="rounded-xl bg-[#173b2f] px-3 py-3 text-xs font-semibold text-white">Print table tent / Save PDF</button>
           </div>
-          <button type="button" onClick={() => { void navigator.clipboard.writeText(selected.publicUrl); setNotice("Guest feedback link copied."); }} className="mt-2 w-full rounded-xl border border-[#cfd9cf] px-3 py-3 text-xs font-semibold text-[#315b49]">Copy guest link</button>
+          <button type="button" className="guest-qr-print-controls mt-2 w-full rounded-xl border border-[#cfd9cf] px-3 py-3 text-xs font-semibold text-[#315b49]" onClick={() => { void navigator.clipboard.writeText(selected.publicUrl); setNotice("Guest feedback link copied."); }}>Copy guest link</button>
           <p className="mt-3 text-[11px] leading-5 text-[#879189]">The QR image is rendered by a third-party QR service using only this public feedback URL. Do not encode private information in QR URLs.</p>
         </div>
       </div>}
