@@ -4,10 +4,13 @@
 This checklist distinguishes implementation/CI evidence from browser verification and production approval.
 
 ## Current repository state
-- [x] Platform-access foundation implemented on feat/platform-access-foundation; draft PR #8 remains open and unmerged.
-- [x] Guest-feedback foundation implemented on feat/guest-feedback-foundation; draft PR #9 remains open and unmerged, stacked on PR #8.
-- [x] PR #8 CI passed at its current reviewed head: Prisma validation/client generation, disposable PostgreSQL migrations, database-backed authorization tests, Security Warden tests, TypeScript, and production build.
-- [ ] PR #9 needs its own complete CI run and route-level/mobile security tests. Do not infer its status from PR #8 or an earlier preview.
+- [x] Platform-access foundation remains on draft PR #8; guest feedback remains on draft PR #9. Neither is merged.
+- [x] Corrected the CI pull-request base-branch filter so stacked PR #9 can be targeted; the current PR #8 workflow run #373 was cancelled during rapid branch updates and is not a pass.
+- [ ] Obtain a completed CI result for the current PR #8 head and current PR #9 head. The available commit-run lookup does not yet show a completed PR #9 run.
+- [x] Added composite workspace/branch/QR relation definitions and matching SQL constraints to the draft guest-feedback schema/migration.
+- [x] Added guest-feedback integration tests for cross-tenant FK rejection, idempotency, rate limiting, and paused/archived QR states; execution remains pending CI.
+- [x] Serialized public submissions against QR pause/revocation and branch archival by locking and rechecking rows in the write transaction.
+- [x] Added sanitized security-event logging for rate-limit rejections and corrected the QR image CSP source.
 - [ ] Validate combined PR #8 + #9 behavior before either is considered pilot-ready.
 - [x] Existing pilot remains https://merit-olive.vercel.app/.
 - [x] No production migration, production Founder bootstrap, or production rollout is authorized.
