@@ -32,6 +32,9 @@ export async function PATCH(
     select: { id: true, status: true, branchId: true },
   });
   if (!existing) return NextResponse.json({ error: "QR code not found." }, { status: 404 });
+  if (existing.status === "REVOKED" && parsed.data.status !== "REVOKED") {
+    return NextResponse.json({ error: "Revoked QR codes cannot be reactivated. Generate a new code instead." }, { status: 409 });
+  }
 
   const updated = await prisma.guestQrCode.updateMany({
     where: { id, workspaceId: parsed.data.workspaceId },
