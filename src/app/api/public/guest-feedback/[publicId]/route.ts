@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { consumePlatformRateLimit } from "@/lib/platform-rate-limit";
+import { recordSecurityEvent } from "@/lib/security-warden";
 import { feedbackRatingValue, hashGuestSubmissionKey, isGuestPublicId, safeGoogleReviewUrl } from "@/lib/guest-feedback";
 
 const submissionSchema = z.object({
@@ -58,6 +59,25 @@ export async function POST(
   ]);
 
   if (!ipLimit.allowed || !qrLimit.allowed) {
+    try {
+      await recordSecurityEvent({
+        type: "RATE_LIMIT_TRIGGERED",
+        workspaceId: qrCode.workspaceId,
+        targetId: qrCode.id,
+        metadata: {
+          route: "public_guest_feedback",
+          limiter: !ipLimit.allowed && !qrLimit.allowed ? "ip_and_qr" : !ipLimit.allowed ? "ip" : "qr",
+        },
+        request,
+      });
+    } catch (eventError) {
+      // A logging failure must not turn a correctly blocked request into an
+      // accepted submission or expose internal details to the public client.
+      console.error("[MERIT guest feedback] rate-limit event could not be recorded", {
+        error: eventError instanceof Error ? eventError.name : "unknown",
+      });
+    }
+
     const retryAfter = Math.max(
       ipLimit.allowed ? 0 : ipLimit.retryAfterSeconds,
       qrLimit.allowed ? 0 : qrLimit.retryAfterSeconds,
