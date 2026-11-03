@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type Props = { publicId: string };
 
@@ -13,6 +13,7 @@ export default function GuestFeedbackForm({ publicId }: Props) {
   const [error, setError] = useState("");
   const [googleReviewUrl, setGoogleReviewUrl] = useState<string | null>(null);
   const [complete, setComplete] = useState(false);
+  const submissionKeyRef = useRef<string | null>(null);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -21,17 +22,18 @@ export default function GuestFeedbackForm({ publicId }: Props) {
     setSubmitting(true);
     setError("");
     try {
-      const submissionKey = crypto.randomUUID();
+      submissionKeyRef.current ??= crypto.randomUUID();
       const response = await fetch("/api/public/guest-feedback/" + encodeURIComponent(publicId), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, message, submissionKey }),
+        body: JSON.stringify({ rating, message, submissionKey: submissionKeyRef.current }),
       });
       const result = await response.json().catch(() => null);
       if (!response.ok || !result?.accepted) {
         setError(result?.error || "We couldn't submit your feedback. Please try again.");
         return;
       }
+      submissionKeyRef.current = null;
       setGoogleReviewUrl(typeof result.googleReviewUrl === "string" ? result.googleReviewUrl : null);
       setComplete(true);
     } catch {
