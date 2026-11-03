@@ -581,7 +581,7 @@ test("Founder bootstrap and operator grant/revoke require real verified sessions
     const sessionCookie = signupResponse.headers.get("set-cookie")?.split(";")[0];
     assert.ok(sessionCookie, "Founder bootstrap must use a real Better Auth session cookie");
 
-    await prisma.user.update({ where: { id: founderId }, data: { emailVerified: true } });
+    await prisma.user.update({ where: { id: founderId }, data: { emailVerified: true, twoFactorEnabled: true } });
     const founderHeaders = {
       cookie: sessionCookie,
       origin: "https://merit-olive.vercel.app",
