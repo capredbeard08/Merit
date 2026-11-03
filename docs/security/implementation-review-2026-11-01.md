@@ -43,7 +43,7 @@ The route requires:
 
 The grant and its high-severity platform security event are written in a serializable database transaction. The database migration also creates a partial unique index so only one active Founder Super Admin can exist.
 
-Operational documentation is in `docs/security/founder-bootstrap.md`. The bootstrap secret must be removed from the deployment environment immediately after a successful bootstrap. The route is not ready for production until email verification is enabled and tested, rate limiting and step-up authentication are configured, and the migration has passed review.
+Operational documentation is in `docs/security/founder-bootstrap.md`. The bootstrap secret must be removed from the deployment environment immediately after a successful bootstrap. The route is not ready for production until email verification is enabled and tested, MFA/recovery requirements are resolved, and the migration has passed live-database review. Database-backed rate limiting and a 10-minute fresh-session reauthentication gate have since been implemented and passed CI; the latter is not MFA.
 
 ## 4. Platform operator console and management
 
@@ -107,9 +107,10 @@ The Prisma schema now includes:
 - `PlatformAccess`
 - `SupportAccessRequest`
 
-Two SQL migrations were added:
+Three SQL migrations were added:
 1. `20261101010000_platform_access_foundation`
 2. `20261101020000_business_support_authorization`
+3. `20261101030000_platform_rate_limits`
 
 The migrations add platform role storage, the one-active-founder constraint, support request storage, status/scope fields, duration validation, indexes, and foreign-key relationships.
 
@@ -146,8 +147,7 @@ A passing unit-test suite and production build are a meaningful milestone, but d
 
 The following are not represented as completed:
 - Better Auth email verification is not yet enabled and end-to-end tested.
-- MFA or step-up authentication for sensitive platform actions.
-- Edge/API rate limiting for bootstrap and privileged endpoints.
+- MFA enrollment, second-factor enforcement, and recovery for sensitive platform actions. A 10-minute fresh-session reauthentication gate is implemented, but it is not MFA.
 - Actual support data-view routes individually wired to the approval guard.
 - A full security review and end-to-end tests.
 - A verified recoverable database backup.
@@ -161,6 +161,7 @@ The database backup issue remains unresolved because the available Prisma backup
 - `prisma/schema.prisma`
 - `prisma/migrations/20261101010000_platform_access_foundation/migration.sql`
 - `prisma/migrations/20261101020000_business_support_authorization/migration.sql`
+- `prisma/migrations/20261101030000_platform_rate_limits/migration.sql`
 
 ### API routes
 - `src/app/api/platform/bootstrap/route.ts`
@@ -184,6 +185,7 @@ The database backup issue remains unresolved because the available Prisma backup
 - `src/lib/platform-access.ts`
 - `src/lib/platform-access.test.ts`
 - `src/lib/platform-admin.ts`
+- `src/lib/platform-rate-limit.ts`
 - `src/lib/platform-security-events.ts`
 - `src/lib/platform-security-events.test.ts`
 - `src/lib/support-access.ts`
@@ -193,6 +195,7 @@ The database backup issue remains unresolved because the available Prisma backup
 - `src/lib/support-access-decision.ts`
 - `src/lib/support-access-decision.test.ts`
 - `src/lib/support-access.integration.test.ts`
+- `src/lib/platform-rate-limit.integration.test.ts`
 - `src/lib/support-access.test.ts`
 
 ### Documentation and workflow
@@ -225,14 +228,14 @@ Please review these decisions before the next development step:
 ## 13. Current status
 
 **Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, real Better Auth session/capability-middleware coverage, concurrent duplicate-request and decision coverage, support-read/revocation race coverage, explicit Prisma validation, and disposable PostgreSQL migration validation.  
-**Branch head:** `fedb7e7b63c15878308800bc977332de7bcaf61d`.  
-**Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open and marked draft.  
-**Latest verified CI run:** [#255](https://github.com/capredbeard08/Merit/actions/runs/41342841439) passed all steps: Prisma validation, Prisma Client generation, full migration deployment to disposable PostgreSQL 16, database-backed authorization integration suite, Security Warden tests, TypeScript, and production build.  
+**Branch head:** `23cfbcddc14802240d282454018aae7b9a113c64`.  
+**Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open, unmerged, and marked draft.  
+**Latest verified CI run:** [#276](https://github.com/capredbeard08/Merit/actions/runs/41343854170) passed all steps on this branch head: Prisma validation, Prisma Client generation, all migrations on disposable PostgreSQL 16, database-backed authorization and rate-limit integration tests, Security Warden tests, TypeScript, and production build.  
 **Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
 **Live database and accounts:** not modified by this development increment.  
 **Production deployment:** not performed.
 
-**Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth session/capability middleware, concurrency tests, and the support-read/revocation race test have passed CI. Email verification, rate limiting, MFA/step-up authentication, verified recoverable backup, live migration-history/schema review, and remaining security gates are still outstanding.
+**Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth session/capability middleware, concurrency tests, support-read/revocation race coverage, database-backed rate limiting, and fresh-session reauthentication have passed CI. Email verification remains disabled pending sender-domain and end-to-end delivery/callback validation; MFA and recovery, verified recoverable backup, live migration-history/schema review, and remaining security gates are still outstanding.
 
 This is a review document, not a release approval.
 
@@ -273,8 +276,9 @@ Compared `feat/platform-access-foundation` with its declared base `feat/explicit
 
 1. `20261101010000_platform_access_foundation`
 2. `20261101020000_business_support_authorization`
+3. `20261101030000_platform_rate_limits`
 
-The added migrations are timestamp-ordered after the base chain. Their SQL adds two enum types, two tables, indexes, a partial unique index enforcing one active Founder assignment, a duration check constraint, and foreign keys. No `DROP`, `TRUNCATE`, or alteration/removal of existing tables was found in the two new migration files. The schema changes correspond to the new platform-access and support-authorization models. The base migration files and migration lock file are unchanged in the branch comparison.
+The added migrations are timestamp-ordered after the base chain. Their SQL adds the platform/support enums and tables, the `RateLimitBucket` table and expiry index, indexes, a partial unique index enforcing one active Founder assignment, a duration check constraint, and foreign keys. No `DROP`, `TRUNCATE`, or alteration/removal of existing tables was found in the three new migration files. The schema changes correspond to the new platform-access and support-authorization models. The base migration files and migration lock file are unchanged in the branch comparison.
 
 **Migration review result: branch-level review passed; live-database review remains open.** CI run #255 successfully applied the complete migration chain to a disposable PostgreSQL 16 database. This confirms clean-chain execution, not parity with the live MERIT database. Before production, compare the live `_prisma_migrations` records and actual schema with this exact chain, inspect any drift or manually applied SQL, and verify a recoverable backup. No live database was queried or changed during this branch-level review.
 
@@ -285,4 +289,4 @@ Added a PostgreSQL-backed fixed-window rate limiter for platform-sensitive actio
 
 Sensitive operator grant/revoke operations and Founder bootstrap now require a Better Auth session created within the preceding 10 minutes. Older sessions receive HTTP 428 and must authenticate again before retrying. This is a fresh-session reauthentication gate, **not MFA or a second factor**; MFA enrollment, recovery, and step-up enforcement remain outstanding and are still a production gate. Rate limiting is covered by a database-backed integration test, and the stale-session step-up rejection is exercised through the actual platform capability middleware.
 
-GitHub Actions run [#274](https://github.com/capredbeard08/Merit/actions/runs/41343683832) passed on commit `a8ddcdb6c98bf40d95cd0740bd529f3600330fa5`: Prisma validation/client generation, all eight migrations on disposable PostgreSQL 16, database-backed integration tests, Security Warden tests, TypeScript, and production build. This is not a live database migration or deployment.
+GitHub Actions run [#276](https://github.com/capredbeard08/Merit/actions/runs/41343854170) passed on commit `23cfbcddc14802240d282454018aae7b9a113c64`: Prisma validation/client generation, the complete migration chain including the rate-limit migration on disposable PostgreSQL 16, database-backed authorization and rate-limit integration tests, Security Warden tests, TypeScript, and production build. This is not a live database migration or deployment.
