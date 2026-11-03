@@ -15,7 +15,7 @@ This document defines the evidence required before a business is invited to use 
 | Duplicate submissions | HMAC-keyed idempotency exists; CI integration test passed | Browser retry/offline behaviour on a real device |
 | Rate limiting | PostgreSQL-backed and fail-closed; CI test proves 429 and sanitized SecurityEvent | Production monitoring and database-outage verification |
 | Public input validation | Zod schema bounds rating and message | Malformed JSON, wrong types, oversize message, and malicious-input tests |
-| Tenant isolation | Composite guest relations added; RLS/runtime boundary not complete | Cross-tenant reads/writes rejected using restricted runtime role |
+| Tenant isolation | Composite guest relations and explicit membership/workspace predicates exist; authenticated API isolation tests added in this review but not yet CI-validated. Prisma Postgres does not support custom roles, so restricted-role/RLS isolation is unavailable on the current provider. | Validate authenticated cross-workspace reads/writes; audit every business-data route for membership checks and workspace-scoped predicates; do not claim RLS protection |
 | QR presentation | QR preview and print/table-tent surfaces exist | Real-device scan, print dimensions, camera and browser tests |
 | Mobile guest flow | Mobile-first page exists | Test on at least one Android and one iOS browser where available |
 | Browser security headers | CSP allows the QR image provider host | Browser confirms QR image loads and no unnecessary CSP exceptions |
@@ -83,7 +83,7 @@ Record each run with commit SHA, CI run URL, test environment, date, tester, res
 | Rate-limit/audit behavior | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed |
 | Android QR scan | Pending | Pending | Pending |
 | iOS QR scan | Pending | Pending | Pending |
-| Dashboard/branch isolation | Pending | Pending | Pending |
+| Authenticated guest-feedback API isolation | New tests added after CI #413; awaiting new CI run | 3 Nov 2026 | Pending |\n| Full business-data route isolation audit | In progress | 3 Nov 2026 | Pending |\n| Dashboard/branch isolation | Pending | Pending | Pending |
 | Owner sign-off | Pending | Pending | Pending |
 
 ## Explicit non-authorization
