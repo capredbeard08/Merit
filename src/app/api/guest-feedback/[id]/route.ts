@@ -36,11 +36,18 @@ export async function PATCH(
     return NextResponse.json({ error: "Revoked QR codes cannot be reactivated. Generate a new code instead." }, { status: 409 });
   }
 
+  // Optimistic concurrency prevents a stale pause/reactivate request from
+  // overwriting a newer revocation. Revoked remains terminal under races too.
   const updated = await prisma.guestQrCode.updateMany({
-    where: { id, workspaceId: parsed.data.workspaceId },
+    where: { id, workspaceId: parsed.data.workspaceId, status: existing.status },
     data: { status: parsed.data.status },
   });
-  if (updated.count !== 1) return NextResponse.json({ error: "QR code not found." }, { status: 404 });
+  if (updated.count !== 1) {
+    return NextResponse.json(
+      { error: "QR code status changed. Refresh and try again." },
+      { status: 409 },
+    );
+  }
 
   await writeAuditLog({
     workspaceId: parsed.data.workspaceId,
