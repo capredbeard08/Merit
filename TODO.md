@@ -41,8 +41,9 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 - [x] Authenticated QR management, status controls, QR preview/image/print/tent controls, and branch-specific Google review URL.
 - [x] Keep guest workflow separate from existing authenticated/email Feedback and FeedbackReply workflow.
 - [x] Google review invitation is neutral and independent of rating; no review gating.
-- [ ] Run complete PR #9 CI on its current head.
-- [ ] Test unknown, paused, revoked, and archived-branch QR codes; malicious input; cross-tenant references; duplicate submissions; and rate-limit failure.
+- [ ] Complete CI for the current PR #9 head and inspect any failures.
+- [x] Added integration coverage for paused and archived QR codes, duplicate submissions, rate limiting, and cross-tenant references; CI execution remains pending.
+- [ ] Add explicit revoked QR, concurrent pause/revoke race, malformed body, and malicious-input route tests.
 - [ ] Test QR scanning, print output, mobile layouts, and the complete guest journey.
 - [x] Draft Prisma composite relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode.
 - [ ] Run disposable PostgreSQL migration replay and negative cross-tenant insert/update tests; do not infer success from committed code.
