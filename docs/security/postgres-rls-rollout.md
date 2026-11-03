@@ -48,7 +48,7 @@ RLS is defense in depth, not a replacement for application authorization. Public
 ## Tenant-integrity gaps
 Current relationships use single-column foreign keys in several places. A record may reference a Branch, Customer, ServiceEvent, or Feedback from another workspace if application validation is missed. The guest-feedback draft now adds composite Prisma relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode; this remains pending disposable PostgreSQL validation and negative tests.
 
-Existing candidate constraints cover:
+The review-only SQL candidate identifies existing relationships for later hardening:
 - Customer → Branch
 - ServiceEvent → Branch and Customer
 - Feedback → Branch, Customer, and ServiceEvent
@@ -56,12 +56,12 @@ Existing candidate constraints cover:
 - FollowUp → Feedback
 - FeedbackReply → Feedback
 
-The guest-feedback branch adds relationships that must be enforced at database level:
+The guest-feedback draft now encodes these three composite relationships in Prisma and its additive migration:
 - GuestQrCode → Branch within the same workspace.
 - GuestFeedback → Branch within the same workspace.
 - GuestFeedback → GuestQrCode within the same workspace and branch.
 
-Extend the review-only SQL candidate and Prisma composite relation definitions after inspecting the exact schema. Run mismatch preflight queries on a disposable copy first; do not silently rewrite/delete records. Confirm PostgreSQL version support for column-list ON DELETE SET NULL (PostgreSQL 15+) and review deletion/retention semantics.
+These guest constraints are committed but not yet validated by the current PR #9 CI run. Run mismatch preflight queries on a disposable copy before any live migration; do not silently rewrite/delete records. Confirm PostgreSQL version support for column-list ON DELETE SET NULL (PostgreSQL 15+) in the remaining review-candidate constraints and review deletion/retention semantics.
 
 ## Required automated tests
 Use at least two workspaces and two users (one in both workspaces; one in only one):
