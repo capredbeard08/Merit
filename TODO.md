@@ -5,8 +5,9 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 
 ## Current repository state
 - [x] Platform-access foundation remains on draft PR #8; guest feedback remains on draft PR #9. Neither is merged.
-- [x] Corrected the CI pull-request base-branch filter so stacked PR #9 can be targeted; the current PR #8 workflow run #373 was cancelled during rapid branch updates and is not a pass.
-- [ ] Obtain a completed CI result for the current PR #8 head and current PR #9 head. The available commit-run lookup does not yet show a completed PR #9 run.
+- [x] Corrected the CI pull-request base-branch filter so stacked PR #9 can be targeted.
+- [x] PR #8 current head `b41f706` passed MERIT CI run #397: Prisma validation/client generation, disposable migration replay, support authorization integration tests, Security Warden tests, TypeScript, and production build.
+- [ ] Obtain and verify a completed CI result for current PR #9 head `5b1ecff`; no PR-triggered run is visible yet.
 - [x] Added composite workspace/branch/QR relation definitions and matching SQL constraints to the draft guest-feedback schema/migration.
 - [x] Added guest-feedback integration tests for cross-tenant FK rejection, idempotency, rate limiting, and paused/archived QR states; execution remains pending CI.
 - [x] Serialized public submissions against QR pause/revocation and branch archival by locking and rechecking rows in the write transaction.
@@ -14,7 +15,7 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 - [ ] Validate combined PR #8 + #9 behavior before either is considered pilot-ready.
 - [x] Existing pilot remains https://merit-olive.vercel.app/.
 - [x] No production migration, production Founder bootstrap, or production rollout is authorized.
-- [ ] Independently verify the Vercel preview-deployment setting before any future GitHub push; do not assume pushes have or have not deployed.
+- [ ] Independently verify the Vercel preview-deployment setting; the project readback does not expose the flag. The deployment listing still shows the older `614b9c` preview as latest and no deployment for the new development commits.
 
 ## Platform-access foundation — implemented, not production-approved
 - [x] Separate platform roles from workspace membership: Founder Super Admin, read-only Platform Admin, and Engineer.
@@ -43,7 +44,8 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 - [x] Google review invitation is neutral and independent of rating; no review gating.
 - [ ] Complete CI for the current PR #9 head and inspect any failures.
 - [x] Added integration coverage for paused and archived QR codes, duplicate submissions, rate limiting, and cross-tenant references; CI execution remains pending.
-- [ ] Add explicit revoked QR, concurrent pause/revoke race, malformed body, and malicious-input route tests.
+- [x] Added integration coverage for revoked QR codes, malformed JSON, out-of-range ratings, oversized comments, and a submission waiting behind a committed QR pause.
+- [ ] Add hostile-string/XSS input assertions and verify rendered guest comments remain text, not executable markup.
 - [ ] Test QR scanning, print output, mobile layouts, and the complete guest journey.
 - [x] Draft Prisma composite relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode.
 - [ ] Run disposable PostgreSQL migration replay and negative cross-tenant insert/update tests; do not infer success from committed code.
