@@ -41,7 +41,7 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
       setFeedback(data.feedback || []);
       setSummary(data.summary || { count: 0, averageRating: null });
       const urls: Record<string, string> = {};
-      for (const code of data.codes || []) urls[code.branchId] = code.branch.googleReviewUrl || "";
+      for (const item of data.branches || []) urls[item.id] = item.googleReviewUrl || "";
       setReviewUrls(urls);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load guest feedback.");
