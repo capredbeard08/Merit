@@ -146,7 +146,7 @@ model GuestFeedback {
   createdAt          DateTime       @default(now())
   workspace          Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   branch             Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  qrCode             GuestQrCode    @relation(fields: [qrCodeId], references: [id], onDelete: Restrict)
+  qrCode             GuestQrCode    @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
   @@index([workspaceId, submittedAt])
   @@index([branchId, submittedAt])
   @@index([qrCodeId, submittedAt])
