@@ -195,7 +195,6 @@ export default function AuthPage() {
           password,
           fetchOptions: { headers: { "x-captcha-response": captchaToken } },
         });
-        if (result.data?.twoFactorRedirect) return;
         if (result.error) throw new Error(result.error.message || "Unable to sign in.");
         const continued = await continueIfAuthenticated();
         if (!continued) throw new Error("We couldn't confirm your session. Please try signing in again.");
