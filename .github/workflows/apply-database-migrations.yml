@@ -31,7 +31,8 @@ jobs:
       - name: Check out the reviewed migration branch
         uses: actions/checkout@v4
         with:
-          ref: security/remediation-phase-1
+          # Deploy only the migration files from the exact commit whose workflow was dispatched.
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
