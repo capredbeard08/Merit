@@ -71,12 +71,36 @@ export async function POST(
   const submissionKeyHash = hashGuestSubmissionKey(qrCode.id, parsed.data.submissionKey);
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const acceptedQr = await prisma.$transaction(async (tx) => {
+      // Lock the QR row and re-check its lifecycle state inside the write
+      // transaction. A concurrent pause/revocation must serialize with this
+      // submission rather than race the earlier public lookup.
+      const activeQr = await tx.$queryRaw<Array<{
+        id: string;
+        workspaceId: string;
+        branchId: string;
+        googleReviewUrl: string | null;
+      }>>(Prisma.sql`
+        SELECT q."id", q."workspaceId", q."branchId", b."googleReviewUrl"
+        FROM "GuestQrCode" q
+        INNER JOIN "Branch" b
+          ON b."id" = q."branchId"
+         AND b."workspaceId" = q."workspaceId"
+        WHERE q."id" = ${qrCode.id}
+          AND q."publicId" = ${publicId}
+          AND q."status" = 'ACTIVE'::"GuestQrCodeStatus"
+          AND b."archivedAt" IS NULL
+        FOR UPDATE OF q
+      `);
+
+      const currentQr = activeQr[0];
+      if (!currentQr) return null;
+
       await tx.guestFeedback.create({
         data: {
-          workspaceId: qrCode.workspaceId,
-          branchId: qrCode.branchId,
-          qrCodeId: qrCode.id,
+          workspaceId: currentQr.workspaceId,
+          branchId: currentQr.branchId,
+          qrCodeId: currentQr.id,
           rating: feedbackRatingValue(parsed.data.rating),
           message: parsed.data.message || null,
           submissionKeyHash,
@@ -84,10 +108,15 @@ export async function POST(
         },
       });
       await tx.guestQrCode.update({
-        where: { id: qrCode.id },
+        where: { id: currentQr.id },
         data: { lastUsedAt: new Date() },
       });
+      return currentQr;
     });
+
+    if (!acceptedQr) {
+      return NextResponse.json({ error: "This feedback link is no longer available." }, { status: 404 });
+    }
   } catch (error) {
     // A retried request with the same idempotency key is already safely stored.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
