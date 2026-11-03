@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStatus, Role } from "@prisma/client";
 import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
@@ -14,6 +14,37 @@ import { POST as founderBootstrapPost } from "../app/api/platform/bootstrap/rout
 import { POST as grantPlatformOperator, DELETE as revokePlatformOperator } from "../app/api/platform/operators/route";
 
 const prisma = new PrismaClient();
+
+function decodeBase32(input: string): Buffer {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const character of input.replace(/=+$/g, "").toUpperCase()) {
+    const digit = alphabet.indexOf(character);
+    if (digit < 0) throw new Error("Invalid base32 TOTP secret");
+    value = (value << 5) | digit;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((value >> bits) & 0xff);
+    }
+  }
+  return Buffer.from(bytes);
+}
+
+function currentTotp(secret: string): string {
+  const counter = BigInt(Math.floor(Date.now() / 30_000));
+  const counterBytes = Buffer.alloc(8);
+  counterBytes.writeBigUInt64BE(counter);
+  const digest = createHmac("sha1", decodeBase32(secret)).update(counterBytes).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary = ((digest[offset] & 0x7f) << 24) |
+    ((digest[offset + 1] & 0xff) << 16) |
+    ((digest[offset + 2] & 0xff) << 8) |
+    (digest[offset + 3] & 0xff);
+  return String(binary % 1_000_000).padStart(6, "0");
+}
 
 test("platform rate limiting is shared, fixed-window, and fails closed on excess", async () => {
   const subject = "rate-limit-integration-" + randomUUID();
@@ -120,12 +151,26 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     );
     assert.equal(deniedWithoutMfa.ok, false, "sensitive platform actions must reject accounts without enrolled MFA");
     if (!deniedWithoutMfa.ok) assert.equal(deniedWithoutMfa.response.status, 403);
-    // Simulate a successfully enrolled TOTP account at the persistence boundary.
-    // The auth plugin itself is disabled in CI to keep integration tests offline.
-    await prisma.user.update({
-      where: { id: operatorId },
-      data: { twoFactorEnabled: true },
+    // Enrol a real TOTP authenticator through Better Auth in CI, then verify
+    // a time-based code generated from the returned otpauth URI.
+    const enrollment = await auth.api.enableTwoFactor({
+      body: { password: "CI-only-strong-password-123!", method: "totp", issuer: "MERIT" },
+      headers: sessionHeaders,
+    }) as { method: "totp"; totpURI: string; backupCodes: string[] };
+    assert.equal(enrollment.method, "totp");
+    assert.equal(enrollment.backupCodes.length > 0, true, "TOTP enrollment must issue recovery backup codes");
+    const totpSecret = new URL(enrollment.totpURI).searchParams.get("secret");
+    assert.ok(totpSecret, "TOTP setup URI must contain an authenticator secret");
+    await auth.api.verifyTOTP({
+      body: { code: currentTotp(totpSecret), trustDevice: false },
+      headers: sessionHeaders,
     });
+    const persistedMfa = await prisma.user.findUniqueOrThrow({
+      where: { id: operatorId },
+      select: { twoFactorEnabled: true },
+    });
+    assert.equal(persistedMfa.twoFactorEnabled, true, "MFA is enabled only after a valid TOTP enrollment code");
+
     const allowedWithMfa = await requirePlatformCapability(
       realMiddlewareRequest,
       "platform:access:grant",
