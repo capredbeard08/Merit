@@ -46,7 +46,7 @@ Use both USING and WITH CHECK as appropriate. For Member, allow self-membership 
 RLS is defense in depth, not a replacement for application authorization. Public QR submission and webhook ingestion must use narrowly scoped, server-verified capabilities and must not receive a general tenant bypass.
 
 ## Tenant-integrity gaps
-Current relationships use single-column foreign keys in several places. A record may reference a Branch, Customer, ServiceEvent, Feedback, or QR record from another workspace if application validation is missed.
+Current relationships use single-column foreign keys in several places. A record may reference a Branch, Customer, ServiceEvent, or Feedback from another workspace if application validation is missed. The guest-feedback draft now adds composite Prisma relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode; this remains pending disposable PostgreSQL validation and negative tests.
 
 Existing candidate constraints cover:
 - Customer → Branch
