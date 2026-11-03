@@ -126,9 +126,19 @@ test("public guest feedback handles idempotency, rate limits, and QR lifecycle s
       responses.push(await submit(limitedQr.publicId, randomUUID(), "198.51.100.30"));
     }
     assert.deepEqual(responses.map((response) => response.status), [200, 200, 200, 200, 200, 429]);
-    assert.equal(await prisma.securityEvent.count({
+    const rateLimitEvent = await prisma.securityEvent.findFirst({
       where: { workspaceId: workspace.id, targetId: limitedQr.id, type: "RATE_LIMIT_TRIGGERED" },
-    }), 1, "rate-limited guest submissions must create a security event");
+      orderBy: { createdAt: "desc" },
+    });
+    assert.ok(rateLimitEvent, "rate-limited guest submissions must create a security event");
+    assert.deepEqual(rateLimitEvent.metadata, {
+      route: "public_guest_feedback",
+      limiter: "ip",
+      severity: "MEDIUM",
+    });
+    assert.equal(rateLimitEvent.ipAddress, "198.51.100.30");
+    assert.equal(JSON.stringify(rateLimitEvent.metadata).includes("submissionKey"), false,
+      "security metadata must not contain raw idempotency keys or guest content");
 
     const pausedQr = await prisma.guestQrCode.create({
       data: { workspaceId: workspace.id, branchId: branch.id, publicId: publicId(), status: "PAUSED" },
