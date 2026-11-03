@@ -9,6 +9,7 @@ import Intelligence from "./intelligence";
 import MeritMark from "@/components/MeritMark";
 import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
+import SupportAccessApprovals from "./support-access-approvals";
 import { can, type Role } from "@/lib/domain";
 import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
@@ -102,6 +103,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </a>
             ))}
             {can(role, "security:read") ? <a href="#security-center" className="merit-nav-link"><span className="w-5 text-center">◇</span>Security Warden</a> : null}
+            <a href="/dashboard/security" className="merit-nav-link"><span className="w-5 text-center">◎</span>Account security</a>
           </nav>
           <div className="mt-auto border-t border-white/15 pt-5">
             {memberships.length > 1 ? (
@@ -188,9 +190,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
             <section id="workspace-settings" className="mt-10 border-t border-[#dce2d8] pt-8">
               <p className="text-xs font-semibold uppercase tracking-[0.17em] text-[#557565]">Workspace management</p><h2 className="mt-1 text-2xl font-semibold text-[#123c2d]">Your workspace, organised</h2><p className="mt-1 text-sm text-[#718178]">Manage locations, authorised team members, and supporting files.</p>
+              <p className="mt-2 text-xs text-[#718178]">Workspace reference: <code className="select-all rounded bg-white px-2 py-1 text-[#315345]">{workspaceId}</code> · Share this ID with MERIT support only when you open a support request.</p>
               <div id="branches" className="mt-5 scroll-mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
               <div id="files" className="mt-5 scroll-mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(role, "files:manage")} canRecover={can(role, "files:recover")} canErase={can(role, "files:erase")} /></div>
               <div id="team" className="mt-5 scroll-mt-5"><MemberManager workspaceId={workspaceId} initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))} /></div>
+              {can(role, "members:manage") ? <SupportAccessApprovals workspaceId={workspaceId} currentUserId={session.user.id} /> : null}
             </section>
             {can(role, "security:read") ? <div id="security-center" className="mt-8 scroll-mt-5"><SecurityCenter workspaceId={workspaceId} /></div> : null}
             <footer className="mt-10 flex flex-col gap-2 border-t border-[#dce2d8] pt-5 text-xs text-[#7b887f] sm:flex-row sm:justify-between"><span>MERIT · Customer intelligence, quietly automated.</span><span>Workspace data is shown within your authorised membership.</span></footer>

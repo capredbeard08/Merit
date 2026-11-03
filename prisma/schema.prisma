@@ -15,6 +15,27 @@ enum Role {
   VIEWER
 }
 
+enum PlatformAccessRole {
+  FOUNDER_SUPER_ADMIN
+  PLATFORM_ADMIN
+  ENGINEER
+}
+
+enum SupportAccessScope {
+  CUSTOMER_RECORDS_READ
+  FEEDBACK_READ
+  FEEDBACK_REPLIES_READ
+  FILE_ASSETS_READ
+}
+
+enum SupportAccessStatus {
+  PENDING
+  APPROVED
+  DENIED
+  REVOKED
+  EXPIRED
+}
+
 enum FeedbackStatus {
   PENDING
   CONTACTED
@@ -41,6 +62,7 @@ model Workspace {
   insights Insight[]
   auditLogs AuditLog[]
   files FileAsset[]
+  supportAccessRequests SupportAccessRequest[]
 }
 
 model Member {
@@ -191,12 +213,76 @@ model User {
   name          String
   email         String    @unique
   emailVerified Boolean   @default(false)
+  twoFactorEnabled Boolean @default(false)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
   accounts      Account[]
+  twoFactor     TwoFactor?
   members       Member[]
+  platformAccess PlatformAccess? @relation("PlatformAccessSubject")
+  platformAccessGrants PlatformAccess[] @relation("PlatformAccessGrantor")
+  supportAccessRequestsMade SupportAccessRequest[] @relation("SupportAccessRequester")
+  supportAccessDecisions SupportAccessRequest[] @relation("SupportAccessDecider")
+  supportAccessRevocations SupportAccessRequest[] @relation("SupportAccessRevoker")
+}
+
+
+/// Better Auth TOTP authenticator and one-time backup-code storage.
+model TwoFactor {
+  id                     String   @id
+  userId                 String   @unique
+  secret                 String
+  backupCodes            String
+  verified               Boolean  @default(false)
+  failedVerificationCount Int     @default(0)
+  lockedUntil            DateTime?
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Platform identity and privileges are separate from workspace Member roles.
+/// This record grants platform-console capabilities only; it never grants
+/// access to customer feedback, replies, files, or other workspace content.
+model PlatformAccess {
+  id              String            @id @default(cuid())
+  userId          String            @unique
+  role            PlatformAccessRole
+  grantedByUserId String?
+  revokedAt       DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  user            User              @relation("PlatformAccessSubject", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy       User?             @relation("PlatformAccessGrantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  @@index([role, revokedAt])
+}
+
+/// Business-approved, read-only, time-limited support access.
+/// This grant is a gate for future support data routes; it does not itself expose data.
+model SupportAccessRequest {
+  id                      String              @id @default(cuid())
+  workspaceId             String
+  requestedByUserId       String
+  decidedByUserId         String?
+  revokedByUserId         String?
+  scope                   SupportAccessScope
+  status                  SupportAccessStatus @default(PENDING)
+  reason                  String              @db.VarChar(500)
+  requestedDurationMinutes Int
+  requestExpiresAt        DateTime
+  decidedAt               DateTime?
+  expiresAt               DateTime?
+  revokedAt               DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  workspace               Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedBy             User                @relation("SupportAccessRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  decidedBy               User?               @relation("SupportAccessDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  revokedBy               User?               @relation("SupportAccessRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  @@index([workspaceId, status, createdAt])
+  @@index([requestedByUserId, status, createdAt])
+  @@index([status, requestExpiresAt])
+  @@index([status, expiresAt])
 }
 
 model Session {
@@ -324,6 +410,17 @@ model FileAsset {
   @@index([workspaceId, deletedAt])
 }
 
+
+/// Fixed-window, database-backed limiter for privileged platform actions.
+/// Keys are HMAC digests; raw user identifiers are never stored here.
+model RateLimitBucket {
+  id              String   @id
+  key             String   @unique
+  windowStartedAt DateTime
+  count           Int
+  expiresAt       DateTime
+  @@index([expiresAt])
+}
 
 model SecurityEvent {
   id          String   @id @default(cuid())

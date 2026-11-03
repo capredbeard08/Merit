@@ -1,0 +1,292 @@
+# MERIT Development Work — Review Record
+**Review date:** 1 November 2026  
+**Repository:** `capredbeard08/Merit`  
+**Pull request:** [#8 — Add isolated platform access foundation](https://github.com/capredbeard08/Merit/pull/8)  
+**Working branch:** `feat/platform-access-foundation`  
+**Base branch:** `feat/explicit-workspace-selection`  
+**Recorded head commit at review:** `fedb7e7b63c15878308800bc977332de7bcaf61d`
+
+> **Review status: NOT READY TO MERGE OR DEPLOY.** This record documents code committed to a development branch. It is not a claim that the work is production-ready, fully tested, or deployed.
+
+## 1. Executive summary
+
+The current development increment establishes a separate platform-operator identity and a business-controlled support-authorization workflow for MERIT.
+
+The central security boundary is intentional: a MERIT platform role does not automatically provide access to a business workspace's customers, feedback, replies, uploaded files, or AI content. A platform operator must request a narrow, read-only permission from that workspace. An authorised business Owner or Admin must approve it, and the permission expires or can be revoked.
+
+The branch also contains a Founder Super Admin bootstrap route, operator management, a protected platform console, a platform security-event feed, and a Founder-only CSV export.
+
+## 2. Platform roles and permissions
+
+A new `PlatformAccessRole` enum and `PlatformAccess` model were added. Platform access is separate from the existing workspace `Member` role.
+
+| Platform role | Intended capabilities |
+|---|---|
+| Founder Super Admin | Full platform-console governance, including granting/revoking Platform Admin and Engineer roles and exporting platform audit events |
+| Platform Admin | Read the platform operator directory and platform security events; cannot grant or revoke platform roles |
+| Engineer | Read platform security events and deployment visibility; cannot administer platform users or export audit CSV |
+
+The capability policy in `src/lib/platform-access.ts` is explicit and fails closed for missing, revoked, or unknown access records. These roles do not themselves confer business-data access.
+
+## 3. Founder Super Admin bootstrap
+
+Added `POST /api/platform/bootstrap`.
+
+The route requires:
+- An authenticated Better Auth session.
+- A verified email address.
+- A same-origin request.
+- JSON input with a strict schema.
+- A deployment-only `FOUNDER_BOOTSTRAP_SECRET` with at least 32 bytes.
+- No previous Founder Super Admin assignment, including a revoked one.
+- No existing platform-access record for the requesting account.
+
+The grant and its high-severity platform security event are written in a serializable database transaction. The database migration also creates a partial unique index so only one active Founder Super Admin can exist.
+
+Operational documentation is in `docs/security/founder-bootstrap.md`. The bootstrap secret must be removed from the deployment environment immediately after a successful bootstrap. The route is not ready for production until email verification is enabled and tested, MFA/recovery requirements are resolved, and the migration has passed live-database review. Database-backed rate limiting and a 10-minute fresh-session reauthentication gate have since been implemented and passed CI; the latter is not MFA.
+
+## 4. Platform operator console and management
+
+Added a protected `/platform` page and the platform operator API.
+
+Founder Super Admin can grant, reinstate, and revoke `PLATFORM_ADMIN` and `ENGINEER` access for existing registered accounts whose email addresses are verified. The endpoint does not provide a way to create or transfer Founder Super Admin access.
+
+The operator directory is limited to 100 records in its current implementation. Platform role changes are recorded as high-severity platform security events in the same transaction as the change.
+
+## 5. Platform security event feed and CSV export
+
+Added `GET /api/platform/security-events` and the platform security-events interface.
+
+The feed is designed to expose only allow-listed platform-level events with `workspaceId = null`; it does not return workspace audit history or customer content. It supports severity/type filters and cursor pagination.
+
+Founder-only CSV export is capped at 500 matching records per request. Metadata is allow-listed and CSV cells are quoted and protected against common spreadsheet formula injection. The response is marked no-store.
+
+The current allow-list includes founder bootstrap, platform-access grant/reinstatement/revocation, and support-access request/approval/denial/revocation events.
+
+## 6. Business-controlled support authorization
+
+This is the latest functional increment.
+
+### Request rules
+A platform operator with the required platform capability can request one of four exact read-only scopes:
+- `CUSTOMER_RECORDS_READ`
+- `FEEDBACK_READ`
+- `FEEDBACK_REPLIES_READ`
+- `FILE_ASSETS_READ`
+
+Each request:
+- Identifies one workspace.
+- Requires a reason between 20 and 500 characters.
+- Requests one of four durations: 30, 60, 120, or 240 minutes.
+- Expires if not reviewed within 24 hours.
+- Is blocked if a matching pending request or active grant already exists for that operator, workspace, and scope.
+
+### Business controls
+Workspace Owners and Admins can see requests for their own workspace and approve, deny, or revoke them. The requester cannot approve their own request. The operator can cancel a pending request or revoke their own approved access.
+
+An approval is bound to the requesting operator, one workspace, one resource scope, and a time limit. It does not grant write access. Business decisions and operator actions are recorded in workspace audit history and platform security events.
+
+### Guard for future support data routes
+Added `withApprovedSupportRead` and `executeApprovedSupportReadInTransaction` in `src/lib/support-access.ts`, alongside the pure grant policy in `src/lib/support-access-policy.ts`. The transaction-scoped helper checks active platform access and the exact workspace/operator/scope grant, runs the caller's data query, and writes the access-use audit record inside one serializable transaction. A future endpoint must use this helper and its callback must constrain every returned row to the requested workspace and scope. Serialization conflicts must fail closed; callers must not fall back to an unguarded query.
+
+**Important limitation:** this increment does not add a general-purpose endpoint that displays customer or feedback data to support staff. The authorization workflow and transaction-scoped guard exist; individual data-view routes still need to be implemented and reviewed one by one. The integration test exercises the transaction-scoped guard against the CI database, not a production support-data endpoint.
+
+## 7. User-interface changes
+
+- Added the support-request form and request history to the platform console.
+- Added the business-side Support Access Approvals panel to the workspace dashboard for members with the `members:manage` permission.
+- Added the workspace ID to the dashboard's workspace-management section so an operator can identify the workspace when submitting a request.
+- Added status, expiry, decision-maker, cancellation, and revocation information to the relevant views.
+
+## 8. Database and migration changes
+
+The Prisma schema now includes:
+- `PlatformAccessRole`
+- `SupportAccessScope`
+- `SupportAccessStatus`
+- `PlatformAccess`
+- `SupportAccessRequest`
+
+Three SQL migrations were added:
+1. `20261101010000_platform_access_foundation`
+2. `20261101020000_business_support_authorization`
+3. `20261101030000_platform_rate_limits`
+
+The migrations add platform role storage, the one-active-founder constraint, support request storage, status/scope fields, duration validation, indexes, and foreign-key relationships.
+
+**Neither migration has been run against the live MERIT database.** No live account deletion, customer-data deletion, production database mutation, or production deployment was performed as part of this work.
+
+## 9. Tests and validation — actual result
+
+The CI workflow was updated to run on pushes to `main` and `feat/platform-access-foundation`, and on pull requests targeting `main` or `feat/explicit-workspace-selection`.
+
+An earlier run exposed TypeScript response-narrowing errors in platform API routes and a nullable support-access grant in `src/lib/support-access.ts`. Subsequent changes addressed the reported issues, and the recorded successful CI run passed the TypeScript check. A later guard explicitly checks that the support grant exists before accessing its ID.
+
+**Latest verified CI result: PASSED** — GitHub Actions run [#255](https://github.com/capredbeard08/Merit/actions/runs/41342841439), for commit `fedb7e7b63c15878308800bc977332de7bcaf61d`:
+- Dependency installation: passed.
+- Prisma schema validation: passed.
+- Prisma Client generation: passed.
+- Full migration chain applied to disposable PostgreSQL 16: passed.
+- Database-backed support authorization integration test: passed — 1 test, 0 failures. It exercises the extracted request-creation, requester-cancellation, and business-decision handlers against a real CI database, covering creation, duplicate rejection, unknown workspace rejection, requester cancellation, denial, approval, self-approval rejection, non-member denial, cross-workspace request isolation, same-origin enforcement, inactive-operator rejection, audit writes, and fail-closed behavior of the transaction-scoped read guard. The handlers use injected session/capability adapters in this test; real Better Auth session issuance and the full capability middleware are not yet exercised end-to-end.
+- Security and policy suite: passed — 35 tests, 0 failures, including the shared decision policy used by the workspace support-access API.
+- TypeScript check: passed.
+- Production build: passed.
+
+The disposable PostgreSQL service uses CI-only credentials and is destroyed after the job. This validates migration execution and the tested transaction behavior in a clean CI database; it does not validate the live database's current state, create a backup, or apply migrations to the live MERIT database. No live database mutation or production deployment occurred.
+### Further tests still needed
+- End-to-end email verification and account recovery checks.
+- Migration-diff review against the live database's migration history and schema.
+- Review migration ordering against the prerequisite security PR chain.
+- End-to-end email verification and account recovery checks.
+- Migration-diff review against the live database's migration history and schema.
+- Review migration ordering against the prerequisite security PR chain.
+
+A passing unit-test suite and production build are a meaningful milestone, but do not establish production readiness or prove every authorization path end-to-end.
+
+## 10. Security controls not yet completed
+
+The following are not represented as completed:
+- Better Auth email verification is not yet enabled and end-to-end tested.
+- MFA enrollment, second-factor enforcement, and recovery for sensitive platform actions. A 10-minute fresh-session reauthentication gate is implemented, but it is not MFA.
+- Actual support data-view routes individually wired to the approval guard.
+- A full security review and end-to-end tests.
+- A verified recoverable database backup.
+- Production migration, merge, and deployment approval.
+
+The database backup issue remains unresolved because the available Prisma backup option requires a paid-plan upgrade and no existing automatic snapshot was available when checked. No backup has been fabricated or assumed.
+
+## 11. Files added or changed in this increment
+
+### Database and migrations
+- `prisma/schema.prisma`
+- `prisma/migrations/20261101010000_platform_access_foundation/migration.sql`
+- `prisma/migrations/20261101020000_business_support_authorization/migration.sql`
+- `prisma/migrations/20261101030000_platform_rate_limits/migration.sql`
+
+### API routes
+- `src/app/api/platform/bootstrap/route.ts`
+- `src/app/api/platform/operators/route.ts`
+- `src/app/api/platform/security-events/route.ts`
+- `src/app/api/platform/support-requests/route.ts`
+- `src/app/api/platform/support-requests/[requestId]/route.ts`
+- `src/app/api/workspaces/[workspaceId]/support-access/route.ts`
+
+### Platform and dashboard UI
+- `src/app/platform/page.tsx`
+- `src/app/platform/platform-accounts-manager.tsx`
+- `src/app/platform/platform-security-events.tsx`
+- `src/app/platform/platform-support-requests.tsx`
+- `src/app/dashboard/page.tsx`
+- `src/app/dashboard/support-access-approvals.tsx`
+
+### Security and policy helpers/tests
+- `src/lib/founder-bootstrap.ts`
+- `src/lib/founder-bootstrap.test.ts`
+- `src/lib/platform-access.ts`
+- `src/lib/platform-access.test.ts`
+- `src/lib/platform-admin.ts`
+- `src/lib/platform-rate-limit.ts`
+- `src/lib/platform-security-events.ts`
+- `src/lib/platform-security-events.test.ts`
+- `src/lib/support-access.ts`
+- `src/lib/support-access-api.ts`
+- `src/lib/support-access-request-api.ts`
+- `src/lib/support-access-policy.ts`
+- `src/lib/support-access-decision.ts`
+- `src/lib/support-access-decision.test.ts`
+- `src/lib/support-access.integration.test.ts`
+- `src/lib/platform-rate-limit.integration.test.ts`
+- `src/lib/support-access.test.ts`
+
+### Documentation and workflow
+- `docs/security/founder-bootstrap.md`
+- `docs/security/platform-access-foundation.md`
+- `.github/workflows/ci.yml`
+- `package.json`
+
+The pull request currently reports 29 changed files, 2,260 additions, and 3 deletions relative to its declared base branch.
+
+## 12. Review checklist
+
+Please review these decisions before the next development step:
+
+- [ ] Keep Founder Super Admin as a one-time, separately bootstrapped role.
+- [ ] Keep Platform Admin and Engineer unable to grant or revoke platform roles.
+- [ ] Keep platform roles separate from workspace membership and customer-data permissions.
+- [ ] Keep support authorization read-only, scope-specific, time-limited, and business-approved.
+- [ ] Confirm whether the four support scopes are the right initial boundaries.
+- [ ] Confirm whether workspace Owners and Admins should both be allowed to approve.
+- [ ] Confirm the four-hour maximum grant duration and 24-hour request expiry.
+- [x] Resolve the previously reported TypeScript failures; the recorded CI run passed TypeScript and production build.
+- [x] Verify explicit Prisma validation and the full migration chain against disposable PostgreSQL in CI run #165.
+- [x] Add a database-backed support lifecycle and transaction-scoped read-guard integration test.
+- [x] Add handler-level database integration coverage for request creation, duplicate rejection, cancellation, approval, denial, self-approval rejection, non-member denial, cross-workspace isolation, origin enforcement, and inactive operators.
+- [x] Add real Better Auth session/capability-middleware tests and concurrent duplicate-request/decision race tests.
+- [x] Add a support-read versus business-revocation transaction race test; valid serializable ordering or a serialization conflict is accepted, and fresh post-revocation reads must be denied.
+- [ ] Do not run migrations or deploy until a recoverable backup and all deployment gates are satisfied.
+
+## 13. Current status
+
+**Development branch:** includes the platform-access foundation, business support authorization, database-backed lifecycle coverage, real Better Auth session/capability-middleware coverage, concurrent duplicate-request and decision coverage, support-read/revocation race coverage, explicit Prisma validation, and disposable PostgreSQL migration validation.  
+**Branch head:** `23cfbcddc14802240d282454018aae7b9a113c64`.  
+**Pull request:** [#8](https://github.com/capredbeard08/Merit/pull/8), open, unmerged, and marked draft.  
+**Latest verified CI run:** [#276](https://github.com/capredbeard08/Merit/actions/runs/41343854170) passed all steps on this branch head: Prisma validation, Prisma Client generation, all migrations on disposable PostgreSQL 16, database-backed authorization and rate-limit integration tests, Security Warden tests, TypeScript, and production build.  
+**Database migrations:** inspected and successfully exercised in ephemeral CI only; not applied to the live database.  
+**Live database and accounts:** not modified by this development increment.  
+**Production deployment:** not performed.
+
+**Release status: NOT READY TO MERGE OR DEPLOY.** Real Better Auth session/capability middleware, concurrency tests, support-read/revocation race coverage, database-backed rate limiting, and fresh-session reauthentication have passed CI. Email verification remains disabled pending sender-domain and end-to-end delivery/callback validation; MFA and recovery, verified recoverable backup, live migration-history/schema review, and remaining security gates are still outstanding.
+
+This is a review document, not a release approval.
+
+
+## 14. Workspace deletion product/security decision
+
+The workspace lifecycle decision is recorded in [`docs/security/workspace-deletion-lifecycle.md`](./workspace-deletion-lifecycle.md).
+
+MERIT should provide an individual workspace deletion workflow, separate from account deletion. Only the workspace Owner may initiate it. The intended lifecycle is a soft-delete/deletion-pending state, a proposed 30-day recovery window, and a separately executed, retry-safe permanent purge after retention and legal/privacy requirements are confirmed.
+
+**Do not implement direct `prisma.workspace.delete()` as the customer-facing action.** The current Prisma model cascades deletion through workspace members, branches, customers, feedback, service events, invitations, integrations, files, support-access requests, and audit logs. A direct delete would immediately destroy business records and the workspace's own audit history; it would also fail to account for external object storage, queued jobs, provider subscriptions, or integration credentials.
+
+The deletion implementation is intentionally not included in this platform-access increment. Before release, map the complete data graph and external side effects, block all access and writes to deletion-pending workspaces, implement cancellation and idempotent purge, preserve a minimal external audit tombstone, and add database-backed cross-workspace and concurrency tests. A verified recoverable production backup remains a hard gate.
+
+
+## 15. Additional authorization test coverage in progress
+
+The support authorization integration test now also creates a persisted Better Auth session in the disposable CI database and exercises `auth.api.getSession` plus the production `requirePlatformCapability` middleware. It checks that an active Engineer can read platform security events, cannot administer platform users, and that a request without a session fails closed. This uses the real Better Auth session lookup and real capability middleware; the route-handler tests still use injected adapters for their handler-specific cases.
+
+The integration test also now exercises simultaneous duplicate support-request creation and simultaneous APPROVE/DENY decisions. These concurrency assertions are not considered validated until the updated integration suite passes in CI. The separate support-read/revocation race test is now included and passed in CI run #255.
+
+
+The real-session integration test now creates its operator via Better Auth's own sign-up API and forwards the signed session cookie into the actual middleware. The CI integration step sets `MERIT_CI_AUTH_TESTS=true`, which omits only the external Google reCAPTCHA plugin for this disposable test run; production configuration retains CAPTCHA by default. This avoids an external network dependency while testing Better Auth session issuance, signed-cookie parsing, session lookup, and platform capability enforcement. CI must validate this path before it is considered complete.
+
+
+## 16. Verified authorization and revocation concurrency coverage — 1 November 2026
+
+The support authorization integration suite now passes in GitHub Actions run [#255](https://github.com/capredbeard08/Merit/actions/runs/41342841439), on commit `fedb7e7b63c15878308800bc977332de7bcaf61d`. The run completed successfully through Prisma validation, Prisma Client generation, the complete migration chain on disposable PostgreSQL 16, database-backed support authorization tests, Security Warden tests, TypeScript, and the production build.
+
+Coverage includes real Better Auth signup/session issuance and actual capability middleware; concurrent duplicate support-request creation; concurrent conflicting business decisions; Founder bootstrap and operator grant/revoke route integration; and a support-read/revocation transaction race. The race test accepts either valid serializable ordering (the already-authorized read commits before revocation) or a serialization conflict, and confirms that a fresh read after revocation is denied without executing the protected query.
+
+This remains CI evidence only. It does not prove email verification is enabled in production, validate the live database's migration history/schema, establish a recoverable production backup, or authorize a live migration, merge, or deployment.
+
+
+## 17. Migration-chain inspection — 1 November 2026
+
+Compared `feat/platform-access-foundation` with its declared base `feat/explicit-workspace-selection`. The base contains five existing migration entries, ending with `20261030030000_followup_claims`. The feature branch preserves those existing migration entries and adds only:
+
+1. `20261101010000_platform_access_foundation`
+2. `20261101020000_business_support_authorization`
+3. `20261101030000_platform_rate_limits`
+
+The added migrations are timestamp-ordered after the base chain. Their SQL adds the platform/support enums and tables, the `RateLimitBucket` table and expiry index, indexes, a partial unique index enforcing one active Founder assignment, a duration check constraint, and foreign keys. No `DROP`, `TRUNCATE`, or alteration/removal of existing tables was found in the three new migration files. The schema changes correspond to the new platform-access and support-authorization models. The base migration files and migration lock file are unchanged in the branch comparison.
+
+**Migration review result: branch-level review passed; live-database review remains open.** CI run #255 successfully applied the complete migration chain to a disposable PostgreSQL 16 database. This confirms clean-chain execution, not parity with the live MERIT database. Before production, compare the live `_prisma_migrations` records and actual schema with this exact chain, inspect any drift or manually applied SQL, and verify a recoverable backup. No live database was queried or changed during this branch-level review.
+
+
+## 18. Privileged-action rate limiting and fresh-authentication step-up — 1 November 2026
+
+Added a PostgreSQL-backed fixed-window rate limiter for platform-sensitive actions. Rate-limit keys are HMAC-SHA256 digests using the server-side `AUTH_SECRET`; raw user IDs are not persisted in the limiter table. The limiter uses an atomic PostgreSQL upsert, is shared across app instances, returns HTTP 429 with `Retry-After` when exceeded, and fails closed if the store is unavailable. Current limits: 10 operator grants per user per 15 minutes, 10 operator revocations per user per 15 minutes, and 3 Founder bootstrap attempts per user per hour. The new `RateLimitBucket` table and expiry index are added by migration `20261101030000_platform_rate_limits`.
+
+Sensitive operator grant/revoke operations and Founder bootstrap now require a Better Auth session created within the preceding 10 minutes. Older sessions receive HTTP 428 and must authenticate again before retrying. This is a fresh-session reauthentication gate, **not MFA or a second factor**; MFA enrollment, recovery, and step-up enforcement remain outstanding and are still a production gate. Rate limiting is covered by a database-backed integration test, and the stale-session step-up rejection is exercised through the actual platform capability middleware.
+
+GitHub Actions run [#276](https://github.com/capredbeard08/Merit/actions/runs/41343854170) passed on commit `23cfbcddc14802240d282454018aae7b9a113c64`: Prisma validation/client generation, the complete migration chain including the rate-limit migration on disposable PostgreSQL 16, database-backed authorization and rate-limit integration tests, Security Warden tests, TypeScript, and production build. This is not a live database migration or deployment.

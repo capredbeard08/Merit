@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getSecuritySeverity, sanitizeSecurityMetadata } from "./security-warden";
 
+test("classifies rejected oversized uploads as high severity", () => {
+  assert.equal(getSecuritySeverity("UPLOAD_REJECTED_OVERSIZE"), "HIGH");
+});
+
 test("classifies cross-workspace access as high severity", () => {
   assert.equal(getSecuritySeverity("CROSS_WORKSPACE_ACCESS"), "HIGH");
 });

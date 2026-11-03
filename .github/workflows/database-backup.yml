@@ -13,6 +13,7 @@ concurrency:
 
 jobs:
   backup:
+    environment: production
     name: Create and verify PostgreSQL backup
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -75,4 +76,4 @@ jobs:
           name: merit-postgres-backup-${{ github.run_id }}
           path: ${{ runner.temp }}/merit-postgres-${{ github.run_id }}-${{ github.run_attempt }}.dump.age
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30

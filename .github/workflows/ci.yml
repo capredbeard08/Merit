@@ -2,9 +2,9 @@ name: MERIT CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/platform-access-foundation]
   pull_request:
-    branches: [main]
+    branches: [main, feat/explicit-workspace-selection, feat/platform-access-foundation]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +19,20 @@ jobs:
     name: Security tests, TypeScript, and production build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: merit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d merit_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/merit_ci
       AUTH_SECRET: ci-only-secret-not-for-production-0000000000000000
@@ -39,8 +53,19 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
       - name: Generate Prisma Client
         run: npx prisma generate
+
+      - name: Apply migrations to disposable CI database
+        run: npx prisma migrate deploy
+
+      - name: Run database-backed support authorization tests
+        env:
+          MERIT_CI_AUTH_TESTS: "true"
+        run: npm run test:integration
 
       - name: Run Security Warden tests
         run: npm run test:security

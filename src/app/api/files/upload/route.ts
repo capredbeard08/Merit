@@ -1,3 +1,4 @@
+import { del, head } from "@vercel/blob";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
@@ -42,6 +43,24 @@ export async function POST(request: Request): Promise<Response> {
         const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: payload.workspaceId, userId: payload.userId } } });
         if (!member) throw new Error("Workspace membership no longer exists");
         const originalName = safeOriginalName(payload.originalName);
+        // The browser-reported size is untrusted. Read authoritative Blob metadata
+        // before recording the asset, and reject empty/oversized uploads.
+        const metadata = await head(blob.pathname);
+        if (!Number.isSafeInteger(metadata.size) || metadata.size < 1) {
+          throw new Error("Uploaded file size could not be verified");
+        }
+        if (metadata.size > FILE_MAX_BYTES) {
+          await del(blob.pathname);
+          await recordSecurityEvent({
+            type: "UPLOAD_REJECTED_OVERSIZE",
+            workspaceId: payload.workspaceId,
+            actorUserId: payload.userId,
+            targetId: blob.pathname,
+            metadata: { actualSizeBytes: metadata.size, maximumSizeBytes: FILE_MAX_BYTES },
+            request,
+          });
+          return;
+        }
         await prisma.fileAsset.upsert({
           where: { pathname: blob.pathname },
           create: {
@@ -52,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
             contentType: contentTypeForName(originalName),
             // The client-reported size is untrusted, and this callback does not provide
             // a verified object size. Do not persist a forged size as authoritative.
-            sizeBytes: 0,
+            sizeBytes: metadata.size,
             // Keep uploads unavailable until server-side content/size verification
             // and malware scanning are implemented.
             status: "QUARANTINED",
