@@ -45,7 +45,8 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 - [ ] Complete CI for the current PR #9 head and inspect any failures.
 - [x] Added integration coverage for paused and archived QR codes, duplicate submissions, rate limiting, and cross-tenant references; CI execution remains pending.
 - [x] Added integration coverage for revoked QR codes, malformed JSON, out-of-range ratings, oversized comments, and a submission waiting behind a committed QR pause.
-- [ ] Add hostile-string/XSS input assertions and verify rendered guest comments remain text, not executable markup.
+- [x] Added an integration assertion that script-like guest text is stored as plain text.
+- [ ] Verify rendered guest comments remain text, not executable markup, in a real browser.
 - [ ] Test QR scanning, print output, mobile layouts, and the complete guest journey.
 - [x] Draft Prisma composite relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode.
 - [ ] Run disposable PostgreSQL migration replay and negative cross-tenant insert/update tests; do not infer success from committed code.
