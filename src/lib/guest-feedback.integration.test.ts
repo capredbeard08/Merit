@@ -21,6 +21,17 @@ function submit(publicIdValue: string, submissionKey = randomUUID(), ip = "198.5
   );
 }
 
+function submitRaw(publicIdValue: string, body: string, ip = "198.51.100.60") {
+  return submitGuestFeedback(
+    new Request("https://merit-olive.vercel.app/api/public/guest-feedback/" + publicIdValue, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-real-ip": ip },
+      body,
+    }),
+    { params: Promise.resolve({ publicId: publicIdValue }) },
+  );
+}
+
 test("guest feedback composite foreign keys reject cross-workspace and cross-branch references", async () => {
   const suffix = randomUUID();
   const workspaceA = await prisma.workspace.create({ data: { name: "Guest tenant A " + suffix } });
@@ -124,6 +135,46 @@ test("public guest feedback handles idempotency, rate limits, and QR lifecycle s
     });
     assert.equal((await submit(pausedQr.publicId, randomUUID(), "198.51.100.40")).status, 404,
       "paused QR codes must reject submissions");
+
+    const revokedQr = await prisma.guestQrCode.create({
+      data: { workspaceId: workspace.id, branchId: branch.id, publicId: publicId(), status: "REVOKED" },
+    });
+    assert.equal((await submit(revokedQr.publicId, randomUUID(), "198.51.100.41")).status, 404,
+      "revoked QR codes must reject submissions");
+
+    assert.equal((await submitRaw(qr.publicId, "{invalid-json", "198.51.100.42")).status, 400,
+      "malformed JSON must receive a bounded validation response");
+    assert.equal((await submitRaw(qr.publicId, JSON.stringify({
+      rating: 6, submissionKey: randomUUID(),
+    }), "198.51.100.43")).status, 400,
+      "ratings outside the one-to-five range must be rejected");
+    assert.equal((await submitRaw(qr.publicId, JSON.stringify({
+      rating: 5, message: "x".repeat(2001), submissionKey: randomUUID(),
+    }), "198.51.100.44")).status, 400,
+      "oversized comments must be rejected");
+
+    const raceQr = await prisma.guestQrCode.create({
+      data: { workspaceId: workspace.id, branchId: branch.id, publicId: publicId() },
+    });
+    let releaseLifecycleLock!: () => void;
+    let lifecycleLockAcquired!: () => void;
+    const lockAcquired = new Promise<void>((resolve) => { lifecycleLockAcquired = resolve; });
+    const releaseLock = new Promise<void>((resolve) => { releaseLifecycleLock = resolve; });
+    const pauseTransaction = prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "GuestQrCode" WHERE "id" = ${raceQr.id} FOR UPDATE`);
+      lifecycleLockAcquired();
+      await releaseLock;
+      await tx.guestQrCode.update({ where: { id: raceQr.id }, data: { status: "PAUSED" } });
+    });
+    await lockAcquired;
+    const racingSubmission = submit(raceQr.publicId, randomUUID(), "198.51.100.45");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    releaseLifecycleLock();
+    await pauseTransaction;
+    assert.equal((await racingSubmission).status, 404,
+      "a submission waiting behind a committed pause must be rejected after the row lock is released");
+    assert.equal(await prisma.guestFeedback.count({ where: { qrCodeId: raceQr.id } }), 0,
+      "a submission serialized after pause must not create guest feedback");
 
     const archivedBranch = await prisma.branch.create({
       data: { workspaceId: workspace.id, name: "Archived guest branch", archivedAt: new Date() },
