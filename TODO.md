@@ -1,84 +1,86 @@
-# MERIT unfinished work
+# MERIT — implementation and release roadmap
 
-This roadmap reflects code inspected on the `main` branch and changes currently proposed on `security/remediation-phase-1`. A change is not considered complete until the migration, tests, production build, deployment and relevant end-to-end checks have passed.
+**Last reconciled:** 3 November 2026  
+This checklist distinguishes implementation/CI evidence from browser verification and production approval.
 
-## Implemented on remediation branch — pending CI and deployment verification
+## Current repository state
+- [x] Platform-access foundation implemented on feat/platform-access-foundation; draft PR #8 remains open and unmerged.
+- [x] Guest-feedback foundation implemented on feat/guest-feedback-foundation; draft PR #9 remains open and unmerged, stacked on PR #8.
+- [x] PR #8 CI passed at its current reviewed head: Prisma validation/client generation, disposable PostgreSQL migrations, database-backed authorization tests, Security Warden tests, TypeScript, and production build.
+- [ ] PR #9 needs its own complete CI run and route-level/mobile security tests. Do not infer its status from PR #8 or an earlier preview.
+- [ ] Validate combined PR #8 + #9 behavior before either is considered pilot-ready.
+- [x] Existing pilot remains https://merit-olive.vercel.app/.
+- [x] No production migration, production Founder bootstrap, or production rollout is authorized.
+- [ ] Independently verify the Vercel preview-deployment setting before any future GitHub push; do not assume pushes have or have not deployed.
 
-- [x] Replace ordinary file deletion with a recoverable soft-delete state; preserve Blob and database record.
-- [x] Add protected recovery listing and owner/admin restore endpoint.
-- [x] Separate permanent erasure from ordinary deletion; owner-only, explicit confirmation, and disabled until a retention period is configured.
-- [x] Add separate `files:recover` and `files:erase` permissions.
-- [x] Add a dashboard recovery area with restore and permanent-erasure controls.
-- [x] Replace destructive branch deletion with reversible archival and add restoration.
-- [x] Prevent archived branches from appearing in active branch lists or receiving new service-completion events.
-- [x] Persist platform-level and workspace-level Security Warden events.
-- [x] Calculate Warden severity totals over a defined 30-day window rather than only the latest 100 rows.
-- [x] Prevent caller-supplied metadata from overriding derived event severity.
-- [x] Send workspace invitations by email instead of returning raw invitation tokens in API responses.
-- [x] Scope insight generation to an explicitly selected, authorized workspace.
-- [x] Atomically claim follow-up jobs to reduce duplicate sends from concurrent cron workers.
-- [x] Recover stale follow-up claims after worker interruption.
-- [x] Remove production `unsafe-eval` from the Content Security Policy.
-- [x] Ignore all `.env*` files except the committed `.env.example`.
-- [x] Replace deployment-specific trusted-origin entries with a strict dynamic Better Auth host allowlist for MERIT-owned Vercel domains.
-- [x] Enforce webhook request-body size limits while streaming instead of buffering an unbounded body before checking its size.
-- [x] Make file restore and permanent erasure mutually exclusive through conditional database state transitions.
-- [x] Encrypt PostgreSQL backup dumps before GitHub artifact upload; backup execution remains blocked until the recipient and private identity are safely configured.
-- [x] Require explicit `yes` confirmation and a protected GitHub `production` environment for the manual production-migration workflow; use a dedicated `MERIT_PRODUCTION_DATABASE_URL` environment secret.
+## Platform-access foundation — implemented, not production-approved
+- [x] Separate platform roles from workspace membership: Founder Super Admin, read-only Platform Admin, and Engineer.
+- [x] Fail-closed platform capabilities, protected platform console, and operator directory.
+- [x] One-time Founder bootstrap; operator management cannot create, grant, or revoke Founder.
+- [x] Founder-only operator grants/reinstatements/revocations with transactional high-severity audit events.
+- [x] Platform security-event feed and capped Founder-only CSV export with metadata allow-list and formula-injection protection.
+- [x] Business-controlled, scoped, time-limited, read-only support-authorization foundation. Platform roles do not automatically grant customer-data access.
+- [x] Password-reset pages, generic account-enumeration-safe confirmation, one-hour token expiry, and session revocation after reset.
+- [x] Better Auth TOTP MFA foundation, encrypted backup codes, enrollment/settings and sign-in challenge screens.
+- [x] Fresh-session plus enrolled-MFA requirements for privileged Founder/operator actions.
+- [x] Database-backed rate limiting for privileged platform actions; fail closed when limiter storage is unavailable.
+- [x] Private upload metadata checks, 50 MiB limit, quarantine state, and download denial unless AVAILABLE.
+- [ ] Browser-test MFA enrollment, sign-in, backup-code consumption, disable, and recovery on non-production.
+- [ ] Define and test recovery when both authenticator and backup codes are lost.
+- [ ] Browser-test password-reset journeys, expired/used tokens, and session revocation.
+- [ ] Verify every sensitive support route enforces the approved grant.
 
-## Still outstanding — security and governance
+## Guest QR feedback foundation — implemented, not yet verified
+- [x] Permanent branch QR and anonymous guest-feedback data models and additive migration.
+- [x] Public mobile-first feedback page and anonymous rating/comment submission.
+- [x] Derive workspace/branch identity from the resolved QR record, never public request fields.
+- [x] Opaque QR identifiers, active/paused/revoked lifecycle, hashed idempotency keys, and database-backed rate limiting.
+- [x] Authenticated QR management, status controls, QR preview/image/print/tent controls, and branch-specific Google review URL.
+- [x] Keep guest workflow separate from existing authenticated/email Feedback and FeedbackReply workflow.
+- [x] Google review invitation is neutral and independent of rating; no review gating.
+- [ ] Run complete PR #9 CI on its current head.
+- [ ] Test unknown, paused, revoked, and archived-branch QR codes; malicious input; cross-tenant references; duplicate submissions; and rate-limit failure.
+- [ ] Test QR scanning, print output, mobile layouts, and the complete guest journey.
+- [ ] Close database-level tenant-integrity gaps across QR, guest feedback, branch, and workspace.
+- [ ] Include guest tables in RLS inventory and cross-workspace tests.
 
-- [ ] Configure GitHub's `production` environment with required reviewers and verify its protection rules; the workflow's environment declaration alone does not prove approval is enforced.
-- [ ] Verify the Resend sender domain, then enable and enforce email verification on signup; the current callback is configured but sending and enforcement remain disabled. Test verification expiry, resend, callback, and protected-route behavior end to end.
-- [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Vercel environment-variable metadata assigns one DATABASE_URL entry to both targets.
-- [ ] Design and implement PostgreSQL RLS for every tenant-owned table only after defining a non-owner runtime DB role and transaction-scoped tenant context; add cross-workspace isolation tests before claiming database-enforced isolation.
-- [ ] Add automated integration tests for soft deletion, recovery, retention enforcement and permanent erasure.
-- [ ] Add tests for branch archival/restoration and webhook rejection for archived branches.
-- [ ] Add durable Warden incident acknowledgement, assignment, investigation, resolution and escalation delivery.
-- [ ] Add a platform-level role model for founder Super Admin, platform administrators and engineers.
-- [ ] Bootstrap the founder Super Admin through a controlled, one-time process; do not hardcode an account or email.
-- [ ] Build the dedicated Super Admin console and platform-level audit trail.
-- [ ] Build Request Authorization with business approval, exact scope, read/write mode, expiry, revocation and emergency-access review.
-- [ ] Enforce approved grants on every sensitive support/investigation operation.
-- [ ] Add malware scanning, file-signature verification and server-verified file-size checks; keep failures quarantined.
-- [ ] Verify email provider configuration, delivery, verification expiry and resend behaviour in production.
-- [ ] Add password-reset delivery and account-recovery verification.
-- [ ] Add MFA or equivalent stronger authentication for privileged accounts.
-- [ ] Review CORS, rate limits, webhook replay protection and production error handling across every API route.
-- [ ] Review and reduce CSP `connect-src` origins after mapping actual production integrations; move toward nonce-based scripts.
-- [ ] Add safe retry/backoff policy for failed follow-ups and test provider idempotency.
-- [ ] Add a defined workspace archival/deletion policy that preserves legally required audit history.
-- [ ] Configure `MERIT_BACKUP_AGE_RECIPIENT` and keep the matching private age identity outside GitHub; backup workflow encrypts dumps before artifact upload. Document controlled decryption, off-platform retention and restore drills.
-- [ ] Add backup monitoring, recovery objectives and documented disaster procedures.
-- [ ] Add admin audit-log export and investigation PDF reports.
-- [ ] Add incident notification and escalation workflows.
-- [ ] Complete the 14-day guided trial, payment verification, expiry and conversion workflow.
-- [ ] Verify production email, cross-browser behaviour, tenant isolation and full pilot onboarding.
+## Mandatory security and release gates
+- [ ] Verify Resend sender domain and complete real delivery/browser testing before enabling mandatory email verification.
+- [ ] Keep signup verification enforcement disabled until sender and full journey are verified; do not lock out existing pilot users.
+- [ ] Test verification expiry, resend, callback, password reset, and protected-route behavior.
+- [ ] Separate Vercel Preview database credentials from Production before write-capable preview testing.
+- [ ] Implement restricted non-owner runtime DB role; no superuser, table ownership, or BYPASSRLS.
+- [ ] Implement transaction-scoped verified user/workspace context; route tenant queries through the scoped transaction client only.
+- [ ] Review membership-policy recursion and any SECURITY DEFINER helper, fixed search_path, and EXECUTE permissions.
+- [ ] Implement PostgreSQL RLS only after runtime role/context boundary exists.
+- [ ] Add composite tenant foreign keys and cross-workspace insert/update rejection tests, including GuestQrCode and GuestFeedback.
+- [ ] Verify pooled-connection context isolation and concurrent requests for different workspaces.
+- [ ] Complete CORS, token-storage, server-side secrets, input validation, admin-route protection, and production-debugging reviews.
+- [ ] Connect privacy-appropriate antivirus/malware scanner. Files remain quarantined until a durable clean verdict; size/type checks are not antivirus.
+- [ ] Complete independent security review, including planned Anthropic/Claude Code review.
+- [ ] Configure protected GitHub production environment with required reviewers and verify enforcement.
+- [ ] Compare live PostgreSQL schema and migration history with reviewed migration chain.
+- [ ] Create verified recoverable production backup and complete restore drill before any live migration.
+- [ ] Configure backup encryption recipient and secure off-platform private identity/retention; test restore and monitoring.
+- [ ] Obtain explicit owner approval before merge, production migration, production bootstrap, or deployment.
 
-## Product, trust and legal
+## Product, operations, and trust
+- [ ] Complete durable Security Warden acknowledgement, assignment, investigation, resolution, and escalation delivery.
+- [ ] Enforce approved scopes on every sensitive support/investigation route before enabling data access.
+- [ ] Add auditable investigation exports and incident notifications.
+- [ ] Complete 14-day guided pilot trial, payment verification, expiry, and conversion.
+- [ ] Confirm branch/workspace permissions and conflict handling for concurrent operational edits.
+- [ ] Add integrations only after authorization, data minimization, and failure/retry behavior are designed.
+- [ ] Keep legal, privacy, security, subprocessor, and retention statements aligned with deployed behavior.
+- [ ] Add Terms, privacy request/deletion handling, and verified company/legal identity details when supplied.
+- [ ] Improve public product proof, workflow explanation, use cases, and outcome-led copy without overclaiming.
 
-- [ ] Rewrite the hero around the customer-feedback operations workflow: collect feedback consistently, identify recurring issues, and improve operations.
-- [ ] Add an above-the-fold product proof visual or workflow example that explains the product in under five seconds.
-- [ ] Add a three-step “How it works” section: completed service, feedback request, operational insight.
-- [ ] Add concrete use cases for service businesses without claiming a narrower vertical until selected.
-- [ ] Rewrite capability cards around operational outcomes rather than abstract feature labels.
-- [ ] Standardize the primary CTA as “Create your workspace” and add only verified setup reassurance.
-- [ ] Expand the footer with product, company, legal, and contact destinations.
-- [ ] Publish privacy safeguards only when they match deployed implementation and contracts.
-- [ ] Replace legal-identity placeholders after the owner supplies operating entity and registered address.
-- [ ] Add Terms of Service and a security/trust page with verified claims.
-- [ ] Add a clear privacy request and data-deletion route.
-- [ ] Document subprocessors/providers after deployed configuration is confirmed.
+## Quality and accessibility
+- [ ] Run type diagnostics, lint, Prisma validation, security tests, and production build for combined reviewed branch.
+- [ ] Test 320, 375, 768, 1280, and 1440 pixel layouts; Chrome, Safari, and Firefox where available.
+- [ ] Test keyboard navigation, labels, error announcements, reduced motion, and screen-reader flows.
+- [ ] Verify direct loading of public, auth, invitation, platform, dashboard, and guest-feedback routes.
+- [ ] Verify environment variables and provider callbacks in non-production before release.
 
-## Authentication, accessibility and validation
-
-- [ ] Add explicit label associations and accessible error descriptions to authentication forms.
-- [ ] Verify password reset, email verification and recovery end to end.
-- [ ] Test duplicate-account, invalid-input, server-failure, successful-signup and sign-in states.
-- [ ] Ensure errors are adjacent, specific, text-based and announced to assistive technology.
-- [ ] Run automated contrast/accessibility checks and keyboard/screen-reader flows.
-- [ ] Verify direct loading of public, auth, invitation and customer feedback routes.
-- [ ] Test 320, 375, 768, 1280 and 1440 pixel layouts.
-- [ ] Test Chrome, Safari and Firefox where available.
-- [ ] Run security tests, type diagnostics, lint, Prisma validation, production build and endpoint checks before merging.
-- [ ] Verify the deployed preview uses the reviewed commit and required environment variables.
+## Explicitly not authorized
+Checking off development tasks does not authorize production deployment, production migration, live database mutation, production Founder bootstrap, PR merge, or paid-domain purchase. Each requires separate review and explicit approval.
