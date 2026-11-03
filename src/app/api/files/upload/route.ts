@@ -45,12 +45,12 @@ export async function POST(request: Request): Promise<Response> {
         const originalName = safeOriginalName(payload.originalName);
         // The browser-reported size is untrusted. Read authoritative Blob metadata
         // before recording the asset, and reject empty/oversized uploads.
-        const metadata = await head(blob.pathname, { access: "private" });
+        const metadata = await head(blob.pathname);
         if (!Number.isSafeInteger(metadata.size) || metadata.size < 1) {
           throw new Error("Uploaded file size could not be verified");
         }
         if (metadata.size > FILE_MAX_BYTES) {
-          await del(blob.pathname, { access: "private" });
+          await del(blob.pathname);
           await recordSecurityEvent({
             type: "UPLOAD_REJECTED_OVERSIZE",
             workspaceId: payload.workspaceId,
