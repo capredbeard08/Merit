@@ -19,6 +19,18 @@ function hashSubmissionKey(qrCodeId: string, submissionKey: string) {
     .digest("hex");
 }
 
+function safeGoogleReviewUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const allowed = host === "google.com" || host.endsWith(".google.com") || host === "g.page" || host === "maps.app.goo.gl";
+    return url.protocol === "https:" && allowed ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function ratingValue(rating: number) {
   return (["ONE", "TWO", "THREE", "FOUR", "FIVE"] as const)[rating - 1];
 }
@@ -103,7 +115,7 @@ export async function POST(
   } catch (error) {
     // A retried request with the same idempotency key is already safely stored.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return NextResponse.json({ accepted: true, googleReviewUrl: qrCode.branch.googleReviewUrl });
+      return NextResponse.json({ accepted: true, googleReviewUrl: safeGoogleReviewUrl(qrCode.branch.googleReviewUrl) });
     }
     console.error("[MERIT guest feedback] submission failed", {
       error: error instanceof Error ? error.name : "unknown",
