@@ -40,11 +40,11 @@ Outstanding: browser-test enrollment, sign-in challenge, backup-code consumption
 **Critical limitation:** no antivirus engine is connected. Type/header and size checks are not malware scanning. Keep files quarantined and unavailable until a privacy-appropriate scanner inspects the full object and a durable clean verdict is recorded. Do not send private business files to public malware-analysis services.
 
 ## CI evidence and branch status
-PR #8 workflow run #373 was cancelled while branch updates were arriving; it is not a passing result. Earlier CI evidence applies only to the earlier commit SHA and must not be represented as validation of the current head.
+PR #8 current head `b41f706` passed MERIT CI run #397. The run completed Prisma schema validation/client generation, disposable PostgreSQL migration replay, database-backed support authorization tests, Security Warden tests, TypeScript type-check, and production build. Earlier run #373 was cancelled and is not used as evidence.
 
-The CI pull-request base-branch filter has been expanded to include `feat/platform-access-foundation`, the target branch of PR #9. PR #9 now includes its own integration test file and workflow push trigger. A completed CI result for the current PR #9 head has not yet been verified. Do not infer success from code commits or prior Vercel previews.
+The CI pull-request base-branch filter now includes `feat/platform-access-foundation`, the target branch of PR #9. PR #9 also has a push trigger for `feat/guest-feedback-foundation`. The current PR #9 head `5b1ecff` still has no PR-triggered CI run visible through the available run lookup. Do not infer success from code commits or prior Vercel previews.
 
-The guest-feedback draft now contains composite Prisma relations, matching migration constraints, route-level row locking/rechecks, sanitized rate-limit event logging, and database-backed integration tests. These are implementation changes awaiting CI execution, not verified release evidence.
+The guest-feedback draft contains composite Prisma relations, matching migration constraints, route-level row locking/rechecks, optimistic concurrency for QR status changes, sanitized rate-limit event logging, and database-backed integration tests. These changes await current-head validation; PR #8 passing does not validate PR #9 or the combined product.
 
 Both pull requests remain draft and unmerged. CI is not a substitute for browser verification, production configuration checks, or owner approval.
 
