@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
 export default function AccountSecurityPage() {
@@ -11,6 +11,20 @@ export default function AccountSecurityPage() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/account/security", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const data = await response.json() as { twoFactorEnabled?: boolean };
+        if (active) setEnabled(data.twoFactorEnabled === true);
+      })
+      .catch(() => {
+        if (active) setMessage("Could not load your security status. Refresh the page and try again.");
+      });
+    return () => { active = false; };
+  }, []);
 
   async function beginEnrollment(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -72,8 +86,8 @@ export default function AccountSecurityPage() {
         <p className="mt-2 text-sm leading-6 text-[#586b61]">Set up an authenticator app for an additional sign-in factor. Time-based codes work offline and do not require paid email or SMS delivery.</p>
         {enabled ? (
           <div className="mt-6 rounded-xl border border-[#b7cbbd] p-4">
-            <p className="font-medium">Authenticator verification completed in this session.</p>
-            <p className="mt-1 text-sm text-[#586b61]">Save your backup codes before leaving this page.</p>
+            <p className="font-medium">Authenticator-based two-factor authentication is enabled for this account.</p>
+            <p className="mt-1 text-sm text-[#586b61]">Backup codes are displayed only once when they are generated. If you did not save them, regenerate a new set from your security settings before relying on them.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {backupCodes.map((item) => <code key={item} className="rounded bg-[#eef0e9] p-2 text-center text-sm">{item}</code>)}
             </div>
