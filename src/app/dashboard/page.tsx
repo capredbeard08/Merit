@@ -103,6 +103,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </a>
             ))}
             {can(role, "security:read") ? <a href="#security-center" className="merit-nav-link"><span className="w-5 text-center">◇</span>Security Warden</a> : null}
+            <a href="/dashboard/security" className="merit-nav-link"><span className="w-5 text-center">◎</span>Account security</a>
           </nav>
           <div className="mt-auto border-t border-white/15 pt-5">
             {memberships.length > 1 ? (
