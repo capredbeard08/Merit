@@ -161,18 +161,26 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(enrollment.backupCodes.length > 0, true, "TOTP enrollment must issue recovery backup codes");
     const totpSecret = new URL(enrollment.totpURI).searchParams.get("secret");
     assert.ok(totpSecret, "TOTP setup URI must contain an authenticator secret");
-    await auth.api.verifyTOTP({
+    const totpVerificationResponse = await auth.api.verifyTOTP({
       body: { code: currentTotp(totpSecret), trustDevice: false },
       headers: sessionHeaders,
+      asResponse: true,
     });
+    assert.equal(totpVerificationResponse.status, 200, "Better Auth must accept a valid TOTP enrollment code");
+    const refreshedSessionCookie = totpVerificationResponse.headers.get("set-cookie")?.split(";")[0];
+    if (refreshedSessionCookie) sessionHeaders.set("cookie", refreshedSessionCookie);
     const persistedMfa = await prisma.user.findUniqueOrThrow({
       where: { id: operatorId },
       select: { twoFactorEnabled: true },
     });
     assert.equal(persistedMfa.twoFactorEnabled, true, "MFA is enabled only after a valid TOTP enrollment code");
 
+    const requestAfterMfa = new Request(
+      "https://merit-olive.vercel.app/api/platform/security-events",
+      { headers: sessionHeaders },
+    );
     const allowedWithMfa = await requirePlatformCapability(
-      realMiddlewareRequest,
+      requestAfterMfa,
       "platform:security:read",
       true,
       { requireMfa: true },
