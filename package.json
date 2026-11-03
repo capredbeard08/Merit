@@ -12,7 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "test:security": "tsx --test src/lib/security-warden.test.ts src/lib/file-security.test.ts src/lib/domain.test.ts src/lib/workspace-access.test.ts src/lib/platform-access.test.ts src/lib/founder-bootstrap.test.ts src/lib/platform-security-events.test.ts src/lib/support-access.test.ts src/lib/support-access-decision.test.ts src/lib/email.test.ts src/lib/guest-feedback.test.ts",
-    "test:integration": "tsx --test src/lib/support-access.integration.test.ts"
+    "test:integration": "tsx --test src/lib/support-access.integration.test.ts src/lib/guest-feedback.integration.test.ts"
   },
   "dependencies": {
     "next": "15.5.18",
