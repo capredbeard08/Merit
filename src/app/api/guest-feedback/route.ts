@@ -72,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Choose a valid branch and try again." }, { status: 400 });
   const access = await membershipFor(request, parsed.data.workspaceId);
-  if ("response" in access) return access.response;
+  if (!access.ok) return access.response;
   if (!can(access.membership.role.toLowerCase() as Role, "branches:manage")) {
     return NextResponse.json({ error: "You don't have permission to manage guest QR codes." }, { status: 403 });
   }
@@ -122,7 +122,7 @@ export async function PATCH(request: Request): Promise<Response> {
     }
   }
   const access = await membershipFor(request, parsed.data.workspaceId);
-  if ("response" in access) return access.response;
+  if (!access.ok) return access.response;
   if (!can(access.membership.role.toLowerCase() as Role, "branches:manage")) {
     return NextResponse.json({ error: "You don't have permission to manage review destinations." }, { status: 403 });
   }
