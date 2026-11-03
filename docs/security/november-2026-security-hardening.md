@@ -40,9 +40,11 @@ Outstanding: browser-test enrollment, sign-in challenge, backup-code consumption
 **Critical limitation:** no antivirus engine is connected. Type/header and size checks are not malware scanning. Keep files quarantined and unavailable until a privacy-appropriate scanner inspects the full object and a durable clean verdict is recorded. Do not send private business files to public malware-analysis services.
 
 ## CI evidence and branch status
-PR #8's current head passed CI covering Prisma schema validation/client generation, disposable PostgreSQL migration application, database-backed support authorization tests, Security Warden tests, TypeScript type-check, and production build.
+PR #8 workflow run #373 was cancelled while branch updates were arriving; it is not a passing result. Earlier CI evidence applies only to the earlier commit SHA and must not be represented as validation of the current head.
 
-PR #9 is a separate stacked guest-feedback change and must have its own complete CI and route-level security/mobile verification. PR #8 passing does not validate PR #9 or the combined product.
+The CI pull-request base-branch filter has been expanded to include `feat/platform-access-foundation`, the target branch of PR #9. PR #9 now includes its own integration test file and workflow push trigger. A completed CI result for the current PR #9 head has not yet been verified. Do not infer success from code commits or prior Vercel previews.
+
+The guest-feedback draft now contains composite Prisma relations, matching migration constraints, route-level row locking/rechecks, sanitized rate-limit event logging, and database-backed integration tests. These are implementation changes awaiting CI execution, not verified release evidence.
 
 Both pull requests remain draft and unmerged. CI is not a substitute for browser verification, production configuration checks, or owner approval.
 
