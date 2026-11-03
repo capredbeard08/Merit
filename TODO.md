@@ -44,7 +44,8 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 - [ ] Run complete PR #9 CI on its current head.
 - [ ] Test unknown, paused, revoked, and archived-branch QR codes; malicious input; cross-tenant references; duplicate submissions; and rate-limit failure.
 - [ ] Test QR scanning, print output, mobile layouts, and the complete guest journey.
-- [ ] Close database-level tenant-integrity gaps across QR, guest feedback, branch, and workspace.
+- [x] Draft Prisma composite relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode.
+- [ ] Run disposable PostgreSQL migration replay and negative cross-tenant insert/update tests; do not infer success from committed code.
 - [ ] Include guest tables in RLS inventory and cross-workspace tests.
 
 ## Mandatory security and release gates
