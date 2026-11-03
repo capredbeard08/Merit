@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { POST as submitGuestFeedback } from "../app/api/public/guest-feedback/[publicId]/route";
+import { GET as getGuestFeedback, POST as createGuestFeedback, PATCH as updateGuestFeedback } from "../app/api/guest-feedback/route";
+import { auth } from "./better-auth";
 
 const prisma = new PrismaClient();
 
@@ -222,5 +224,92 @@ test("public guest feedback handles idempotency, rate limits, and QR lifecycle s
       "QR codes attached to archived branches must reject submissions");
   } finally {
     await prisma.workspace.delete({ where: { id: workspace.id } });
+  }
+});
+
+
+test("authenticated guest-feedback APIs enforce workspace membership and scope returned data", async () => {
+  const suffix = randomUUID();
+  const email = `tenant-owner-${suffix}@example.invalid`;
+  const signup = await auth.api.signUpEmail({
+    body: { name: "Tenant Isolation CI", email, password: "CI-only-strong-password-123!" },
+    asResponse: true,
+  });
+  assert.equal(signup.status, 200);
+  const signupBody = await signup.json() as { user: { id: string } };
+  const userId = signupBody.user.id;
+  const sessionCookie = signup.headers.get("set-cookie")?.split(";")[0];
+  assert.ok(sessionCookie, "Better Auth must issue a signed session cookie");
+
+  const [workspaceA, workspaceB] = await Promise.all([
+    prisma.workspace.create({ data: { name: `Tenant API A ${suffix}` } }),
+    prisma.workspace.create({ data: { name: `Tenant API B ${suffix}` } }),
+  ]);
+
+  try {
+    await prisma.member.create({
+      data: { workspaceId: workspaceA.id, userId, email, role: "OWNER" },
+    });
+    const [branchA, branchB] = await Promise.all([
+      prisma.branch.create({ data: { workspaceId: workspaceA.id, name: "Authorized branch" } }),
+      prisma.branch.create({ data: { workspaceId: workspaceB.id, name: "Foreign branch" } }),
+    ]);
+    const [qrA, qrB] = await Promise.all([
+      prisma.guestQrCode.create({ data: { workspaceId: workspaceA.id, branchId: branchA.id, publicId: publicId() } }),
+      prisma.guestQrCode.create({ data: { workspaceId: workspaceB.id, branchId: branchB.id, publicId: publicId() } }),
+    ]);
+
+    const headers = {
+      cookie: sessionCookie,
+      origin: "https://merit-olive.vercel.app",
+      "content-type": "application/json",
+    };
+    const getWorkspace = (workspaceId: string) => new Request(
+      `https://merit-olive.vercel.app/api/guest-feedback?workspaceId=${workspaceId}`,
+      { headers },
+    );
+
+    const ownRead = await getGuestFeedback(getWorkspace(workspaceA.id));
+    assert.equal(ownRead.status, 200);
+    const ownBody = await ownRead.json() as { codes: Array<{ id: string; publicId: string }> };
+    assert.deepEqual(ownBody.codes.map((code) => code.id), [qrA.id]);
+    assert.equal(ownBody.codes.some((code) => code.publicId === qrB.publicId), false,
+      "a workspace response must never include another workspace's QR code");
+
+    const foreignRead = await getGuestFeedback(getWorkspace(workspaceB.id));
+    assert.equal(foreignRead.status, 403,
+      "a signed-in user without membership must not read another workspace");
+
+    const foreignCreate = await createGuestFeedback(new Request(
+      "https://merit-olive.vercel.app/api/guest-feedback",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ workspaceId: workspaceB.id, branchId: branchB.id, label: "Cross-tenant attempt" }),
+      },
+    ));
+    assert.equal(foreignCreate.status, 403,
+      "a user must not create a QR code in a workspace they do not belong to");
+    assert.equal(await prisma.guestQrCode.count({ where: { workspaceId: workspaceB.id } }), 1,
+      "a denied cross-workspace create must not persist a QR code");
+
+    const foreignReviewUpdate = await updateGuestFeedback(new Request(
+      "https://merit-olive.vercel.app/api/guest-feedback",
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          workspaceId: workspaceB.id,
+          branchId: branchB.id,
+          googleReviewUrl: "https://g.page/r/example",
+        }),
+      },
+    ));
+    assert.equal(foreignReviewUpdate.status, 403,
+      "a user must not change another workspace's review destination");
+    assert.equal((await prisma.branch.findUniqueOrThrow({ where: { id: branchB.id } })).googleReviewUrl, null);
+  } finally {
+    await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
+    await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
   }
 });
