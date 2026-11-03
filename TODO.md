@@ -6,8 +6,9 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 ## Current repository state
 - [x] Platform-access foundation remains on draft PR #8; guest feedback remains on draft PR #9. Neither is merged.
 - [x] Corrected the CI pull-request base-branch filter so stacked PR #9 can be targeted.
-- [x] PR #8 current head `b41f706` passed MERIT CI run #397: Prisma validation/client generation, disposable migration replay, support authorization integration tests, Security Warden tests, TypeScript, and production build.
-- [ ] Obtain and verify a completed CI result for current PR #9 head `5b1ecff`; no PR-triggered run is visible yet.
+- [x] PR #8 code head `b41f706` passed MERIT CI run #397: Prisma validation/client generation, disposable migration replay, support authorization integration tests, Security Warden tests, TypeScript, and production build.
+- [x] PR #9 code head `a2b7e5c` passed MERIT CI run #413: Prisma validation/client generation, guest-feedback and support authorization integration tests, Security Warden tests, TypeScript, and production build.
+- [ ] Re-run and inspect CI after subsequent documentation-only commits if required; repeat full validation after any code changes.
 - [x] Added composite workspace/branch/QR relation definitions and matching SQL constraints to the draft guest-feedback schema/migration.
 - [x] Added guest-feedback integration tests for cross-tenant FK rejection, idempotency, rate limiting, and paused/archived QR states; execution remains pending CI.
 - [x] Serialized public submissions against QR pause/revocation and branch archival by locking and rechecking rows in the write transaction.
@@ -42,14 +43,13 @@ This checklist distinguishes implementation/CI evidence from browser verificatio
 - [x] Authenticated QR management, status controls, QR preview/image/print/tent controls, and branch-specific Google review URL.
 - [x] Keep guest workflow separate from existing authenticated/email Feedback and FeedbackReply workflow.
 - [x] Google review invitation is neutral and independent of rating; no review gating.
-- [ ] Complete CI for the current PR #9 head and inspect any failures.
-- [x] Added integration coverage for paused and archived QR codes, duplicate submissions, rate limiting, and cross-tenant references; CI execution remains pending.
+- [x] CI run #413 passed for code head `a2b7e5c`, including guest-feedback integration coverage for cross-tenant references, duplicate submissions, rate limiting/audit, paused/revoked/archived QR codes, malformed input, oversized comments, stale reactivation, and pause-race serialization.
 - [x] Added integration coverage for revoked QR codes, malformed JSON, out-of-range ratings, oversized comments, and a submission waiting behind a committed QR pause.
 - [x] Added an integration assertion that script-like guest text is stored as plain text.
 - [ ] Verify rendered guest comments remain text, not executable markup, in a real browser.
 - [ ] Test QR scanning, print output, mobile layouts, and the complete guest journey.
 - [x] Draft Prisma composite relations and migration constraints for GuestQrCode → Branch and GuestFeedback → Branch/GuestQrCode.
-- [ ] Run disposable PostgreSQL migration replay and negative cross-tenant insert/update tests; do not infer success from committed code.
+- [x] Disposable PostgreSQL migration replay and negative cross-tenant FK integration tests passed in CI run #413 on code head `a2b7e5c`; repeat after future migration changes.
 - [ ] Include guest tables in RLS inventory and cross-workspace tests.
 
 ## Mandatory security and release gates
