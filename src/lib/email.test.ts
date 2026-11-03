@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { feedbackEmailHtml, sendEmail } from "./email";
+import { feedbackEmailHtml, passwordResetEmailHtml, sendEmail } from "./email";
 
 const originalFetch = globalThis.fetch;
 const originalApiKey = process.env.RESEND_API_KEY;
@@ -94,6 +94,13 @@ test("email transport surfaces provider rejection without exposing credentials",
       return true;
     },
   );
+});
+
+test("password reset email escapes the link and states the expiry", () => {
+  const html = passwordResetEmailHtml('https://example.com/reset?token=a&next="b"');
+  assert.ok(html.includes("a&amp;next=&quot;b&quot;"));
+  assert.ok(html.includes("expires after one hour"));
+  assert.ok(html.includes("Your password will not change unless the link is used"));
 });
 
 test("feedback email HTML escapes customer and business-controlled values", () => {
