@@ -124,7 +124,7 @@ export default function AccountSecurityPage() {
           </div>
         )}
         {message && <p role="status" className="mt-4 text-sm text-[#586b61]">{message}</p>}
-        <p className="mt-6 text-xs leading-5 text-[#68796f]">Do not close this page until you have saved the backup codes. If you lose both your authenticator and backup codes, contact MERIT support for identity-verified recovery.</p>
+        <p className="mt-6 text-xs leading-5 text-[#68796f]">Do not close this page until you have saved the backup codes. If you lose both your authenticator and backup codes, automated MFA recovery is not yet available. Contact MERIT support before making changes to your account.</p>
       </section>
     </main>
   );
