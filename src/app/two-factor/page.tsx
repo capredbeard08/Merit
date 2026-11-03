@@ -48,7 +48,7 @@ export default function TwoFactorChallengePage() {
           {message && <p role="alert" className="text-sm text-red-700">{message}</p>}
           <button disabled={busy || !code.trim()} className="w-full rounded-lg bg-[#173b2f] px-4 py-3 font-medium text-white disabled:opacity-50">{busy ? "Verifying…" : "Verify and continue"}</button>
         </form>
-        <p className="mt-5 text-xs leading-5 text-[#68796f]">If you no longer have access to your authenticator or backup codes, use the account recovery process. Do not share verification codes with anyone.</p>
+        <p className="mt-5 text-xs leading-5 text-[#68796f]">If you lose both your authenticator and backup codes, contact MERIT support; automated MFA recovery is not yet available. Do not share verification codes with anyone.</p>
       </section>
     </main>
   );
