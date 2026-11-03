@@ -33,7 +33,7 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const [codes, feedback, count, average] = await Promise.all([
+  const [codes, feedback, count, ratings, branches] = await Promise.all([
     prisma.guestQrCode.findMany({
       where: { workspaceId },
       orderBy: { createdAt: "desc" },
@@ -54,7 +54,8 @@ export async function GET(request: Request): Promise<Response> {
       },
     }),
     prisma.guestFeedback.count({ where: { workspaceId } }),
-    prisma.guestFeedback.aggregate({ where: { workspaceId }, _avg: { rating: true } }),
+    prisma.guestFeedback.groupBy({ by: ["rating"], where: { workspaceId }, _count: { _all: true } }),
+    prisma.branch.findMany({ where: { workspaceId, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, googleReviewUrl: true } }),
   ]);
   return NextResponse.json({
     codes: codes.map((code) => ({
@@ -62,7 +63,8 @@ export async function GET(request: Request): Promise<Response> {
       publicUrl: new URL("/g/" + code.publicId, url.origin).toString(),
     })),
     feedback,
-    summary: { count, averageRating: average._avg.rating },
+    branches,
+    summary: { count, averageRating: count ? ratings.reduce((total, item) => total + ({ ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 }[item.rating] * item._count._all), 0) / count : null },
   });
 }
 
