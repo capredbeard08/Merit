@@ -44,6 +44,6 @@ The public submission handler now locks and rechecks both the QR and branch rows
 ## Migration and release status
 The additive migration 20261103020000_guest_feedback_foundation follows the current platform-access and TOTP migrations. It has not been applied to any live database.
 
-PR #9 is a draft stacked on PR #8. It requires its own complete CI, route-level security tests, QR scan/print tests, mobile verification, and combined-branch validation. Do not treat PR #8 CI or an earlier preview as proof that this foundation is ready.
+PR #9 current code head `a2b7e5c` passed MERIT CI run #413: Prisma validation/client generation, disposable PostgreSQL migration replay, database-backed support authorization and guest-feedback integration tests, Security Warden tests, TypeScript, and production build. This validates the committed schema/migration and automated test suite at that code head; it does not replace QR scan/print tests, mobile/browser verification, restricted-runtime/RLS work, or pilot-owner approval. PR #9 remains a draft stacked on PR #8.
 
 No merge, live migration, or deployment is authorized by this document. Apply only through the controlled migration process after review and explicit owner approval.
