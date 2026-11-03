@@ -15,12 +15,12 @@ const reviewSchema = z.string().trim().url().max(2048).nullable();
 
 async function membershipFor(request: Request, workspaceId: string) {
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session?.user) return { response: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
+  if (!session?.user) return { ok: false as const, response: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
   const membership = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId, userId: session.user.id } },
   });
-  if (!membership) return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  return { session, membership };
+  if (!membership) return { ok: false as const, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  return { ok: true as const, session, membership };
 }
 
 export async function GET(request: Request): Promise<Response> {
@@ -28,7 +28,7 @@ export async function GET(request: Request): Promise<Response> {
   const workspaceId = url.searchParams.get("workspaceId");
   if (!workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   const access = await membershipFor(request, workspaceId);
-  if ("response" in access) return access.response;
+  if (!access.ok) return access.response;
   if (!can(access.membership.role.toLowerCase() as Role, "feedback:read")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
