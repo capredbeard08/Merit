@@ -3,7 +3,7 @@ import { betterAuth } from "better-auth";
 import { captcha } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { passwordResetEmailHtml, sendEmail, verificationEmailHtml } from "@/lib/email";
 
 const secret = process.env.AUTH_SECRET;
 if (!secret || secret.length < 32) {
@@ -41,14 +41,23 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     minPasswordLength: 12,
     maxPasswordLength: 128,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url, token }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your MERIT password",
+        html: passwordResetEmailHtml(url),
+        idempotencyKey: "merit-password-reset-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+      });
+    },
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url, token }) => {
-      const safeUrl = url.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       await sendEmail({
         to: user.email,
         subject: "Verify your MERIT email address",
-        html: `<div style="font-family:Arial,sans-serif;color:#173b2f;line-height:1.6"><h2>Verify your email</h2><p>Confirm your email address to finish setting up your MERIT account.</p><p><a href="${safeUrl}" style="display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px">Verify email address</a></p><p>If you did not create this account, you can ignore this message.</p></div>`,
+        html: verificationEmailHtml(url),
         idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
       });
     },
