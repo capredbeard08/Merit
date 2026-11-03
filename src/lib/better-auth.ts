@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { after } from "next/server";
-import { captcha } from "better-auth/plugins";
+import { captcha, twoFactor } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { passwordResetEmailHtml, sendEmail, verificationEmailHtml } from "@/lib/email";
@@ -18,6 +18,7 @@ if (!captchaSecret) {
 
 export const auth = betterAuth({
   secret,
+  appName: "MERIT",
   // Resolve each request against a strict MERIT-owned hostname allowlist.
   // Better Auth 1.7.x adds allowedHosts to trustedOrigins automatically.
   // Vercel rewrites the public host, so trustedProxyHeaders is not required.
@@ -81,6 +82,10 @@ export const auth = betterAuth({
       provider: "google-recaptcha",
       secretKey: captchaSecret,
       minScore: 0.5,
+    }),
+    twoFactor({
+      issuer: "MERIT",
+      backupCodeOptions: { storeBackupCodes: "encrypted" },
     }),
   ],
   session: {
