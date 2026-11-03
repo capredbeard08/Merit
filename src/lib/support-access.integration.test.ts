@@ -169,6 +169,8 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(totpVerificationResponse.status, 200, "Better Auth must accept a valid TOTP enrollment code");
     const refreshedSessionCookie = totpVerificationResponse.headers.get("set-cookie")?.split(";")[0];
     if (refreshedSessionCookie) sessionHeaders.set("cookie", refreshedSessionCookie);
+    const sessionAfterMfa = await auth.api.getSession({ headers: sessionHeaders });
+    assert.equal(sessionAfterMfa?.user.id, operatorId, "TOTP verification must leave a valid authenticated session");
     const persistedMfa = await prisma.user.findUniqueOrThrow({
       where: { id: operatorId },
       select: { twoFactorEnabled: true },
@@ -185,7 +187,7 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       true,
       { requireMfa: true },
     );
-    assert.equal(allowedWithMfa.ok, true, "MFA-enrolled account may pass the MFA gate when its role permits the capability");
+    if (!allowedWithMfa.ok) assert.fail("MFA-enrolled account was denied: " + await allowedWithMfa.response.clone().text());
     const unauthenticatedByRealMiddleware = await requirePlatformCapability(
       new Request("https://merit-olive.vercel.app/api/platform/security-events", {
         headers: { origin: "https://merit-olive.vercel.app" },
