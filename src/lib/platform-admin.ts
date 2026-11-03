@@ -11,6 +11,7 @@ export async function requirePlatformCapability(
   enforceSameOrigin = false,
   options: {
     requireRecentAuthentication?: boolean;
+    requireMfa?: boolean;
     rateLimit?: { action: string; limit: number; windowMs: number };
   } = {},
 ) {
@@ -38,6 +39,22 @@ export async function requirePlatformCapability(
         response: NextResponse.json(
           { error: "Fresh authentication required. Sign in again before this sensitive action." },
           { status: 428 },
+        ),
+      };
+    }
+  }
+
+  if (options.requireMfa) {
+    const userSecurity = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { twoFactorEnabled: true },
+    });
+    if (!userSecurity?.twoFactorEnabled) {
+      return {
+        ok: false as const,
+        response: NextResponse.json(
+          { error: "Authenticator-based two-factor authentication must be enabled before this sensitive action." },
+          { status: 403 },
         ),
       };
     }
