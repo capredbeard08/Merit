@@ -78,6 +78,27 @@ export default function AccountSecurityPage() {
     }
   }
 
+  async function disableAuthenticator(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await authClient.twoFactor.disable({ password });
+      if (result.error) {
+        setMessage(result.error.message || "Two-factor authentication could not be disabled.");
+        return;
+      }
+      setEnabled(false);
+      setPassword("");
+      setBackupCodes([]);
+      setMessage("Authenticator-based two-factor authentication has been disabled for this account.");
+    } catch {
+      setMessage("Could not disable two-factor authentication. Confirm your password and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f3f0e7] px-5 py-10 text-[#173b2f]">
       <section className="mx-auto max-w-2xl rounded-2xl border border-[#d9dfd4] bg-[#fbfaf6] p-7 shadow-sm">
@@ -87,11 +108,18 @@ export default function AccountSecurityPage() {
         {enabled ? (
           <div className="mt-6 rounded-xl border border-[#b7cbbd] p-4">
             <p className="font-medium">Authenticator-based two-factor authentication is enabled for this account.</p>
-            <p className="mt-1 text-sm text-[#586b61]">Backup codes are displayed only once when they are generated. If you did not save them, regenerate a new set from your security settings before relying on them.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {backupCodes.map((item) => <code key={item} className="rounded bg-[#eef0e9] p-2 text-center text-sm">{item}</code>)}
-            </div>
-            <button type="button" onClick={() => copyText(backupCodes.join("\n"), "Backup codes")} className="mt-3 rounded-lg border border-[#cbd5cc] px-3 py-2 text-sm">Copy backup codes</button>
+            <p className="mt-1 text-sm text-[#586b61]">Backup codes are displayed only once when they are generated. If you did not save them, regenerate a new set before relying on them.</p>
+            {backupCodes.length > 0 && <>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {backupCodes.map((item) => <code key={item} className="rounded bg-[#eef0e9] p-2 text-center text-sm">{item}</code>)}
+              </div>
+              <button type="button" onClick={() => copyText(backupCodes.join("\n"), "Backup codes")} className="mt-3 rounded-lg border border-[#cbd5cc] px-3 py-2 text-sm">Copy backup codes</button>
+            </>}
+            <form onSubmit={disableAuthenticator} className="mt-5 space-y-3 border-t border-[#d9dfd4] pt-4">
+              <label htmlFor="disable-password" className="block text-sm font-medium">Confirm your password to disable MFA</label>
+              <input id="disable-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required className="w-full rounded-lg border border-[#cbd5cc] bg-white px-3 py-3 outline-none focus:border-[#173b2f]" />
+              <button disabled={busy || !password} className="rounded-lg border border-[#aab8ac] px-4 py-2 text-sm font-semibold text-[#7d302d] disabled:opacity-50">Disable authenticator</button>
+            </form>
           </div>
         ) : !totpURI ? (
           <form onSubmit={beginEnrollment} className="mt-6 space-y-4">
