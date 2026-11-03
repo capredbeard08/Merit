@@ -23,17 +23,16 @@ Guest Feedback is a separate public-entry workflow from the existing authenticat
 8. Present the Google review destination neutrally to every guest after submission, independent of rating. Never gate or selectively solicit Google reviews.
 
 ## Tenant-integrity requirement
-The current migration creates single-column foreign keys. Those alone do not prove that the referenced branch and QR record belong to the same workspace or branch as the guest submission.
+Composite tenant integrity has now been added to the draft Prisma schema and guest-feedback migration:
+- GuestQrCode references Branch through workspaceId + branchId.
+- GuestFeedback references Branch through workspaceId + branchId.
+- GuestFeedback references GuestQrCode through workspaceId + branchId + qrCodeId.
+- Matching unique parent indexes are included.
+- The migration keeps workspace foreign keys and adds composite branch/QR constraints.
 
-Before production:
-- Add a composite GuestQrCode-to-Branch constraint on workspaceId + branchId.
-- Add GuestFeedback-to-Branch integrity on workspaceId + branchId.
-- Add GuestFeedback-to-GuestQrCode integrity on workspaceId + branchId + qrCodeId.
-- Add matching Prisma composite relation definitions and validate the generated client.
-- Run mismatch preflight queries against a disposable database copy before adding constraints.
-- Include both guest tables in the RLS inventory and cross-workspace authorization tests.
+The migration has not been applied to any live database. CI schema validation, migration replay on disposable PostgreSQL, and negative cross-tenant insert tests must pass before this can be considered verified. The review-only candidate remains documentation, not executable migration material.
 
-The review-only candidate is docs/security/composite-tenant-keys-review.sql. It is not a migration and must not be executed as-is. Review deletion behavior and PostgreSQL version compatibility before promoting any constraint to a migration.
+The public submission handler now locks and rechecks both the QR and branch rows inside the write transaction. A pause/revocation or branch archival that wins the row lock must prevent a later submission; a submission that obtains the lock first serializes before the lifecycle change. Rate-limit rejections attempt to write a sanitized SecurityEvent and workspace audit entry. Logging failure never changes a blocked request into an accepted submission.
 
 ## Deliberately deferred
 - Session/transaction-based QR generation and expiry.
