@@ -12,7 +12,7 @@ This document defines the evidence required before a business is invited to use 
 |---|---|---|
 | Workspace/branch/QR composite integrity | Implemented and validated in draft schema/migration (CI #413, code head `a2b7e5c`) | Additional production-database audit before any live migration |
 | QR submission lifecycle | Row locks/rechecks and optimistic QR-status updates implemented; CI integration tests passed at `a2b7e5c` | Browser/device validation and review of concurrent business-management flows |
-| Duplicate submissions | HMAC-keyed idempotency exists | Integration test proves one row for repeated key |
+| Duplicate submissions | HMAC-keyed idempotency exists; CI integration test passed | Browser retry/offline behaviour on a real device |
 | Rate limiting | PostgreSQL-backed and fail-closed | Integration test proves 429 and a sanitized SecurityEvent |
 | Public input validation | Zod schema bounds rating and message | Malformed JSON, wrong types, oversize message, and malicious-input tests |
 | Tenant isolation | Composite guest relations added; RLS/runtime boundary not complete | Cross-tenant reads/writes rejected using restricted runtime role |
