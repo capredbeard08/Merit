@@ -112,6 +112,27 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       true,
     );
     assert.equal(deniedByRealMiddleware.ok, false, "Engineer must fail real middleware for user administration");
+    const deniedWithoutMfa = await requirePlatformCapability(
+      realMiddlewareRequest,
+      "platform:access:grant",
+      true,
+      { requireMfa: true },
+    );
+    assert.equal(deniedWithoutMfa.ok, false, "sensitive platform actions must reject accounts without enrolled MFA");
+    if (!deniedWithoutMfa.ok) assert.equal(deniedWithoutMfa.response.status, 403);
+    // Simulate a successfully enrolled TOTP account at the persistence boundary.
+    // The auth plugin itself is disabled in CI to keep integration tests offline.
+    await prisma.user.update({
+      where: { id: operatorId },
+      data: { twoFactorEnabled: true },
+    });
+    const allowedWithMfa = await requirePlatformCapability(
+      realMiddlewareRequest,
+      "platform:access:grant",
+      true,
+      { requireMfa: true },
+    );
+    assert.equal(allowedWithMfa.ok, true, "enrolled MFA account may proceed to sensitive platform action");
     const unauthenticatedByRealMiddleware = await requirePlatformCapability(
       new Request("https://merit-olive.vercel.app/api/platform/security-events", {
         headers: { origin: "https://merit-olive.vercel.app" },
