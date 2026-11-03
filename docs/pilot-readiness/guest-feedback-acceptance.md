@@ -59,9 +59,9 @@ This document defines the evidence required before a business is invited to use 
 ## Release blockers
 
 The following are not complete and block production pilot sign-off:
-1. Current PR #8 and PR #9 CI must complete successfully on the exact reviewed heads.
-2. Disposable PostgreSQL must apply the full combined migration chain successfully.
-3. Guest-feedback integration tests must pass, including cross-tenant rejection and rate-limit audit.
+1. PR #8 CI run #397 passed at code head `b41f706`; PR #9 CI run #413 passed at code head `a2b7e5c`. Re-run CI after material code changes.
+2. PR #9's migration replay passed on disposable PostgreSQL in run #413; a combined PR #8 + #9 branch review is still required.
+3. Guest-feedback integration tests for cross-tenant FK rejection, idempotency, rate-limit audit, QR lifecycle, malformed input, and stale reactivation passed in run #413.
 4. Restricted non-owner runtime DB credentials and transaction-scoped tenant context must be implemented and tested before RLS or production tenant data access.
 5. PostgreSQL RLS policies and cross-workspace tests must pass using the restricted runtime role.
 6. Browser/mobile QR scan and print tests must be performed on a non-production environment.
