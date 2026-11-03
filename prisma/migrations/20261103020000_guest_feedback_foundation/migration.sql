@@ -53,9 +53,15 @@ ALTER TABLE "GuestQrCode"
   ADD CONSTRAINT "GuestQrCode_workspaceId_fkey"
   FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id")
   ON DELETE CASCADE ON UPDATE CASCADE;
+-- Composite keys prevent a QR code from referencing another workspace's branch.
+CREATE UNIQUE INDEX "Branch_workspaceId_id_key" ON "Branch"("workspaceId", "id");
+CREATE UNIQUE INDEX "GuestQrCode_workspaceId_branchId_id_key"
+  ON "GuestQrCode"("workspaceId", "branchId", "id");
+
 ALTER TABLE "GuestQrCode"
-  ADD CONSTRAINT "GuestQrCode_branchId_fkey"
-  FOREIGN KEY ("branchId") REFERENCES "Branch"("id")
+  ADD CONSTRAINT "GuestQrCode_workspace_branch_fkey"
+  FOREIGN KEY ("workspaceId", "branchId")
+  REFERENCES "Branch"("workspaceId", "id")
   ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "GuestFeedback"
@@ -63,10 +69,12 @@ ALTER TABLE "GuestFeedback"
   FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id")
   ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "GuestFeedback"
-  ADD CONSTRAINT "GuestFeedback_branchId_fkey"
-  FOREIGN KEY ("branchId") REFERENCES "Branch"("id")
+  ADD CONSTRAINT "GuestFeedback_workspace_branch_fkey"
+  FOREIGN KEY ("workspaceId", "branchId")
+  REFERENCES "Branch"("workspaceId", "id")
   ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "GuestFeedback"
-  ADD CONSTRAINT "GuestFeedback_qrCodeId_fkey"
-  FOREIGN KEY ("qrCodeId") REFERENCES "GuestQrCode"("id")
+  ADD CONSTRAINT "GuestFeedback_workspace_branch_qr_fkey"
+  FOREIGN KEY ("workspaceId", "branchId", "qrCodeId")
+  REFERENCES "GuestQrCode"("workspaceId", "branchId", "id")
   ON DELETE CASCADE ON UPDATE CASCADE;
