@@ -1,61 +1,69 @@
 # MERIT November 2026 Security Hardening
 
-**Working branch:** `feat/platform-access-foundation`  
-**Status:** Development work only. This document does not certify production readiness.
+**Working branch:** feat/platform-access-foundation  
+**Status:** Development and CI evidence only. Not a production security certification.
 
-## Completed in this development increment
+## Implemented in the current platform-access branch
 
-### Authentication email and recovery
-- Added a password-reset email template with escaped link content and a clear one-hour expiry notice.
-- Added `/forgot-password` and `/reset-password` pages, linked the request page from sign-in, and used generic request confirmation text to avoid disclosing whether an account exists.
-- Configured Better Auth password-reset tokens to expire after one hour.
-- Enabled session revocation after a successful password reset.
-- Added token-derived idempotency keys to verification and password-reset email delivery.
-- Deferred auth email delivery with Next.js `after()` to avoid making account-existence timing differences visible in the request response.
-- Kept automatic verification email sending disabled and `requireEmailVerification: false`. Existing pilot users must not be locked out before the sender and end-to-end journey are verified.
+### Platform roles and privileged actions
+- Platform roles are separate from workspace membership: Founder Super Admin, read-only Platform Admin, and Engineer.
+- Platform capabilities fail closed. Platform roles do not grant business customer-data access.
+- Founder-only operator grants, reinstatements, and revocations apply to existing verified accounts; ordinary operator controls cannot manage the Founder role.
+- Privileged changes and security-event records are committed together.
+- Platform security-event feed and capped Founder-only CSV export use metadata allow-lists and formula-injection protection.
+- Privileged platform actions use database-backed fixed-window rate limits and fail closed if the limiter is unavailable.
+- Founder bootstrap and operator changes require enrolled MFA and a session created within the preceding 10 minutes.
 
-**Not yet verified:** real Resend delivery, sender-domain verification, reset-link browser journey, expired/used-token handling in the deployed environment, and account recovery support process.
+### Authentication and recovery
+- Added password-reset templates and forgot/reset-password pages.
+- Reset requests use generic confirmation to avoid account enumeration.
+- Password-reset tokens expire after one hour and successful reset revokes sessions.
+- Email delivery is deferred with Next.js after() and uses token-derived idempotency keys.
+- **Email verification remains intentionally unenforced.** Automatic verification email sending and requireEmailVerification remain disabled so existing pilot users are not locked out while the sender and complete journey are unverified.
+
+Outstanding: sender-domain verification, real Resend delivery, browser tests for reset/verification expiry and resend, callback behavior, protected-route enforcement, and account recovery support.
 
 ### Authenticator-based MFA
-- Added Better Auth's TOTP two-factor plugin and client plugin.
-- Added Prisma storage for `twoFactorEnabled` and the `TwoFactor` record.
-- Configured encrypted backup-code storage.
-- Added an authenticator enrollment screen at `/dashboard/security`, linked from the dashboard navigation, with persisted enrollment status and password-confirmed disable control.
-- Added a second-factor challenge screen at `/two-factor`; users can use a TOTP code or a single-use backup code.
-- Kept the TOTP plugin enabled in CI while disabling only the external reCAPTCHA plugin, and added a real Better Auth TOTP enrollment/verification integration test using a generated current code.
-- Required enrolled MFA in addition to the existing 10-minute fresh-session check for Founder bootstrap and platform operator grant/revoke actions.
-- Kept the platform actions fail-closed when MFA is not enabled.
+- Added Better Auth TOTP support, Prisma storage, encrypted backup-code storage, enrollment/settings at /dashboard/security, and challenge at /two-factor.
+- Users can authenticate with a TOTP code or single-use backup code.
+- CI includes a real Better Auth TOTP enrollment/verification integration test.
+- Privileged Founder/operator actions fail closed without enrolled MFA and a fresh session.
 
-TOTP uses an authenticator app and does not require a paid email or SMS provider. The setup URI contains a secret and must be treated as confidential. Backup codes are shown during enrollment and must be stored securely by the user.
+Outstanding: browser-test enrollment, sign-in challenge, backup-code consumption, disable flow, and recovery on a non-production environment. Define and test recovery if both authenticator and backup codes are lost. Do not bootstrap the production Founder account before this is complete.
 
-**Not yet verified:** real enrollment/sign-in/backup-code journeys against the exact Better Auth 1.7.8 runtime and a browser session. Do not bootstrap the production Founder account until the complete flow has passed on a non-production deployment and the account's recovery method has been confirmed.
+### File upload quarantine
+- Upload completion reads authoritative private Blob metadata.
+- Empty/unverifiable sizes fail closed; uploads above 50 MiB are deleted and logged as high severity.
+- Downloads are allowed only for records explicitly marked AVAILABLE.
+- New uploads remain QUARANTINED.
 
-### File upload quarantine and malware-scanning preparation
-- The upload-completion callback now reads authoritative private Blob metadata rather than trusting the browser-reported byte count.
-- Empty or unverified sizes fail closed.
-- Uploads above the 50 MiB limit are deleted and recorded as high-severity security events.
-- File download now allows only records explicitly marked `AVAILABLE`; unknown and future states are denied.
-- Newly uploaded assets remain `QUARANTINED`.
+**Critical limitation:** no antivirus engine is connected. Type/header and size checks are not malware scanning. Keep files quarantined and unavailable until a privacy-appropriate scanner inspects the full object and a durable clean verdict is recorded. Do not send private business files to public malware-analysis services.
 
-**Important:** no antivirus engine is connected yet. Header/type checks and authoritative size checks are not malware scanning. Do not mark quarantined files `AVAILABLE` until a real scanner has inspected the full object and the clean result has been durably recorded. Do not upload private business files to public malware-analysis services.
+## CI evidence and branch status
+PR #8's current head passed CI covering Prisma schema validation/client generation, disposable PostgreSQL migration application, database-backed support authorization tests, Security Warden tests, TypeScript type-check, and production build.
+
+PR #9 is a separate stacked guest-feedback change and must have its own complete CI and route-level security/mobile verification. PR #8 passing does not validate PR #9 or the combined product.
+
+Both pull requests remain draft and unmerged. CI is not a substitute for browser verification, production configuration checks, or owner approval.
 
 ## Database and release safety
+- No live database migration is authorized or implied.
+- Compare live _prisma_migrations history and actual schema with the reviewed branch migration chain before proposing any live migration.
+- A verified, recoverable production backup and successful restore drill are mandatory before a live migration.
+- Keep migration ownership separate from application runtime credentials.
+- Do not run destructive SQL, reset production, or use direct cascade delete as a substitute for an approved lifecycle.
+- Preview and Production databases must be isolated before write-capable preview testing.
+- Preview deployment automation has been requested disabled during this review period, but the project setting still needs independent verification.
 
-- New 2FA schema changes are additive: a boolean on `User`, a `TwoFactor` table, a unique user relation, and a cascading foreign key.
-- The full migration chain must pass in disposable PostgreSQL CI before review.
-- No live database migration has been performed by this increment.
-- No production deployment or merge has been performed.
-- A verified, recoverable production backup and a successful restore drill remain mandatory before any live migration.
-- Compare the live `_prisma_migrations` history and actual schema with the branch migration chain before proposing a deployment.
-- Keep migrations additive and reviewed. Do not run destructive SQL, reset production, or use a direct cascade delete as a substitute for the approved lifecycle.
+## Remaining release gates
+1. Verify sender-domain configuration and complete real email delivery, verification, and password-reset browser journeys.
+2. Test MFA enrollment, sign-in, backup-code use, and recovery on a non-production deployment.
+3. Connect and test privacy-appropriate malware scanning; quarantine on provider failure, timeout, unknown verdict, or mismatch.
+4. Establish a restricted non-owner runtime database role and transaction-scoped verified tenant context.
+5. Close composite tenant-integrity gaps and implement/test PostgreSQL RLS only after the runtime boundary exists.
+6. Include guest QR and guest-feedback tables in tenant-isolation and RLS review.
+7. Complete CORS, token-storage, secret-handling, input-validation, privileged-route, and production-debugging reviews.
+8. Verify protected GitHub production environment approvals, live migration history/schema, recoverable backup, and restore drill.
+9. Obtain explicit owner approval before merge, migration, Founder bootstrap, or deployment.
 
-## Remaining gates
-
-1. Complete and browser-test the password-reset and email-verification journeys after the sender domain is available.
-2. Test MFA enrollment, sign-in challenge, backup-code consumption, and recovery on a non-production deployment.
-3. Connect and test a privacy-appropriate malware scanner; retain quarantine on provider failure, timeout, unknown verdict, or mismatch.
-4. Verify a production database backup can be restored, then review live migration history/schema.
-5. Complete the remaining RLS, CORS, token-storage, route authorization, secret-handling, and independent security-review work.
-6. Obtain explicit approval before merging, migrating, or deploying.
-
-A passing CI build is necessary but is not evidence that any of these production gates have been completed.
+A passing CI build does not prove any of these release gates have been completed.
