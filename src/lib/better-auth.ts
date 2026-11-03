@@ -77,12 +77,14 @@ export const auth = betterAuth({
   // issuance without making external reCAPTCHA network calls. This explicit
   // test-only switch is set only on that CI step and must never be configured
   // in a deployed environment.
-  plugins: process.env.MERIT_CI_AUTH_TESTS === "true" ? [] : [
-    captcha({
-      provider: "google-recaptcha",
-      secretKey: captchaSecret,
-      minScore: 0.5,
-    }),
+  plugins: [
+    ...(process.env.MERIT_CI_AUTH_TESTS === "true" ? [] : [
+      captcha({
+        provider: "google-recaptcha",
+        secretKey: captchaSecret,
+        minScore: 0.5,
+      }),
+    ]),
     twoFactor({
       issuer: "MERIT",
       backupCodeOptions: { storeBackupCodes: "encrypted" },
