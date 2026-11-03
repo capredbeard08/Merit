@@ -10,7 +10,7 @@ This document defines the evidence required before a business is invited to use 
 
 | Control | Current state | Required evidence |
 |---|---|---|
-| Workspace/branch/QR composite integrity | Implemented in draft schema and migration | Prisma validation, disposable PostgreSQL migration replay, negative FK tests |
+| Workspace/branch/QR composite integrity | Implemented and validated in draft schema/migration (CI #413, code head `a2b7e5c`) | Additional production-database audit before any live migration |
 | QR submission lifecycle | Handler locks QR and branch rows and rechecks status in transaction | Integration tests for paused/revoked/archived states and concurrency |
 | Duplicate submissions | HMAC-keyed idempotency exists | Integration test proves one row for repeated key |
 | Rate limiting | PostgreSQL-backed and fail-closed | Integration test proves 429 and a sanitized SecurityEvent |
