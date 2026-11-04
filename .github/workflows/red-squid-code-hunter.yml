@@ -38,13 +38,14 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:javascript-typescript"
+          output: ${{ runner.temp }}/codeql-sarif
 
       - name: Preserve CodeQL SARIF for review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: red-squid-codeql-sarif
-          path: ${{ github.workspace }}/../results/*.sarif
+          path: ${{ runner.temp }}/codeql-sarif/*.sarif
           if-no-files-found: error
           retention-days: 7
 
