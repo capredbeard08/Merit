@@ -18,19 +18,25 @@ mkdir -p /tmp/red-squid-smoke
 attempt=0
 ready=0
 while [ "$attempt" -lt 60 ]; do
-  if [ -S /run/clamav/clamd.ctl ] && clamdscan --no-summary /etc/hostname >/dev/null 2>&1; then
+  if [ -S /run/clamav/clamd.ctl ] && clamdscan --config-file=/etc/clamdscan.conf --ping=1 /etc/hostname >/dev/null 2>&1; then
     ready=1
     break
   fi
   attempt=$((attempt + 1))
   sleep 2
 done
-[ "$ready" -eq 1 ] || { echo "ClamAV failed to become ready" >&2; exit 1; }
+if [ "$ready" -ne 1 ]; then
+  echo "ClamAV failed to become ready; diagnostic state follows" >&2
+  ls -la /run/clamav >&2 || true
+  ps aux >&2 || true
+  clamdscan --config-file=/etc/clamdscan.conf --ping=1 /etc/hostname >&2 || true
+  exit 1
+fi
 
 # A benign fixture must be explicitly reported OK.
 printf 'MERIT Red Squid benign scanner fixture\n' > /tmp/red-squid-smoke/benign.txt
 set +e
-clean_output=$(clamdscan --no-summary --stdout --stream /tmp/red-squid-smoke/benign.txt 2>&1)
+clean_output=$(clamdscan --config-file=/etc/clamdscan.conf --no-summary --stdout --stream /tmp/red-squid-smoke/benign.txt 2>&1)
 clean_status=$?
 set -e
 printf '%s\n' "$clean_output"
@@ -42,7 +48,7 @@ printf '%s\n' "$clean_output"
 # The standard EICAR test string is a harmless antivirus test signature.
 printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/red-squid-smoke/eicar.com
 set +e
-eicar_output=$(clamdscan --no-summary --stdout --stream /tmp/red-squid-smoke/eicar.com 2>&1)
+eicar_output=$(clamdscan --config-file=/etc/clamdscan.conf --no-summary --stdout --stream /tmp/red-squid-smoke/eicar.com 2>&1)
 eicar_status=$?
 set -e
 printf '%s\n' "$eicar_output"
@@ -55,7 +61,7 @@ printf '%s\n' "$eicar_output"
 # a limit/incomplete scan, not interpreted as a clean result or malware.
 dd if=/dev/zero of=/tmp/red-squid-smoke/oversized.bin bs=1M count=51 status=none
 set +e
-limit_output=$(clamdscan --no-summary --stdout --stream /tmp/red-squid-smoke/oversized.bin 2>&1)
+limit_output=$(clamdscan --config-file=/etc/clamdscan.conf --no-summary --stdout --stream /tmp/red-squid-smoke/oversized.bin 2>&1)
 limit_status=$?
 set -e
 printf '%s\n' "$limit_output"
