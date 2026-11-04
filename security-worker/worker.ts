@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -38,6 +38,17 @@ function runScanner(path: string): Promise<{ code: number }> {
       else resolve({ code });
     });
   });
+}
+
+async function assertFreshSignatures(): Promise<void> {
+  const entries = await readdir("/var/lib/clamav");
+  const databases = entries.filter((name) => /\\.(?:cvd|cld)$/.test(name));
+  if (databases.length === 0) throw new Error("SIGNATURE_DATABASE_MISSING");
+  const timestamps = await Promise.all(databases.map(async (name) => (await stat(join("/var/lib/clamav", name))).mtimeMs));
+  const newest = Math.max(...timestamps);
+  if (!Number.isFinite(newest) || Date.now() - newest > 48 * 60 * 60 * 1000) {
+    throw new Error("SIGNATURE_DATABASE_STALE");
+  }
 }
 
 async function fetchAndHash(pathname: string, destination: string): Promise<{ sha256: string; size: number }> {
@@ -89,6 +100,7 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
   }, HEARTBEAT_MS);
 
   try {
+    await assertFreshSignatures();
     const downloaded = await fetchAndHash(asset.pathname, localFile);
     if (downloaded.size !== Number(asset.sizeBytes)) throw new Error("AUTHORITATIVE_SIZE_MISMATCH");
     if (leaseLost) throw new Error("WORKER_LEASE_LOST");
@@ -123,11 +135,15 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
         incidentId: incident.id,
         sha256: downloaded.sha256,
         sizeBytes: BigInt(downloaded.size),
+        scannerVerdict: "UNKNOWN",
+        scannerName: null,
+        scannerVersion: null,
+        scannedAt: null,
       },
     });
 
     const scan = await runScanner(localFile);
-    if (leaseLost) throw new Error("WORKER_LEASE_LOST");
+    if (leaseLost || !await heartbeatSecurityHunterRun(run.id, leaseToken)) throw new Error("WORKER_LEASE_LOST");
     const verdict = scan.code === 0 ? "CLEAN" : scan.code === 1 ? "MALICIOUS" : "ERROR";
 
     const verdictWrite = await prisma.securityArtifact.updateMany({
