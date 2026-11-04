@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { classifyClamAvResult } from "./scan-verdict";
+import { areSignaturesFresh, classifyClamAvResult } from "./scan-verdict";
 import { get } from "@vercel/blob";
 import { prisma } from "../src/lib/prisma";
 import {
@@ -52,8 +52,7 @@ async function assertFreshSignatures(): Promise<void> {
   const databases = entries.filter((name) => /\.(?:cvd|cld)$/.test(name));
   if (databases.length === 0) throw new Error("SIGNATURE_DATABASE_MISSING");
   const timestamps = await Promise.all(databases.map(async (name) => (await stat(join("/var/lib/clamav", name))).mtimeMs));
-  const newest = Math.max(...timestamps);
-  if (!Number.isFinite(newest) || Date.now() - newest > 48 * 60 * 60 * 1000) {
+  if (!areSignaturesFresh(timestamps, Date.now(), 48 * 60 * 60 * 1000)) {
     throw new Error("SIGNATURE_DATABASE_STALE");
   }
 }
