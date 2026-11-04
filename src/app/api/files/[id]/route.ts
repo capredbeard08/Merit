@@ -33,7 +33,8 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const file = await prisma.fileAsset.findUnique({ where: { id }, select: { id: true, workspaceId: true, status: true, deletedAt: true } });
   if (!file) return NextResponse.json({ error: "File not found" }, { status: 404 });
   const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } } });
-  if (!member || !can(member.role.toLowerCase() as Role, "files:manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!can(member.role.toLowerCase() as Role, "files:manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (file.deletedAt || file.status === "DELETED") return new NextResponse(null, { status: 204 });
 
   // Compare-and-set prevents a stale delete request from overwriting a
