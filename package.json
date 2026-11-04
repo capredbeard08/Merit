@@ -15,10 +15,10 @@
     "test:integration": "tsx --test src/lib/support-access.integration.test.ts src/lib/guest-feedback.integration.test.ts"
   },
   "dependencies": {
-    "next": "15.5.18",
+    "next": "15.5.29",
     "react": "19.1.7",
     "react-dom": "19.1.7",
-    "zod": "4.0.0",
+    "zod": "4.6.7",
     "better-auth": "1.7.8",
     "@better-auth/prisma-adapter": "1.7.8",
     "@prisma/client": "6.19.3",
@@ -33,5 +33,12 @@
     "@tailwindcss/postcss": "4.1.0",
     "prisma": "6.19.3",
     "tsx": "4.19.2"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.32"
+    },
+    "sharp": "^0.35.4",
+    "zod": "$zod"
   }
 }
