@@ -667,6 +667,7 @@ model SecurityApproval {
   approvedById  String?
   artifactHash  String?
   actionScope   Json
+  scopeHash     String
   reason        String                @db.VarChar(1000)
   nonceHash     String                @unique
   expiresAt     DateTime
