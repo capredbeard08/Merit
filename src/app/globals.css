@@ -75,3 +75,19 @@ button, input, textarea, select { font: inherit; }
   .merit-boot, .merit-boot-mark, .merit-boot-word, .merit-boot-line::after { animation-duration: 1ms !important; animation-delay: 0ms !important; }
   .merit-nav-link, .merit-action-primary, .merit-action-secondary, .merit-metric-card { transition: none; }
 }
+
+@media print {
+  @page { size: A5 portrait; margin: 10mm; }
+  body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  #guest-qr-print-sheet, #guest-qr-print-sheet * { visibility: visible !important; }
+  #guest-qr-print-sheet {
+    position: fixed !important; inset: 0 auto auto 0 !important;
+    width: 100% !important; max-width: none !important; margin: 0 !important;
+    padding: 12mm !important; border: 0 !important; border-radius: 0 !important;
+    box-shadow: none !important; background: #fff !important;
+  }
+  .guest-qr-print-controls, .guest-qr-close, .guest-qr-url, .guest-qr-privacy {
+    display: none !important;
+  }
+}
