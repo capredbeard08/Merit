@@ -39,6 +39,15 @@ jobs:
         with:
           category: "/language:javascript-typescript"
 
+      - name: Preserve CodeQL SARIF for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-squid-codeql-sarif
+          path: ${{ github.workspace }}/../results/*.sarif
+          if-no-files-found: error
+          retention-days: 7
+
   dependency-hunter:
     name: Dependency Hunter · full npm audit
     runs-on: ubuntu-latest
