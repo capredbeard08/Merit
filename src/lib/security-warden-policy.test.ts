@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { isSecurityArtifactActionAllowed } from "./security-warden-artifact-policy";
 import {
   canTransitionIncident,
   isFounderApprovalUsable,
@@ -96,4 +97,18 @@ test("approval cannot be replayed with a different operation scope", () => {
     requestedArtifactHash: hash, requestedScopeHash: "d".repeat(64),
     now: new Date("2026-11-04T00:00:00.000Z"),
   }), false);
+});
+
+test("artifact restoration requires a clean scanner verdict", () => {
+  assert.equal(isSecurityArtifactActionAllowed("RESTORE", "QUARANTINED", "CLEAN"), true);
+  assert.equal(isSecurityArtifactActionAllowed("RESTORE", "QUARANTINED", "UNKNOWN"), false);
+  assert.equal(isSecurityArtifactActionAllowed("RESTORE", "QUARANTINED", "ERROR"), false);
+  assert.equal(isSecurityArtifactActionAllowed("RESTORE", "RETAINED", "MALICIOUS"), false);
+});
+
+test("analysis and disposal remain restricted to quarantined or retained artifacts", () => {
+  assert.equal(isSecurityArtifactActionAllowed("SAFE_UNPACK", "QUARANTINED", "UNKNOWN"), true);
+  assert.equal(isSecurityArtifactActionAllowed("DEOBFUSCATE", "ANALYSIS_APPROVED", "UNKNOWN"), true);
+  assert.equal(isSecurityArtifactActionAllowed("DISPOSE", "RETAINED", "MALICIOUS"), true);
+  assert.equal(isSecurityArtifactActionAllowed("DISPOSE", "AVAILABLE" as never, "UNKNOWN"), false);
 });
