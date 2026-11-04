@@ -10,7 +10,9 @@ RUN apt-get update \
   && chown -R clamav:clamav /run/clamav /var/lib/clamav
 
 COPY package*.json ./
-RUN npm ci && npx prisma generate
+RUN npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
+  && npm ci \
+  && npx prisma generate
 
 COPY . .
 COPY security-worker/clamd.conf /etc/clamav/clamd.conf
