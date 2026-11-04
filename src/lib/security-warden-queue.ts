@@ -68,7 +68,7 @@ export async function enqueueSecurityHunterRun(input: {
  * all active leases at three across workers; a conflict is a harmless no-claim.
  * The raw lease token is returned once and only its hash is persisted.
  */
-export async function claimSecurityHunterRun(now = new Date()): Promise<{
+export async function claimSecurityHunterRun(now = new Date(), hunterTypes?: SecurityHunterType[]): Promise<{
   run: SecurityHunterRun;
   leaseToken: string;
 } | null> {
@@ -115,6 +115,7 @@ export async function claimSecurityHunterRun(now = new Date()): Promise<{
 
       const candidate = await tx.securityHunterRun.findFirst({
         where: {
+          ...(hunterTypes?.length ? { hunterType: { in: hunterTypes } } : {}),
           attemptCount: { lt: MAX_HUNTER_ATTEMPTS },
           OR: [
             { status: "QUEUED" },
