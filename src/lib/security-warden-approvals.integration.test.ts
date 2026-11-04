@@ -54,7 +54,16 @@ async function createFixture(createdAt = new Date()) {
 }
 
 async function cleanup(f: Awaited<ReturnType<typeof createFixture>>) {
-  await prisma.securityEvent.deleteMany({ where: { actorUserId: f.user.id } });
+  const actions = await prisma.securityAction.findMany({
+    where: { incidentId: f.incident.id }, select: { id: true },
+  });
+  const approvals = await prisma.securityApproval.findMany({
+    where: { incidentId: f.incident.id }, select: { id: true },
+  });
+  const targetIds = [...actions.map((item) => item.id), ...approvals.map((item) => item.id)];
+  await prisma.securityEvent.deleteMany({
+    where: { OR: [{ actorUserId: f.user.id }, { targetId: { in: targetIds } }] },
+  });
   await prisma.securityAction.deleteMany({ where: { incidentId: f.incident.id } });
   await prisma.securityApproval.deleteMany({ where: { incidentId: f.incident.id } });
   await prisma.securityArtifact.deleteMany({ where: { id: f.artifact.id } });
