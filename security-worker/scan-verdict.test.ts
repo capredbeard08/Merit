@@ -24,3 +24,14 @@ test("fails closed for scanner errors and unknown exit codes", () => {
   assert.equal(classifyClamAvResult(0, ""), "ERROR");
   assert.equal(classifyClamAvResult(1, ""), "ERROR");
 });
+
+import { areSignaturesFresh } from "./scan-verdict";
+
+test("requires every signature database to be fresh", () => {
+  const now = 1_800_000_000_000;
+  const maxAge = 48 * 60 * 60 * 1000;
+  assert.equal(areSignaturesFresh([now - 1_000, now - maxAge + 1], now, maxAge), true);
+  assert.equal(areSignaturesFresh([now - 1_000, now - maxAge - 1], now, maxAge), false);
+  assert.equal(areSignaturesFresh([], now, maxAge), false);
+  assert.equal(areSignaturesFresh([now + 1], now, maxAge), false);
+});
