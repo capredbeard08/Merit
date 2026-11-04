@@ -681,6 +681,7 @@ model SecurityApproval {
   actionScope   Json
   scopeHash     String
   reason        String                @db.VarChar(1000)
+  nonceHash     String                @unique
   expiresAt     DateTime
   approvedAt    DateTime?
   consumedAt    DateTime?
