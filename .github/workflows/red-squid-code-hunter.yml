@@ -53,6 +53,18 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Regenerate lockfile with approved non-breaking security updates
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Preserve regenerated lockfile for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-squid-regenerated-lockfile
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 3
 
