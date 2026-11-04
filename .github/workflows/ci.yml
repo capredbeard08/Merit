@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, feat/platform-access-foundation, feat/guest-feedback-foundation, feat/red-squid-security-warden]
   pull_request:
-    branches: [main, feat/explicit-workspace-selection, feat/platform-access-foundation]
+    branches: [main, feat/explicit-workspace-selection, feat/platform-access-foundation, feat/guest-feedback-foundation]
   workflow_dispatch:
 
 permissions:
