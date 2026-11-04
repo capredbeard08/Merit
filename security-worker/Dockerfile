@@ -16,6 +16,7 @@ RUN npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
 COPY . .
 RUN npx prisma generate
 COPY security-worker/clamd.conf /etc/clamav/clamd.conf
+COPY security-worker/clamdscan.conf /etc/clamdscan.conf
 COPY security-worker/freshclam.conf /etc/clamav/freshclam.conf
 COPY security-worker/entrypoint.sh /usr/local/bin/merit-security-worker
 RUN chmod 0755 /usr/local/bin/merit-security-worker
