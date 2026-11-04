@@ -174,3 +174,6 @@ ALTER TABLE "SecurityHunterRun" ADD CONSTRAINT "SecurityHunterRun_incidentId_fke
 ALTER TABLE "SecurityCorrelation" ADD CONSTRAINT "SecurityCorrelation_incidentId_fkey" FOREIGN KEY ("incidentId") REFERENCES "SecurityIncident"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "SecurityCorrelation" ADD CONSTRAINT "SecurityCorrelation_leftFindingId_fkey" FOREIGN KEY ("leftFindingId") REFERENCES "SecurityFinding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "SecurityCorrelation" ADD CONSTRAINT "SecurityCorrelation_rightFindingId_fkey" FOREIGN KEY ("rightFindingId") REFERENCES "SecurityFinding"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "SecurityApproval"
+  ADD CONSTRAINT "SecurityApproval_scopeHash_check"
+  CHECK ("scopeHash" ~ '^[a-fA-F0-9]{64}$');
