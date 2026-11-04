@@ -6,7 +6,7 @@ set -eu
 
 # Do not start the queue consumer unless signature updates and the local
 # scanner daemon both start successfully.
-freshclam --stdout
+freshclam --config-file=/etc/clamav/freshclam.conf --stdout
 clamd --config-file=/etc/clamav/clamd.conf &
 CLAMD_PID=$!
 
@@ -26,5 +26,8 @@ if [ "$ready" -ne 1 ]; then
   kill "$CLAMD_PID" 2>/dev/null || true
   exit 1
 fi
+
+# Keep signatures refreshed and notify clamd after successful database updates.
+freshclam --config-file=/etc/clamav/freshclam.conf --daemon --stdout
 
 exec su node -s /bin/sh -c 'node --import tsx security-worker/worker.ts'
