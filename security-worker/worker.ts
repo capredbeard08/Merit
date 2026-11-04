@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { classifyClamAvResult } from "./scan-verdict";
 import { get } from "@vercel/blob";
 import { prisma } from "../src/lib/prisma";
 import {
@@ -21,9 +22,15 @@ const HEARTBEAT_MS = 25_000;
 const SCAN_TIMEOUT_MS = 120_000;
 let stopping = false;
 
-function runScanner(path: string): Promise<{ code: number }> {
+function runScanner(path: string): Promise<{ code: number; output: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn("clamdscan", ["--no-summary", "--stream", path], { stdio: "ignore" });
+    const child = spawn("clamdscan", ["--no-summary", "--stdout", "--stream", path], { stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    const collect = (chunk: Buffer) => {
+      if (output.length < 8_192) output += chunk.toString("utf8").slice(0, 8_192 - output.length);
+    };
+    child.stdout?.on("data", collect);
+    child.stderr?.on("data", collect);
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error("SCANNER_TIMEOUT"));
@@ -35,7 +42,7 @@ function runScanner(path: string): Promise<{ code: number }> {
     child.once("close", (code) => {
       clearTimeout(timeout);
       if (code === null) reject(new Error("SCANNER_EXIT_UNKNOWN"));
-      else resolve({ code });
+      else resolve({ code, output });
     });
   });
 }
@@ -144,7 +151,7 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
 
     const scan = await runScanner(localFile);
     if (leaseLost || !await heartbeatSecurityHunterRun(run.id, leaseToken)) throw new Error("WORKER_LEASE_LOST");
-    const verdict = scan.code === 0 ? "CLEAN" : scan.code === 1 ? "MALICIOUS" : "ERROR";
+    const verdict = classifyClamAvResult(scan.code, scan.output);
 
     const verdictWrite = await prisma.securityArtifact.updateMany({
       where: { id: artifact.id, sha256: downloaded.sha256, storageState: "QUARANTINED" },
@@ -167,10 +174,10 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
         sha256: downloaded.sha256,
         evidenceMetadata: { scanner: "ClamAV", verdict, exitCode: scan.code },
         rationale: verdict === "CLEAN"
-          ? "ClamAV completed without detecting a known signature. The upload remains quarantined pending Founder-controlled release."
+          ? "ClamAV completed without detecting a known signature. This is not a guarantee of safety; the upload remains quarantined pending Founder-controlled release."
           : verdict === "MALICIOUS"
             ? "ClamAV reported a malware signature. The original remains quarantined and was not executed or modified."
-            : "ClamAV returned an error. No clean verdict was issued; the upload remains quarantined.",
+            : "ClamAV could not complete a conclusive inspection (including scan-limit or encrypted-content alerts). No clean verdict was issued; the upload remains quarantined.",
         confidence: verdict === "ERROR" ? 0 : 100,
         severity: verdict === "MALICIOUS" ? "HIGH" : verdict === "ERROR" ? "MEDIUM" : "LOW",
       },
