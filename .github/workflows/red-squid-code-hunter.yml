@@ -54,7 +54,7 @@ jobs:
           cache: npm
 
       - name: Regenerate lockfile with approved non-breaking security updates
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+        run: rm -f package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
