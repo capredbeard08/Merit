@@ -22,7 +22,7 @@ Red Squid coordinates bounded specialist security workers that detect suspicious
 
 1. Original artifacts are immutable. Analysis works on a separate copy; preserve the original hash and object reference.
 2. Never execute suspicious code in production. Prefer static analysis and safe unpacking. Any required dynamic analysis belongs in an ephemeral isolated sandbox with no network, no secrets, read-only source, and strict CPU, memory, and time limits.
-3. Approval is not a general-purpose permission. Bind it to one artifact hash, one exact operation, a short expiry, and one single-use nonce. Consume approval atomically with action creation/execution to prevent replay.
+3. Approval is not a general-purpose permission. Bind it to one artifact hash, one exact operation, one canonical action-scope hash, the artifact hash, a short expiry, and one single-use nonce. Consume approval atomically with action creation/execution to prevent replay.
 4. The Warden may report and recommend. It cannot silently rewrite source, delete artefacts, change configuration, alter database schema, grant privileges, or deploy.
 5. A missing, unavailable, timed-out, or inconclusive scanner is not a clean verdict. Keep the artifact quarantined and request a decision.
 6. Correlation is evidence of a relationship, not proof of malicious intent. Preserve rationale and confidence; never promote suspicion to fact without supporting evidence.
