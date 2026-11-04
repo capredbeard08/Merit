@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   Prisma,
   type SecurityActionType,
@@ -54,7 +54,7 @@ export async function requestFounderSecurityApproval(input: {
   actionScope: Prisma.InputJsonObject;
   requestedById: string;
   reason: string;
-}, now = new Date()): Promise<SecurityApproval> {
+}, now = new Date()): Promise<{ approval: SecurityApproval; approvalNonce: string }> {
   assertApprovalAction(input.actionType);
   if (!validSha256(input.artifactHash)) throw new Error("INVALID_ARTIFACT_HASH");
   if (!input.reason.trim() || input.reason.length > 1000) throw new Error("INVALID_APPROVAL_REASON");
@@ -62,7 +62,8 @@ export async function requestFounderSecurityApproval(input: {
   if (Buffer.byteLength(serializedScope, "utf8") > MAX_SCOPE_BYTES) throw new Error("APPROVAL_SCOPE_TOO_LARGE");
 
   const scopeHash = hashSecurityActionScope(input.actionScope);
-  return prisma.$transaction(async (tx) => {
+  const approvalNonce = randomBytes(32).toString("hex");
+  const approval = await prisma.$transaction(async (tx) => {
     const artifact = await tx.securityArtifact.findFirst({
       where: { id: input.artifactId, incidentId: input.incidentId },
       select: { id: true, sha256: true, storageState: true },
@@ -84,6 +85,7 @@ export async function requestFounderSecurityApproval(input: {
         actionScope: input.actionScope,
         scopeHash,
         reason: input.reason.trim(),
+        nonceHash: createHash("sha256").update(approvalNonce).digest("hex"),
         expiresAt: new Date(now.getTime() + APPROVAL_TTL_MS),
       },
     });
@@ -103,6 +105,7 @@ export async function requestFounderSecurityApproval(input: {
     });
     return approval;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  return { approval, approvalNonce };
 }
 
 async function assertFreshFounderApprovalAuthority(
@@ -200,6 +203,7 @@ export async function approveFounderSecurityAction(input: {
  */
 export async function consumeFounderSecurityApproval(input: {
   approvalId: string;
+  approvalNonce: string;
   artifactId: string;
   artifactHash: string;
   actionType: SecurityActionType;
@@ -218,7 +222,8 @@ export async function consumeFounderSecurityApproval(input: {
         approval.expiresAt <= now) {
       throw new Error("APPROVAL_NOT_USABLE");
     }
-    if (approval.actionType !== input.actionType ||
+    if (createHash("sha256").update(input.approvalNonce).digest("hex") !== approval.nonceHash ||
+        approval.actionType !== input.actionType ||
         approval.artifactId !== input.artifactId ||
         approval.artifactHash?.toLowerCase() !== input.artifactHash.toLowerCase() ||
         approval.scopeHash !== requestedScopeHash ||
@@ -230,6 +235,7 @@ export async function consumeFounderSecurityApproval(input: {
       where: {
         id: approval.id,
         status: "APPROVED",
+        nonceHash: createHash("sha256").update(input.approvalNonce).digest("hex"),
         consumedAt: null,
         expiresAt: { gt: now },
         actionType: input.actionType,
