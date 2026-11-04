@@ -35,6 +35,9 @@
     "tsx": "4.19.2"
   },
   "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
+    },
     "next": {
       "postcss": "^8.5.32"
     },
