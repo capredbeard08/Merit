@@ -73,8 +73,11 @@ jobs:
       - name: Run Red Squid approval lifecycle integration tests
         run: npx tsx --test src/lib/security-warden-approvals.integration.test.ts
 
-      - name: Type-check TypeScript
+      - name: Type-check application TypeScript
         run: npx tsc --noEmit
+
+      - name: Type-check Red Squid worker TypeScript
+        run: npx tsc --noEmit -p tsconfig.security-worker.json
 
       - name: Build production application
         run: npm run build
