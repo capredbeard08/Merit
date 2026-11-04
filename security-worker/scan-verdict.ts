@@ -1,13 +1,13 @@
 export type ClamAvVerdict = "CLEAN" | "MALICIOUS" | "ERROR";
 
 /**
- * A ClamAV detection is not automatically proof of malware when the
- * signature name indicates a scan limit or encrypted content. Those cases
- * require manual review because the scanner could not fully inspect content.
+ * ClamAV limit/encryption alerts are not proof of infection: the scanner
+ * could not inspect all content. Missing or unrecognised output also fails
+ * closed rather than being interpreted as either clean or infected.
  */
 export function classifyClamAvResult(code: number, output: string): ClamAvVerdict {
-  if (code === 0) return "CLEAN";
+  if (code === 0) return /:\\s*OK\\s*$/im.test(output) ? "CLEAN" : "ERROR";
   if (code !== 1) return "ERROR";
-  if (/Heuristics\.(?:Limits\.Exceeded|Encrypted)/i.test(output)) return "ERROR";
-  return "MALICIOUS";
+  if (/Heuristics\\.(?:Limits\\.Exceeded|Encrypted)/i.test(output)) return "ERROR";
+  return /:\\s+.+\\s+FOUND\\b/i.test(output) ? "MALICIOUS" : "ERROR";
 }
