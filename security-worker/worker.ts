@@ -119,8 +119,8 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
           data: {
             workspaceId: asset.workspaceId,
             source: "UPLOAD",
-            severity: "MEDIUM",
-            confidence: 100,
+            severity: "LOW",
+            confidence: 0,
             fingerprint: downloaded.sha256,
             summary: "Quarantined upload awaiting automated malware inspection.",
           },
@@ -180,6 +180,14 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
             : "ClamAV could not complete a conclusive inspection (including scan-limit or encrypted-content alerts). No clean verdict was issued; the upload remains quarantined.",
         confidence: verdict === "ERROR" ? 0 : 100,
         severity: verdict === "MALICIOUS" ? "HIGH" : verdict === "ERROR" ? "MEDIUM" : "LOW",
+      },
+    });
+
+    await prisma.securityIncident.update({
+      where: { id: incident.id },
+      data: {
+        lastSeenAt: new Date(),
+        ...(verdict === "MALICIOUS" ? { severity: "HIGH", confidence: 95 } : {}),
       },
     });
 
