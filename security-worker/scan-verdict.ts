@@ -6,10 +6,10 @@ export type ClamAvVerdict = "CLEAN" | "MALICIOUS" | "ERROR";
  * closed rather than being interpreted as either clean or infected.
  */
 export function classifyClamAvResult(code: number, output: string): ClamAvVerdict {
-  if (code === 0) return /:\\s*OK\\s*$/im.test(output) ? "CLEAN" : "ERROR";
+  if (code === 0) return /:\s*OK\s*$/im.test(output) ? "CLEAN" : "ERROR";
   if (code !== 1) return "ERROR";
-  if (/Heuristics\\.(?:Limits\\.Exceeded|Encrypted)/i.test(output)) return "ERROR";
-  return /:\\s+.+\\s+FOUND\\b/i.test(output) ? "MALICIOUS" : "ERROR";
+  if (/Heuristics\.(?:Limits\.Exceeded|Encrypted)/i.test(output)) return "ERROR";
+  return /:\s+.+\s+FOUND\b/i.test(output) ? "MALICIOUS" : "ERROR";
 }
 
 export function areSignaturesFresh(
