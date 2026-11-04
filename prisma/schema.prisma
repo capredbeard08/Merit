@@ -493,3 +493,271 @@ model SecurityEvent {
   @@index([severity, createdAt])
   @@index([type, createdAt])
 }
+
+
+enum SecurityIncidentStatus {
+  OPEN
+  TRIAGED
+  INVESTIGATING
+  CONTAINED
+  AWAITING_APPROVAL
+  RESOLVED
+  FALSE_POSITIVE
+  CLOSED
+}
+
+enum SecuritySeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SecurityHunterType {
+  CODE
+  BEHAVIOUR
+  DEPENDENCY
+  ACCESS
+  DATA
+  NETWORK
+  INTEGRITY
+}
+
+enum SecurityHunterRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  INCONCLUSIVE
+  CANCELLED
+}
+
+enum SecurityArtifactState {
+  QUARANTINED
+  ANALYSIS_APPROVED
+  DISPOSAL_PENDING
+  DISPOSED
+  RESTORED
+  RETAINED
+}
+
+enum SecurityScannerVerdict {
+  UNKNOWN
+  CLEAN
+  MALICIOUS
+  ERROR
+  TIMEOUT
+}
+
+enum SecurityApprovalStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+  CONSUMED
+  REVOKED
+}
+
+enum SecurityActionType {
+  STATIC_ANALYSIS
+  SAFE_UNPACK
+  DEOBFUSCATE
+  QUARANTINE
+  RESTORE
+  DISPOSE
+}
+
+enum SecurityActionStatus {
+  REQUESTED
+  APPROVED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  ROLLED_BACK
+}
+
+enum SecurityCorrelationType {
+  SHARED_HASH
+  SHARED_INDICATOR
+  SHARED_DEPENDENCY
+  SHARED_PATH
+  TEMPORAL
+  RELATED_EVENT
+}
+
+/// Durable case record. workspaceId is deliberately an unbound historical
+/// identifier: deleting a workspace must not erase an investigation.
+model SecurityIncident {
+  id          String                 @id @default(cuid())
+  workspaceId String?
+  status      SecurityIncidentStatus @default(OPEN)
+  severity    SecuritySeverityLevel
+  confidence  Int
+  source      String
+  fingerprint String?
+  summary     String                 @db.VarChar(500)
+  firstSeenAt DateTime               @default(now())
+  lastSeenAt  DateTime               @default(now())
+  resolvedAt  DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  findings    SecurityFinding[]
+  artifacts   SecurityArtifact[]
+  approvals   SecurityApproval[]
+  actions     SecurityAction[]
+  hunterRuns  SecurityHunterRun[]
+  correlations SecurityCorrelation[]
+  @@index([status, severity, lastSeenAt])
+  @@index([workspaceId, createdAt])
+  @@index([fingerprint, lastSeenAt])
+}
+
+/// Sanitized detector output. Raw customer content and secrets do not belong
+/// in evidenceMetadata; sensitive source artefacts stay in private storage.
+model SecurityFinding {
+  id               String                 @id @default(cuid())
+  incidentId       String
+  hunterType       SecurityHunterType
+  detector         String
+  ruleVersion      String?
+  artifactId       String?
+  filePath         String?
+  lineStart        Int?
+  lineEnd          Int?
+  sha256           String?
+  evidenceMetadata Json?
+  rationale        String                 @db.VarChar(2000)
+  confidence       Int
+  severity         SecuritySeverityLevel
+  createdAt        DateTime               @default(now())
+  incident         SecurityIncident       @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  artifact         SecurityArtifact?      @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  correlationsLeft SecurityCorrelation[]  @relation("SecurityCorrelationLeft")
+  correlationsRight SecurityCorrelation[] @relation("SecurityCorrelationRight")
+  @@index([incidentId, createdAt])
+  @@index([hunterType, severity, createdAt])
+  @@index([sha256])
+}
+
+/// Private immutable original-object reference plus chain-of-custody metadata.
+/// The source object is never overwritten by analysis.
+model SecurityArtifact {
+  id                String               @id @default(cuid())
+  incidentId        String?
+  originalObjectRef String               @unique
+  sha256            String
+  sizeBytes         BigInt
+  contentType       String?
+  storageState      SecurityArtifactState @default(QUARANTINED)
+  scannerVerdict    SecurityScannerVerdict @default(UNKNOWN)
+  scannerName       String?
+  scannerVersion    String?
+  scannedAt         DateTime?
+  quarantineReason  String?              @db.VarChar(1000)
+  chainOfCustody    Json?
+  retainedUntil     DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  incident          SecurityIncident?    @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  findings          SecurityFinding[]
+  approvals         SecurityApproval[]
+  actions           SecurityAction[]
+  @@index([storageState, createdAt])
+  @@index([sha256])
+  @@index([retainedUntil])
+}
+
+/// Founder-authorized, short-lived, single-use capability bound to an exact
+/// artifact hash and exact operation. Approval is not a general-purpose grant.
+model SecurityApproval {
+  id            String                @id @default(cuid())
+  incidentId    String
+  artifactId    String?
+  actionType    SecurityActionType
+  status        SecurityApprovalStatus @default(PENDING)
+  requestedById String
+  approvedById  String?
+  artifactHash  String?
+  actionScope   Json
+  scopeHash     String
+  reason        String                @db.VarChar(1000)
+  nonceHash     String                @unique
+  expiresAt     DateTime
+  approvedAt    DateTime?
+  consumedAt    DateTime?
+  createdAt     DateTime              @default(now())
+  incident      SecurityIncident      @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  artifact      SecurityArtifact?     @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  actions       SecurityAction[]
+  @@index([status, expiresAt])
+  @@index([incidentId, createdAt])
+  @@index([approvedById, approvedAt])
+}
+
+/// Append-only execution record. No Warden worker may create a destructive
+/// action without a matching consumed Founder approval.
+model SecurityAction {
+  id             String               @id @default(cuid())
+  incidentId     String
+  artifactId     String?
+  approvalId     String?
+  actionType     SecurityActionType
+  status         SecurityActionStatus @default(REQUESTED)
+  actorUserId    String?
+  operationHash  String?
+  resultMetadata Json?
+  rollbackRef    String?
+  failureCode    String?
+  createdAt      DateTime             @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  incident       SecurityIncident     @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  artifact       SecurityArtifact?    @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  approval       SecurityApproval?   @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  @@index([incidentId, createdAt])
+  @@index([artifactId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// Bounded specialist-worker execution record; not a request to spawn an
+/// unbounded swarm. Queue concurrency and resource limits live in the worker.
+model SecurityHunterRun {
+  id           String                 @id @default(cuid())
+  incidentId   String?
+  hunterType   SecurityHunterType
+  engine       String
+  engineVersion String?
+  scopeMetadata Json?
+  status       SecurityHunterRunStatus @default(QUEUED)
+  summary      String?                @db.VarChar(2000)
+  attemptCount Int                    @default(0)
+  leaseTokenHash String?
+  leaseExpiresAt DateTime?
+  lastHeartbeatAt DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime               @default(now())
+  incident     SecurityIncident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  @@index([status, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@index([hunterType, createdAt])
+  @@index([incidentId, createdAt])
+}
+
+/// Explicit evidence links used by the coordinator to correlate independent
+/// findings without silently asserting that they share a malicious cause.
+model SecurityCorrelation {
+  id             String                @id @default(cuid())
+  incidentId     String
+  leftFindingId  String
+  rightFindingId String
+  relation       SecurityCorrelationType
+  confidence     Int
+  rationale      String                @db.VarChar(1000)
+  createdAt      DateTime              @default(now())
+  incident       SecurityIncident     @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  leftFinding    SecurityFinding      @relation("SecurityCorrelationLeft", fields: [leftFindingId], references: [id], onDelete: Restrict)
+  rightFinding   SecurityFinding      @relation("SecurityCorrelationRight", fields: [rightFindingId], references: [id], onDelete: Restrict)
+  @@unique([leftFindingId, rightFindingId, relation])
+  @@index([incidentId, createdAt])
+}

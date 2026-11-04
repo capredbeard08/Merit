@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, FILE_MAX_BYTES, safeOriginalName } from "@/lib/file-security";
 import { recordSecurityEvent } from "@/lib/security-warden";
+import { enqueueSecurityHunterRun } from "@/lib/security-warden-queue";
 
 export const runtime = "nodejs";
 
@@ -61,7 +62,7 @@ export async function POST(request: Request): Promise<Response> {
           });
           return;
         }
-        await prisma.fileAsset.upsert({
+        const asset = await prisma.fileAsset.upsert({
           where: { pathname: blob.pathname },
           create: {
             workspaceId: payload.workspaceId,
@@ -78,6 +79,22 @@ export async function POST(request: Request): Promise<Response> {
           },
           update: {},
         });
+        const existingScan = await prisma.securityHunterRun.findFirst({
+          where: {
+            hunterType: "DATA",
+            engine: "CLAMAV",
+            scopeMetadata: { equals: { source: asset.id } },
+          },
+          select: { id: true },
+        });
+        if (!existingScan) {
+          await enqueueSecurityHunterRun({
+            hunterType: "DATA",
+            engine: "CLAMAV",
+            engineVersion: "container-managed",
+            scopeMetadata: { source: asset.id },
+          });
+        }
         await recordSecurityEvent({
           type: "UPLOAD_QUARANTINED",
           workspaceId: payload.workspaceId,

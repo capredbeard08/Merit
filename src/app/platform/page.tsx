@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { canAccessPlatform } from "@/lib/platform-access";
 import { PlatformAccountsManager } from "./platform-accounts-manager";
 import { PlatformSecurityEvents } from "./platform-security-events";
+import { PlatformRedSquid } from "./platform-red-squid";
 import { PlatformSupportRequests } from "./platform-support-requests";
 
 export const dynamic = "force-dynamic";
@@ -119,6 +120,8 @@ export default async function PlatformConsolePage() {
             <p className="mt-2 text-sm leading-6 text-[#69756e]">Your current platform role does not include permission to view operator accounts.</p>
           </section>
         )}
+
+        <PlatformRedSquid canApprove={canAccessPlatform(access, "platform:security:approve")} />
 
         <PlatformSecurityEvents canExport={canAccessPlatform(access, "platform:audit:export")} />
 
