@@ -730,11 +730,16 @@ model SecurityHunterRun {
   scopeMetadata Json?
   status       SecurityHunterRunStatus @default(QUEUED)
   summary      String?                @db.VarChar(2000)
+  attemptCount Int                    @default(0)
+  leaseTokenHash String?
+  leaseExpiresAt DateTime?
+  lastHeartbeatAt DateTime?
   startedAt    DateTime?
   finishedAt   DateTime?
   createdAt    DateTime               @default(now())
   incident     SecurityIncident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
   @@index([status, createdAt])
+  @@index([status, leaseExpiresAt])
   @@index([hunterType, createdAt])
   @@index([incidentId, createdAt])
 }
