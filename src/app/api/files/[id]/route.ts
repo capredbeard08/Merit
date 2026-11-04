@@ -12,7 +12,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const file = await prisma.fileAsset.findUnique({ where: { id } });
   if (!file || file.deletedAt || file.status === "DELETED") return NextResponse.json({ error: "File not found" }, { status: 404 });
   const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } } });
-  if (!member || !can(member.role.toLowerCase() as Role, "feedback:read")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!can(member.role.toLowerCase() as Role, "feedback:read")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (file.status === "QUARANTINED" || file.status === "ERASURE_PENDING") return NextResponse.json({ error: "This file is unavailable until its safety or deletion workflow is complete." }, { status: 423 });
   const blob = await get(file.pathname, { access: "private" });
   if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: "Stored file not found" }, { status: 404 });
