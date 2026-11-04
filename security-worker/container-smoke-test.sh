@@ -40,7 +40,7 @@ printf '%s\n' "$clean_output"
 }
 
 # The standard EICAR test string is a harmless antivirus test signature.
-printf '%s' 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/red-squid-smoke/eicar.com
+printf '%s' 'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*' > /tmp/red-squid-smoke/eicar.com
 set +e
 eicar_output=$(clamdscan --no-summary --stdout --stream /tmp/red-squid-smoke/eicar.com 2>&1)
 eicar_status=$?
@@ -59,7 +59,7 @@ limit_output=$(clamdscan --no-summary --stdout --stream /tmp/red-squid-smoke/ove
 limit_status=$?
 set -e
 printf '%s\n' "$limit_output"
-[ "$limit_status" -eq 1 ] && printf '%s\n' "$limit_output" | grep -Eiq 'Heuristics\\.Limits\\.Exceeded|size limit|maximum file size' || {
+[ "$limit_status" -eq 1 ] && printf '%s\n' "$limit_output" | grep -Eiq 'Heuristics.Limits.Exceeded|size limit|maximum file size' || {
   echo "Oversized fixture did not trigger a recognizable scan-limit alert" >&2
   exit 1
 }
