@@ -6,6 +6,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isSecurityArtifactActionAllowed } from "@/lib/security-warden-artifact-policy";
+import { securityActionScopeMatches } from "@/lib/security-warden-scope-policy";
 
 const FOUNDER_APPROVAL_ACTIONS = new Set<SecurityActionType>([
   "SAFE_UNPACK",
@@ -56,6 +57,7 @@ export async function requestFounderSecurityApproval(input: {
   reason: string;
 }, now = new Date()): Promise<{ approval: SecurityApproval; approvalNonce: string }> {
   assertApprovalAction(input.actionType);
+  if (!securityActionScopeMatches(input.actionScope, input.actionType, input.artifactId)) throw new Error("APPROVAL_SCOPE_MISMATCH");
   if (!validSha256(input.artifactHash)) throw new Error("INVALID_ARTIFACT_HASH");
   if (!input.reason.trim() || input.reason.length > 1000) throw new Error("INVALID_APPROVAL_REASON");
   const serializedScope = canonicalJson(input.actionScope);
@@ -221,6 +223,7 @@ export async function consumeFounderSecurityApproval(input: {
   actorUserId?: string | null;
 }, now = new Date()): Promise<{ actionId: string }> {
   assertApprovalAction(input.actionType);
+  if (!securityActionScopeMatches(input.actionScope, input.actionType, input.artifactId)) throw new Error("APPROVAL_SCOPE_MISMATCH");
   if (!validSha256(input.artifactHash)) throw new Error("INVALID_ARTIFACT_HASH");
   const requestedScopeHash = hashSecurityActionScope(input.actionScope);
 
