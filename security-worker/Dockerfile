@@ -3,7 +3,7 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends clamav clamav-daemon clamav-freshclam ca-certificates tini passwd \
+  && apt-get install -y --no-install-recommends clamav clamav-daemon clamdscan clamav-freshclam ca-certificates tini passwd \
   && rm -rf /var/lib/apt/lists/* \
   && usermod -aG clamav node \
   && mkdir -p /run/clamav /var/lib/clamav \
