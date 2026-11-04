@@ -1,3 +1,31 @@
+export type WardenIncidentStatus =
+  | "OPEN"
+  | "TRIAGED"
+  | "INVESTIGATING"
+  | "CONTAINED"
+  | "AWAITING_APPROVAL"
+  | "RESOLVED"
+  | "FALSE_POSITIVE"
+  | "CLOSED";
+
+const allowedIncidentTransitions: Record<WardenIncidentStatus, readonly WardenIncidentStatus[]> = {
+  OPEN: ["TRIAGED", "INVESTIGATING", "CONTAINED", "FALSE_POSITIVE"],
+  TRIAGED: ["INVESTIGATING", "CONTAINED", "FALSE_POSITIVE", "CLOSED"],
+  INVESTIGATING: ["CONTAINED", "AWAITING_APPROVAL", "RESOLVED", "FALSE_POSITIVE"],
+  CONTAINED: ["INVESTIGATING", "AWAITING_APPROVAL", "RESOLVED", "FALSE_POSITIVE"],
+  AWAITING_APPROVAL: ["INVESTIGATING", "CONTAINED", "RESOLVED"],
+  RESOLVED: ["TRIAGED", "CLOSED"],
+  FALSE_POSITIVE: ["TRIAGED", "CLOSED"],
+  CLOSED: [],
+};
+
+export function canTransitionIncident(
+  current: WardenIncidentStatus,
+  next: WardenIncidentStatus,
+): boolean {
+  return allowedIncidentTransitions[current].includes(next);
+}
+
 export type WardenAction =
   | "STATIC_ANALYSIS"
   | "SAFE_UNPACK"
