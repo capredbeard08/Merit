@@ -70,6 +70,22 @@ export async function GET(request: Request): Promise<Response> {
           createdAt: true,
         },
       },
+      hunterRuns: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          hunterType: true,
+          engine: true,
+          engineVersion: true,
+          status: true,
+          attemptCount: true,
+          summary: true,
+          createdAt: true,
+          startedAt: true,
+          finishedAt: true,
+        },
+      },
       approvals: {
         where: { status: "PENDING", expiresAt: { gt: new Date() } },
         orderBy: { createdAt: "desc" },
