@@ -40,7 +40,7 @@ jobs:
           category: "/language:javascript-typescript"
 
   dependency-hunter:
-    name: Dependency Hunter · npm audit
+    name: Dependency Hunter · full npm audit
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -56,11 +56,11 @@ jobs:
       - name: Regenerate lockfile with approved non-breaking security updates
         run: rm -f package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
-      - name: Audit production dependencies and preserve machine-readable findings
+      - name: Audit all dependencies, including development tooling
         shell: bash
         run: |
           audit_exit=0
-          npm audit --omit=dev --json > red-squid-npm-audit.json || audit_exit=$?
+          npm audit --json > red-squid-npm-audit.json || audit_exit=$?
           if [ "$audit_exit" -gt 1 ]; then
             echo "npm audit encountered an operational error (exit $audit_exit)."
             exit "$audit_exit"
@@ -77,4 +77,3 @@ jobs:
             red-squid-npm-audit.json
           if-no-files-found: error
           retention-days: 7
-
