@@ -40,25 +40,27 @@ export async function enqueueSecurityHunterRun(input: {
   const engineVersion = input.engineVersion?.trim() || null;
   if (engineVersion && engineVersion.length > 100) throw new Error("INVALID_HUNTER_ENGINE_VERSION");
 
-  const run = await prisma.securityHunterRun.create({
-    data: {
-      incidentId: input.incidentId ?? null,
-      hunterType: input.hunterType,
-      engine,
-      engineVersion,
-      scopeMetadata: sanitizeHunterScope(input.scopeMetadata),
-      status: "QUEUED",
-    },
+  return prisma.$transaction(async (tx) => {
+    const run = await tx.securityHunterRun.create({
+      data: {
+        incidentId: input.incidentId ?? null,
+        hunterType: input.hunterType,
+        engine,
+        engineVersion,
+        scopeMetadata: sanitizeHunterScope(input.scopeMetadata),
+        status: "QUEUED",
+      },
+    });
+    await tx.securityEvent.create({
+      data: {
+        type: "SECURITY_HUNTER_QUEUED",
+        severity: "LOW",
+        targetId: run.id,
+        metadata: { hunterType: run.hunterType, engine: run.engine },
+      },
+    });
+    return run;
   });
-  await prisma.securityEvent.create({
-    data: {
-      type: "SECURITY_HUNTER_QUEUED",
-      severity: "LOW",
-      targetId: run.id,
-      metadata: { hunterType: run.hunterType, engine: run.engine },
-    },
-  });
-  return run;
 }
 
 /**
@@ -75,20 +77,36 @@ export async function claimSecurityHunterRun(now = new Date()): Promise<{
 
   try {
     return await prisma.$transaction(async (tx) => {
-      await tx.securityHunterRun.updateMany({
+      const exhausted = await tx.securityHunterRun.findMany({
         where: {
           status: "RUNNING",
           attemptCount: { gte: MAX_HUNTER_ATTEMPTS },
           leaseExpiresAt: { lte: now },
         },
-        data: {
-          status: "FAILED",
-          summary: "Worker lease expired after the maximum retry count.",
-          finishedAt: now,
-          leaseTokenHash: null,
-          leaseExpiresAt: null,
-        },
+        select: { id: true },
       });
+      for (const stale of exhausted) {
+        const expired = await tx.securityHunterRun.updateMany({
+          where: { id: stale.id, status: "RUNNING", leaseExpiresAt: { lte: now } },
+          data: {
+            status: "FAILED",
+            summary: "Worker lease expired after the maximum retry count.",
+            finishedAt: now,
+            leaseTokenHash: null,
+            leaseExpiresAt: null,
+          },
+        });
+        if (expired.count === 1) {
+          await tx.securityEvent.create({
+            data: {
+              type: "SECURITY_HUNTER_FAILED",
+              severity: "MEDIUM",
+              targetId: stale.id,
+              metadata: { reason: "MAXIMUM_LEASE_ATTEMPTS_EXCEEDED" },
+            },
+          });
+        }
+      }
 
       const activeCount = await tx.securityHunterRun.count({
         where: { status: "RUNNING", leaseExpiresAt: { gt: now } },
@@ -179,32 +197,34 @@ async function settleSecurityHunterRun(
   summary: string,
   now: Date,
 ): Promise<boolean> {
-  const updated = await prisma.securityHunterRun.updateMany({
-    where: {
-      id: runId,
-      status: "RUNNING",
-      leaseTokenHash: hashLeaseToken(leaseToken),
-      leaseExpiresAt: { gt: now },
-    },
-    data: {
-      status,
-      summary: summary.trim().slice(0, 2000),
-      finishedAt: now,
-      leaseTokenHash: null,
-      leaseExpiresAt: null,
-    },
-  });
-  if (updated.count !== 1) return false;
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.securityHunterRun.updateMany({
+      where: {
+        id: runId,
+        status: "RUNNING",
+        leaseTokenHash: hashLeaseToken(leaseToken),
+        leaseExpiresAt: { gt: now },
+      },
+      data: {
+        status,
+        summary: summary.trim().slice(0, 2000),
+        finishedAt: now,
+        leaseTokenHash: null,
+        leaseExpiresAt: null,
+      },
+    });
+    if (updated.count !== 1) return false;
 
-  await prisma.securityEvent.create({
-    data: {
-      type: status === "FAILED" ? "SECURITY_HUNTER_FAILED" : "SECURITY_HUNTER_COMPLETED",
-      severity: status === "FAILED" ? "MEDIUM" : "LOW",
-      targetId: runId,
-      metadata: { status },
-    },
+    await tx.securityEvent.create({
+      data: {
+        type: status === "FAILED" ? "SECURITY_HUNTER_FAILED" : "SECURITY_HUNTER_COMPLETED",
+        severity: status === "FAILED" ? "MEDIUM" : "LOW",
+        targetId: runId,
+        metadata: { status },
+      },
+    });
+    return true;
   });
-  return true;
 }
 
 export function completeSecurityHunterRun(
