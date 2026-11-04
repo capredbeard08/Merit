@@ -18,7 +18,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const member = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } },
   });
-  if (!member || !can(member.role.toLowerCase() as Role, "files:recover")) {
+  if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!can(member.role.toLowerCase() as Role, "files:recover")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!file.deletedAt || file.status !== "DELETED") {
