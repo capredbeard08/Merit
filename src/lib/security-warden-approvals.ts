@@ -5,6 +5,7 @@ import {
   type SecurityApproval,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isSecurityArtifactActionAllowed } from "@/lib/security-warden-artifact-policy";
 
 const FOUNDER_APPROVAL_ACTIONS = new Set<SecurityActionType>([
   "SAFE_UNPACK",
@@ -70,8 +71,8 @@ export async function requestFounderSecurityApproval(input: {
     if (!artifact || artifact.sha256.toLowerCase() !== input.artifactHash.toLowerCase()) {
       throw new Error("ARTIFACT_SCOPE_MISMATCH");
     }
-    if (artifact.storageState === "DISPOSED" || artifact.storageState === "RESTORED") {
-      throw new Error("ARTIFACT_NOT_ACTIONABLE");
+    if (!isSecurityArtifactActionAllowed(input.actionType, artifact.storageState, artifact.scannerVerdict)) {
+      throw new Error("ARTIFACT_ACTION_NOT_ALLOWED");
     }
 
     const approval = await tx.securityApproval.create({
