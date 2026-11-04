@@ -240,6 +240,14 @@ export async function consumeFounderSecurityApproval(input: {
         hashSecurityActionScope(approval.actionScope as Prisma.InputJsonObject) !== requestedScopeHash) {
       throw new Error("APPROVAL_SCOPE_MISMATCH");
     }
+    const artifact = await tx.securityArtifact.findUnique({
+      where: { id: input.artifactId },
+      select: { sha256: true, storageState: true, scannerVerdict: true },
+    });
+    if (!artifact || artifact.sha256.toLowerCase() !== input.artifactHash.toLowerCase() ||
+        !isSecurityArtifactActionAllowed(input.actionType, artifact.storageState, artifact.scannerVerdict)) {
+      throw new Error("ARTIFACT_ACTION_NOT_ALLOWED");
+    }
 
     const consumed = await tx.securityApproval.updateMany({
       where: {
