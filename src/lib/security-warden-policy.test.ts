@@ -14,6 +14,7 @@ const approval = {
   status: "APPROVED" as const,
   actionType: "DISPOSE" as const,
   artifactHash: hash,
+  scopeHash: "c".repeat(64),
   expiresAt: new Date("2026-11-05T00:00:00.000Z"),
   consumedAt: null,
 };
@@ -35,7 +36,7 @@ test("unpacking, deobfuscation, restore and disposal require Founder approval", 
 
 test("approval is valid only for Founder with fresh session and MFA", () => {
   assert.equal(isFounderApprovalUsable({
-    authority, approval, requestedAction: "DISPOSE", requestedArtifactHash: hash,
+    authority, approval, requestedAction: "DISPOSE", requestedArtifactHash: hash, requestedScopeHash: "c".repeat(64),
     now: new Date("2026-11-04T00:00:00.000Z"),
   }), true);
   assert.equal(isFounderApprovalUsable({
@@ -53,10 +54,10 @@ test("approval is valid only for Founder with fresh session and MFA", () => {
 test("approval cannot be reused for another action or artifact", () => {
   const now = new Date("2026-11-04T00:00:00.000Z");
   assert.equal(isFounderApprovalUsable({
-    authority, approval, requestedAction: "SAFE_UNPACK", requestedArtifactHash: hash, now,
+    authority, approval, requestedAction: "SAFE_UNPACK", requestedArtifactHash: hash, requestedScopeHash: "c".repeat(64), now,
   }), false);
   assert.equal(isFounderApprovalUsable({
-    authority, approval, requestedAction: "DISPOSE", requestedArtifactHash: "b".repeat(64), now,
+    authority, approval, requestedAction: "DISPOSE", requestedArtifactHash: "b".repeat(64), requestedScopeHash: "c".repeat(64), now,
   }), false);
 });
 
@@ -87,4 +88,12 @@ test("incident transitions reject skipping approval or reopening a closed case",
   assert.equal(canTransitionIncident("OPEN", "RESOLVED"), false);
   assert.equal(canTransitionIncident("CLOSED", "OPEN"), false);
   assert.equal(canTransitionIncident("FALSE_POSITIVE", "TRIAGED"), true);
+});
+
+test("approval cannot be replayed with a different operation scope", () => {
+  assert.equal(isFounderApprovalUsable({
+    authority, approval, requestedAction: "DISPOSE",
+    requestedArtifactHash: hash, requestedScopeHash: "d".repeat(64),
+    now: new Date("2026-11-04T00:00:00.000Z"),
+  }), false);
 });
