@@ -93,16 +93,19 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
     if (downloaded.size !== Number(asset.sizeBytes)) throw new Error("AUTHORITATIVE_SIZE_MISMATCH");
     if (leaseLost) throw new Error("WORKER_LEASE_LOST");
 
-    const incident = await prisma.securityIncident.create({
-      data: {
-        workspaceId: asset.workspaceId,
-        source: "UPLOAD",
-        severity: "MEDIUM",
-        confidence: 100,
-        fingerprint: downloaded.sha256,
-        summary: "Quarantined upload awaiting automated malware inspection.",
-      },
-    });
+    const existingArtifact = await prisma.securityArtifact.findUnique({ where: { originalObjectRef: asset.pathname } });
+    const incident = existingArtifact?.incidentId
+      ? await prisma.securityIncident.findUniqueOrThrow({ where: { id: existingArtifact.incidentId } })
+      : await prisma.securityIncident.create({
+          data: {
+            workspaceId: asset.workspaceId,
+            source: "UPLOAD",
+            severity: "MEDIUM",
+            confidence: 100,
+            fingerprint: downloaded.sha256,
+            summary: "Quarantined upload awaiting automated malware inspection.",
+          },
+        });
     const artifact = await prisma.securityArtifact.upsert({
       where: { originalObjectRef: asset.pathname },
       create: {
@@ -127,7 +130,7 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
     if (leaseLost) throw new Error("WORKER_LEASE_LOST");
     const verdict = scan.code === 0 ? "CLEAN" : scan.code === 1 ? "MALICIOUS" : "ERROR";
 
-    await prisma.securityArtifact.updateMany({
+    const verdictWrite = await prisma.securityArtifact.updateMany({
       where: { id: artifact.id, sha256: downloaded.sha256, storageState: "QUARANTINED" },
       data: {
         scannerVerdict: verdict,
@@ -137,6 +140,7 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
         chainOfCustody: { source: "PRIVATE_BLOB", hunterRunId: run.id, exitCode: scan.code },
       },
     });
+    if (verdictWrite.count !== 1) throw new Error("ARTIFACT_STATE_CHANGED_BEFORE_VERDICT");
     await prisma.securityFinding.create({
       data: {
         incidentId: incident.id,
