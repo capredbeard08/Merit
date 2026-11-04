@@ -81,6 +81,7 @@ CREATE TABLE "SecurityApproval" (
   "approvedById" TEXT,
   "artifactHash" TEXT,
   "actionScope" JSONB NOT NULL,
+  "scopeHash" TEXT NOT NULL,
   "reason" VARCHAR(1000) NOT NULL,
   "nonceHash" TEXT NOT NULL,
   "expiresAt" TIMESTAMP(3) NOT NULL,
