@@ -60,8 +60,8 @@ export async function POST(
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    const code = error instanceof Error ? error.message :
-      error instanceof Prisma.PrismaClientKnownRequestError ? error.code : "APPROVAL_DECISION_FAILED";
+    const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code :
+      error instanceof Error ? error.message : "APPROVAL_DECISION_FAILED";
     const conflictCodes = new Set([
       "APPROVAL_NOT_PENDING_OR_EXPIRED",
       "APPROVAL_ALREADY_DECIDED",
