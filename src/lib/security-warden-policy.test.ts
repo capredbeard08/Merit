@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canTransitionIncident,
   isFounderApprovalUsable,
   mayReleaseArtifact,
   mayRunAutomatically,
@@ -78,4 +79,12 @@ test("quarantined files are released only after a durable clean verdict", () => 
   assert.equal(mayReleaseArtifact("QUARANTINED", "UNKNOWN"), false);
   assert.equal(mayReleaseArtifact("QUARANTINED", "MALICIOUS"), false);
   assert.equal(mayReleaseArtifact("AVAILABLE", "CLEAN"), false);
+});
+
+test("incident transitions reject skipping approval or reopening a closed case", () => {
+  assert.equal(canTransitionIncident("OPEN", "TRIAGED"), true);
+  assert.equal(canTransitionIncident("INVESTIGATING", "AWAITING_APPROVAL"), true);
+  assert.equal(canTransitionIncident("OPEN", "RESOLVED"), false);
+  assert.equal(canTransitionIncident("CLOSED", "OPEN"), false);
+  assert.equal(canTransitionIncident("FALSE_POSITIVE", "TRIAGED"), true);
 });
