@@ -88,7 +88,7 @@ export function PlatformRedSquid({ canApprove }: { canApprove: boolean }) {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function decide(incident: Incident, approval: Approval, decision: "APPROVE" | "DENY") {
+  async function decide(approval: Approval, decision: "APPROVE" | "DENY") {
     if (!canApprove || busyId) return;
     if (approval.actionType === "DISPOSE" && decision === "APPROVE" &&
         !window.confirm("Approve this disposal request? This records permission only; it does not delete the quarantined original.")) {
@@ -226,10 +226,10 @@ export function PlatformRedSquid({ canApprove }: { canApprove: boolean }) {
                         <p className="mt-2 text-sm leading-6 text-[#69756e]">{approval.reason}</p>
                         {canApprove ? (
                           <div className="mt-4 flex flex-wrap gap-2">
-                            <button type="button" disabled={busyId !== null} onClick={() => void decide(incident, approval, "APPROVE")} className="rounded-xl bg-[#173b2f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                            <button type="button" disabled={busyId !== null} onClick={() => void decide(approval, "APPROVE")} className="rounded-xl bg-[#173b2f] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
                               {busyId === approval.id ? "Saving…" : "Approve"}
                             </button>
-                            <button type="button" disabled={busyId !== null} onClick={() => void decide(incident, approval, "DENY")} className="rounded-xl border border-[#d9c4bd] bg-white px-4 py-2 text-sm font-semibold text-[#8b493b] disabled:opacity-50">
+                            <button type="button" disabled={busyId !== null} onClick={() => void decide(approval, "DENY")} className="rounded-xl border border-[#d9c4bd] bg-white px-4 py-2 text-sm font-semibold text-[#8b493b] disabled:opacity-50">
                               Deny
                             </button>
                           </div>
