@@ -13,7 +13,7 @@ CLAMD_PID=$!
 ready=0
 attempt=0
 while [ "$attempt" -lt 90 ]; do
-  if [ -S /run/clamav/clamd.ctl ] && clamdscan --no-summary /etc/hostname >/dev/null 2>&1; then
+  if [ -S /run/clamav/clamd.ctl ] && clamdscan --config-file=/etc/clamdscan.conf --no-summary /etc/hostname >/dev/null 2>&1; then
     ready=1
     break
   fi
