@@ -35,7 +35,8 @@ Red Squid coordinates bounded specialist security workers that detect suspicious
 ## Current boundaries and outstanding work
 
 - Existing `recordSecurityEvent` classifies and stores security events; it is not a source-code scanner.
-- No active CodeQL/Semgrep runner, dependency scanner, secret scanner, integrity monitor, behaviour monitor, or network monitor has been connected by this increment.
+- Added a CI Code Hunter workflow using CodeQL `security-extended` for JavaScript/TypeScript, plus a Dependency Hunter workflow running `npm audit --omit=dev --audit-level=high`. These scan repository code and production dependencies in GitHub Actions; they do not scan uploaded customer artefacts or execute inside MERIT production.
+- No secret scanner, integrity monitor, behaviour monitor, or network monitor has been connected by this increment.
 - No worker queue, bounded concurrency controller, isolated analysis sandbox, approval UI, scanner adapter, or disposal/recovery executor has been connected yet. Approval consumption records an authorized action but does not execute it.
 - The policy module is a pure guard; `security-warden-approvals.ts` now provides the transactional server-side approval lifecycle. It is not yet connected to Founder-facing HTTP routes, an approval UI, or an execution queue. Route handlers must still call the service using the authenticated Better Auth session ID; never accept client-supplied Founder, MFA, or freshness flags.
 - The Prisma Postgres provider currently used by MERIT does not support custom restricted PostgreSQL roles. Do not claim database RLS isolation or wire a pretend restricted role into runtime connections.
@@ -46,6 +47,6 @@ Red Squid coordinates bounded specialist security workers that detect suspicious
 1. Validate Prisma schema and generate the Prisma client.
 2. Replay the complete migration chain against disposable PostgreSQL, then run the security suite, integration tests, type-check, and production build.
 3. Add database-backed tests for cross-workspace incident access and incident retention after workspace deletion. Approval race/replay, fresh-session gating, and artifact-hash mismatch now have integration coverage.
-4. Implement and test the scanner adapters, queue limits, sandbox, approval UI, atomic approval consumption, audit trail, and recoverable disposal workflow.
+4. Extend hunter coverage with secret scanning, repository integrity checks, and bounded artifact-scanner jobs; implement queue limits and a sandbox before any dynamic analysis. Approval UI and transactional approval consumption exist, but execution and recoverable disposal remain disabled.
 5. Run an independent security review and verify the full route authorization matrix.
 6. Only after all agreed work is complete, review the final branch and explicitly authorize deployment. Until then, keep Vercel previews disabled and production untouched.
