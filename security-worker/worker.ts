@@ -152,42 +152,43 @@ async function inspectRun(job: NonNullable<Awaited<ReturnType<typeof claimSecuri
     if (leaseLost || !await heartbeatSecurityHunterRun(run.id, leaseToken)) throw new Error("WORKER_LEASE_LOST");
     const verdict = classifyClamAvResult(scan.code, scan.output);
 
-    const verdictWrite = await prisma.securityArtifact.updateMany({
-      where: { id: artifact.id, sha256: downloaded.sha256, storageState: "QUARANTINED" },
-      data: {
-        scannerVerdict: verdict,
-        scannerName: "ClamAV",
-        scannerVersion: "clamdscan",
-        scannedAt: new Date(),
-        chainOfCustody: { source: "PRIVATE_BLOB", hunterRunId: run.id, exitCode: scan.code },
-      },
-    });
-    if (verdictWrite.count !== 1) throw new Error("ARTIFACT_STATE_CHANGED_BEFORE_VERDICT");
-    await prisma.securityFinding.create({
-      data: {
-        incidentId: incident.id,
-        artifactId: artifact.id,
-        hunterType: "DATA",
-        detector: "CLAMAV",
-        ruleVersion: "container-signature-database",
-        sha256: downloaded.sha256,
-        evidenceMetadata: { scanner: "ClamAV", verdict, exitCode: scan.code },
-        rationale: verdict === "CLEAN"
-          ? "ClamAV completed without detecting a known signature. This is not a guarantee of safety; the upload remains quarantined pending Founder-controlled release."
-          : verdict === "MALICIOUS"
-            ? "ClamAV reported a malware signature. The original remains quarantined and was not executed or modified."
-            : "ClamAV could not complete a conclusive inspection (including scan-limit or encrypted-content alerts). No clean verdict was issued; the upload remains quarantined.",
-        confidence: verdict === "ERROR" ? 0 : 100,
-        severity: verdict === "MALICIOUS" ? "HIGH" : verdict === "ERROR" ? "MEDIUM" : "LOW",
-      },
-    });
-
-    await prisma.securityIncident.update({
-      where: { id: incident.id },
-      data: {
-        lastSeenAt: new Date(),
-        ...(verdict === "MALICIOUS" ? { severity: "HIGH", confidence: 95 } : {}),
-      },
+    await prisma.$transaction(async (tx) => {
+      const verdictWrite = await tx.securityArtifact.updateMany({
+        where: { id: artifact.id, sha256: downloaded.sha256, storageState: "QUARANTINED" },
+        data: {
+          scannerVerdict: verdict,
+          scannerName: "ClamAV",
+          scannerVersion: "clamdscan",
+          scannedAt: new Date(),
+          chainOfCustody: { source: "PRIVATE_BLOB", hunterRunId: run.id, exitCode: scan.code },
+        },
+      });
+      if (verdictWrite.count !== 1) throw new Error("ARTIFACT_STATE_CHANGED_BEFORE_VERDICT");
+      await tx.securityFinding.create({
+        data: {
+          incidentId: incident.id,
+          artifactId: artifact.id,
+          hunterType: "DATA",
+          detector: "CLAMAV",
+          ruleVersion: "container-signature-database",
+          sha256: downloaded.sha256,
+          evidenceMetadata: { scanner: "ClamAV", verdict, exitCode: scan.code },
+          rationale: verdict === "CLEAN"
+            ? "ClamAV completed without detecting a known signature. This is not a guarantee of safety; the upload remains quarantined pending Founder-controlled release."
+            : verdict === "MALICIOUS"
+              ? "ClamAV reported a malware signature. The original remains quarantined and was not executed or modified."
+              : "ClamAV could not complete a conclusive inspection (including scan-limit or encrypted-content alerts). No clean verdict was issued; the upload remains quarantined.",
+          confidence: verdict === "MALICIOUS" ? 95 : 0,
+          severity: verdict === "MALICIOUS" ? "HIGH" : verdict === "ERROR" ? "MEDIUM" : "LOW",
+        },
+      });
+      await tx.securityIncident.update({
+        where: { id: incident.id },
+        data: {
+          lastSeenAt: new Date(),
+          ...(verdict === "MALICIOUS" ? { severity: "HIGH", confidence: 95 } : {}),
+        },
+      });
     });
 
     if (verdict === "ERROR") {
