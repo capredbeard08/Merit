@@ -38,6 +38,7 @@ export type ApprovalDecision = {
   status: "PENDING" | "APPROVED" | "DENIED" | "EXPIRED" | "CONSUMED" | "REVOKED";
   actionType: WardenAction;
   artifactHash: string | null;
+  scopeHash: string;
   expiresAt: Date;
   consumedAt: Date | null;
 };
@@ -73,6 +74,7 @@ export function isFounderApprovalUsable(input: {
   approval: ApprovalDecision;
   requestedAction: WardenAction;
   requestedArtifactHash: string;
+  requestedScopeHash: string;
   now?: Date;
 }): boolean {
   const now = input.now ?? new Date();
@@ -83,6 +85,8 @@ export function isFounderApprovalUsable(input: {
   if (approval.actionType !== input.requestedAction) return false;
   if (!approval.artifactHash || !/^[a-f0-9]{64}$/i.test(approval.artifactHash)) return false;
   if (approval.artifactHash.toLowerCase() !== input.requestedArtifactHash.toLowerCase()) return false;
+  if (!/^[a-f0-9]{64}$/i.test(approval.scopeHash)) return false;
+  if (approval.scopeHash.toLowerCase() !== input.requestedScopeHash.toLowerCase()) return false;
   if (!Number.isFinite(approval.expiresAt.getTime()) || approval.expiresAt.getTime() <= now.getTime()) return false;
   return true;
 }
