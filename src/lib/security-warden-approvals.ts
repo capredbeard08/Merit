@@ -166,6 +166,16 @@ export async function approveFounderSecurityAction(input: {
         hashSecurityActionScope(approval.actionScope as Prisma.InputJsonObject) !== approval.scopeHash) {
       throw new Error("APPROVAL_SCOPE_INTEGRITY_FAILURE");
     }
+    const artifact = approval.artifactId
+      ? await tx.securityArtifact.findUnique({
+          where: { id: approval.artifactId },
+          select: { sha256: true, storageState: true, scannerVerdict: true },
+        })
+      : null;
+    if (!artifact || artifact.sha256.toLowerCase() !== approval.artifactHash?.toLowerCase() ||
+        !isSecurityArtifactActionAllowed(approval.actionType, artifact.storageState, artifact.scannerVerdict)) {
+      throw new Error("ARTIFACT_ACTION_NOT_ALLOWED");
+    }
 
     const updated = await tx.securityApproval.updateMany({
       where: { id: approval.id, status: "PENDING", expiresAt: { gt: now } },
