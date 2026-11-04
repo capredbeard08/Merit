@@ -11,10 +11,10 @@ RUN apt-get update \
 
 COPY package*.json ./
 RUN npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
-  && npm ci \
-  && npx prisma generate
+  && npm ci --ignore-scripts
 
 COPY . .
+RUN npx prisma generate
 COPY security-worker/clamd.conf /etc/clamav/clamd.conf
 COPY security-worker/freshclam.conf /etc/clamav/freshclam.conf
 COPY security-worker/entrypoint.sh /usr/local/bin/merit-security-worker
