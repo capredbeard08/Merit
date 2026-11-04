@@ -81,3 +81,14 @@ jobs:
 
       - name: Build production application
         run: npm run build
+
+  scanner-image:
+    name: Build private Red Squid scanner image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build scanner container (no push or deployment)
+        run: docker build --pull -f security-worker/Dockerfile -t merit-red-squid:ci .
