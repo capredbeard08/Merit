@@ -24,7 +24,7 @@ let stopping = false;
 
 function runScanner(path: string): Promise<{ code: number; output: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn("clamdscan", ["--no-summary", "--stdout", "--stream", path], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("clamdscan", ["--config-file=/etc/clamdscan.conf", "--no-summary", "--stdout", "--stream", path], { stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     const collect = (chunk: Buffer) => {
       if (output.length < 8_192) output += chunk.toString("utf8").slice(0, 8_192 - output.length);
