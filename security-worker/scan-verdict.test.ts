@@ -21,4 +21,6 @@ test("does not call encrypted-content alerts malware", () => {
 test("fails closed for scanner errors and unknown exit codes", () => {
   assert.equal(classifyClamAvResult(2, "ERROR"), "ERROR");
   assert.equal(classifyClamAvResult(-1, ""), "ERROR");
+  assert.equal(classifyClamAvResult(0, ""), "ERROR");
+  assert.equal(classifyClamAvResult(1, ""), "ERROR");
 });
