@@ -70,7 +70,7 @@ test("expired, consumed, malformed and non-approved grants fail closed", () => {
     { ...approval, status: "PENDING" as const },
   ]) {
     assert.equal(isFounderApprovalUsable({
-      authority, approval: changed, requestedAction: "DISPOSE", requestedArtifactHash: hash, now,
+      authority, approval: changed, requestedAction: "DISPOSE", requestedArtifactHash: hash, requestedScopeHash: "c".repeat(64), now,
     }), false);
   }
 });
