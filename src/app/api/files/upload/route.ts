@@ -40,7 +40,11 @@ export async function POST(request: Request): Promise<Response> {
         const payload = JSON.parse(tokenPayload || "{}") as { workspaceId?: string; userId?: string; originalName?: string; sizeBytes?: number };
         if (!payload.workspaceId || !payload.userId || !payload.originalName) throw new Error("Missing verified upload metadata");
         const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: payload.workspaceId, userId: payload.userId } } });
-        if (!member) throw new Error("Workspace membership no longer exists");
+        // Revalidate the permission at completion, not only when the upload
+        // token was issued. A role may have been revoked while the upload ran.
+        if (!member || !can(member.role.toLowerCase() as Role, "files:manage")) {
+          throw new Error("Upload authorization expired");
+        }
         const originalName = safeOriginalName(payload.originalName);
         await prisma.fileAsset.upsert({
           where: { pathname: blob.pathname },
