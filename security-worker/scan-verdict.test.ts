@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyClamAvResult } from "./scan-verdict";
+import { areSignaturesFresh, classifyClamAvResult } from "./scan-verdict";
 
 test("classifies a completed scan with no detections as clean", () => {
   assert.equal(classifyClamAvResult(0, "artifact.bin: OK"), "CLEAN");
@@ -25,7 +25,6 @@ test("fails closed for scanner errors and unknown exit codes", () => {
   assert.equal(classifyClamAvResult(1, ""), "ERROR");
 });
 
-import { areSignaturesFresh } from "./scan-verdict";
 
 test("requires every signature database to be fresh", () => {
   const now = 1_800_000_000_000;
