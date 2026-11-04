@@ -541,6 +541,14 @@ enum SecurityArtifactState {
   RETAINED
 }
 
+enum SecurityScannerVerdict {
+  UNKNOWN
+  CLEAN
+  MALICIOUS
+  ERROR
+  TIMEOUT
+}
+
 enum SecurityApprovalStatus {
   PENDING
   APPROVED
@@ -641,6 +649,10 @@ model SecurityArtifact {
   sizeBytes         BigInt
   contentType       String?
   storageState      SecurityArtifactState @default(QUARANTINED)
+  scannerVerdict    SecurityScannerVerdict @default(UNKNOWN)
+  scannerName       String?
+  scannerVersion    String?
+  scannedAt         DateTime?
   quarantineReason  String?              @db.VarChar(1000)
   chainOfCustody    Json?
   retainedUntil     DateTime?
