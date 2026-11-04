@@ -70,4 +70,17 @@ printf '%s\n' "$limit_output"
   exit 1
 }
 
-echo "Red Squid ClamAV runtime smoke tests passed (benign, EICAR, oversized)."
+# Encrypted archives must be reported as incomplete, never clean.
+printf 'MERIT encrypted archive fixture\\n' > /tmp/red-squid-smoke/secret.txt
+zip -q -P red-squid-test /tmp/red-squid-smoke/encrypted.zip /tmp/red-squid-smoke/secret.txt
+set +e
+encrypted_output=$(clamdscan --config-file=/etc/clamdscan.conf --no-summary --stdout --stream /tmp/red-squid-smoke/encrypted.zip 2>&1)
+encrypted_status=$?
+set -e
+printf '%s\\n' "$encrypted_output"
+[ "$encrypted_status" -eq 1 ] && printf '%s\\n' "$encrypted_output" | grep -Eiq 'Heuristics\\.Encrypted|Encrypted' || {
+  echo "Encrypted archive did not trigger an inconclusive encrypted-content alert" >&2
+  exit 1
+}
+
+echo "Red Squid ClamAV runtime smoke tests passed (benign, EICAR, oversized, encrypted archive)."
