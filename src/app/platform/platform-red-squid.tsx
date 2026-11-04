@@ -29,6 +29,19 @@ type Artifact = {
   createdAt: string;
 };
 
+type HunterRun = {
+  id: string;
+  hunterType: string;
+  engine: string;
+  engineVersion: string | null;
+  status: string;
+  attemptCount: number;
+  summary: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+};
+
 type Approval = {
   id: string;
   actionType: string;
@@ -51,6 +64,7 @@ type Incident = {
   workspaceScoped: boolean;
   findings: Finding[];
   artifacts: Artifact[];
+  hunterRuns: HunterRun[];
   approvals: Approval[];
 };
 
@@ -207,6 +221,26 @@ export function PlatformRedSquid({ canApprove }: { canApprove: boolean }) {
                         </div>
                         <p className="mt-1 break-all text-[11px] text-[#718178]">SHA-256: {artifact.sha256}</p>
                         {artifact.scannerName && <p className="mt-1 text-xs text-[#718178]">Scanner: {artifact.scannerName}{artifact.scannerVersion ? ` ${artifact.scannerVersion}` : ""}{artifact.scannedAt ? ` · ${dateLabel(artifact.scannedAt)}` : ""}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {incident.hunterRuns.length > 0 && (
+                <div className="border-b border-[#e5e9e3] p-5">
+                  <h4 className="text-sm font-semibold text-[#315345]">Hunter activity ({incident.hunterRuns.length})</h4>
+                  <ul className="mt-3 space-y-2">
+                    {incident.hunterRuns.map((run) => (
+                      <li key={run.id} className="rounded-xl bg-[#f7f6ef] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-semibold text-[#173b2f]">{run.hunterType.replaceAll("_", " ")} Hunter</span>
+                          <span className="rounded-full bg-[#e7eee9] px-2.5 py-1 text-xs font-semibold text-[#315b49]">{run.status}</span>
+                          <span className="text-xs text-[#718178]">{run.engine}{run.engineVersion ? ` · ${run.engineVersion}` : ""}</span>
+                          <span className="text-xs text-[#718178]">Attempt {run.attemptCount}/3</span>
+                        </div>
+                        {run.summary && <p className="mt-2 text-xs leading-5 text-[#69756e]">{run.summary}</p>}
+                        <p className="mt-1 text-[11px] text-[#718178]">Queued {dateLabel(run.createdAt)}{run.finishedAt ? ` · Finished ${dateLabel(run.finishedAt)}` : ""}</p>
                       </li>
                     ))}
                   </ul>
