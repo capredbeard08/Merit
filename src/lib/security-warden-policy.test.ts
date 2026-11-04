@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { isSecurityArtifactActionAllowed } from "./security-warden-artifact-policy";
+import { securityActionScopeMatches } from "./security-warden-scope-policy";
 import {
   canTransitionIncident,
   isFounderApprovalUsable,
@@ -111,4 +112,11 @@ test("analysis and disposal remain restricted to quarantined or retained artifac
   assert.equal(isSecurityArtifactActionAllowed("DEOBFUSCATE", "ANALYSIS_APPROVED", "UNKNOWN"), true);
   assert.equal(isSecurityArtifactActionAllowed("DISPOSE", "RETAINED", "MALICIOUS"), true);
   assert.equal(isSecurityArtifactActionAllowed("DISPOSE", "AVAILABLE" as never, "UNKNOWN"), false);
+});
+
+test("approval scope must name the exact operation and artifact", () => {
+  const scope = { operation: "DISPOSE", artifactId: "artifact-1" };
+  assert.equal(securityActionScopeMatches(scope, "DISPOSE", "artifact-1"), true);
+  assert.equal(securityActionScopeMatches(scope, "RESTORE", "artifact-1"), false);
+  assert.equal(securityActionScopeMatches(scope, "DISPOSE", "artifact-2"), false);
 });
