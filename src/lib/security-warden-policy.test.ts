@@ -41,12 +41,12 @@ test("approval is valid only for Founder with fresh session and MFA", () => {
   }), true);
   assert.equal(isFounderApprovalUsable({
     authority: { ...authority, hasFreshMfa: false }, approval,
-    requestedAction: "DISPOSE", requestedArtifactHash: hash,
+    requestedAction: "DISPOSE", requestedArtifactHash: hash, requestedScopeHash: "c".repeat(64),
     now: new Date("2026-11-04T00:00:00.000Z"),
   }), false);
   assert.equal(isFounderApprovalUsable({
     authority: { ...authority, isFounderSuperAdmin: false }, approval,
-    requestedAction: "DISPOSE", requestedArtifactHash: hash,
+    requestedAction: "DISPOSE", requestedArtifactHash: hash, requestedScopeHash: "c".repeat(64),
     now: new Date("2026-11-04T00:00:00.000Z"),
   }), false);
 });
