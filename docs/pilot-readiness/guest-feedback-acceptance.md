@@ -15,7 +15,7 @@ This document defines the evidence required before a business is invited to use 
 | Duplicate submissions | HMAC-keyed idempotency exists; CI integration test passed | Browser retry/offline behaviour on a real device |
 | Rate limiting | PostgreSQL-backed and fail-closed; CI test proves 429 and sanitized SecurityEvent | Production monitoring and database-outage verification |
 | Public input validation | Zod schema bounds rating and message | Malformed JSON, wrong types, oversize message, and malicious-input tests |
-| Tenant isolation | Composite guest relations and explicit membership/workspace predicates exist; authenticated API isolation tests added in this review but not yet CI-validated. Prisma Postgres does not support custom roles, so restricted-role/RLS isolation is unavailable on the current provider. | Validate authenticated cross-workspace reads/writes; audit every business-data route for membership checks and workspace-scoped predicates; do not claim RLS protection |
+| Tenant isolation | Composite guest relations and explicit membership/workspace predicates exist; authenticated API isolation tests passed in CI #434 on commit `cfb996f`. Prisma Postgres does not support custom roles, so restricted-role/RLS isolation is unavailable on the current provider. | Validate authenticated cross-workspace reads/writes; audit every business-data route for membership checks and workspace-scoped predicates; do not claim RLS protection |
 | QR presentation | QR preview and print/table-tent surfaces exist | Real-device scan, print dimensions, camera and browser tests |
 | Mobile guest flow | Mobile-first page exists | Test on at least one Android and one iOS browser where available |
 | Browser security headers | CSP allows the QR image provider host | Browser confirms QR image loads and no unnecessary CSP exceptions |
@@ -59,11 +59,11 @@ This document defines the evidence required before a business is invited to use 
 ## Release blockers
 
 The following are not complete and block production pilot sign-off:
-1. PR #8 CI run #397 passed at code head `b41f706`; PR #9 CI run #413 passed at code head `a2b7e5c`. Re-run CI after material code changes.
+1. PR #8 CI run #397 passed at code head `b41f706`. PR #9 CI run #434 passed on current code head `cfb996f`, including Prisma validation/generation, disposable PostgreSQL migration replay, integration tests, Security Warden tests, TypeScript and production build.
 2. PR #9's migration replay passed on disposable PostgreSQL in run #413; a combined PR #8 + #9 branch review is still required.
 3. Guest-feedback integration tests for cross-tenant FK rejection, idempotency, rate-limit audit, QR lifecycle, malformed input, and stale reactivation passed in run #413.
-4. Restricted non-owner runtime DB credentials and transaction-scoped tenant context must be implemented and tested before RLS or production tenant data access.
-5. PostgreSQL RLS policies and cross-workspace tests must pass using the restricted runtime role.
+4. Prisma Postgres does not support custom PostgreSQL roles; a second connection string cannot provide a restricted runtime identity. The unused `withTenantDb` scaffold has been disabled. Do not configure `DATABASE_RUNTIME_URL` as if it provided least privilege.
+5. Authenticated cross-workspace API tests passed in CI #434. Complete a route-by-route audit of all business-data endpoints and background workers; RLS remains unavailable as a security boundary on the current provider.
 6. Browser/mobile QR scan and print tests must be performed on a non-production environment.
 7. Preview and Production database credentials must be confirmed isolated; no live database mutation is permitted during acceptance.
 8. Verified production backup and restore drill must precede any future production migration.
@@ -83,7 +83,7 @@ Record each run with commit SHA, CI run URL, test environment, date, tester, res
 | Rate-limit/audit behavior | CI #413, `a2b7e5c` | 3 Nov 2026 | Passed |
 | Android QR scan | Pending | Pending | Pending |
 | iOS QR scan | Pending | Pending | Pending |
-| Authenticated guest-feedback API isolation | New tests added after CI #413; awaiting new CI run | 3 Nov 2026 | Pending |\n| Full business-data route isolation audit | In progress | 3 Nov 2026 | Pending |\n| Dashboard/branch isolation | Pending | Pending | Pending |
+| Authenticated guest-feedback API isolation | CI #434, `cfb996f` | 4 Nov 2026 | Passed |\n| Full business-data route isolation audit | Pending | Pending | Pending |\n| Dashboard/branch isolation | Pending | Pending | Pending |
 | Owner sign-off | Pending | Pending | Pending |
 
 ## Explicit non-authorization
