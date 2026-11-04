@@ -79,6 +79,9 @@ jobs:
       - name: Type-check Red Squid worker TypeScript
         run: npx tsc --noEmit -p tsconfig.security-worker.json
 
+      - name: Test Red Squid scan verdict classification
+        run: npx tsx --test security-worker/scan-verdict.test.ts
+
       - name: Build production application
         run: npm run build
 
