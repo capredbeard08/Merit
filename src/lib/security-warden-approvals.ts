@@ -66,7 +66,7 @@ export async function requestFounderSecurityApproval(input: {
   const approval = await prisma.$transaction(async (tx) => {
     const artifact = await tx.securityArtifact.findFirst({
       where: { id: input.artifactId, incidentId: input.incidentId },
-      select: { id: true, sha256: true, storageState: true },
+      select: { id: true, sha256: true, storageState: true, scannerVerdict: true },
     });
     if (!artifact || artifact.sha256.toLowerCase() !== input.artifactHash.toLowerCase()) {
       throw new Error("ARTIFACT_SCOPE_MISMATCH");
