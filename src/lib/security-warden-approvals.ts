@@ -1,4 +1,5 @@
-import { createHash, randomBytes } from "node:crypto";
+import "server-only";
+import { createHash } from "node:crypto";
 import {
   Prisma,
   type SecurityActionType,
@@ -60,33 +61,48 @@ export async function requestFounderSecurityApproval(input: {
   const serializedScope = canonicalJson(input.actionScope);
   if (Buffer.byteLength(serializedScope, "utf8") > MAX_SCOPE_BYTES) throw new Error("APPROVAL_SCOPE_TOO_LARGE");
 
-  const artifact = await prisma.securityArtifact.findFirst({
-    where: { id: input.artifactId, incidentId: input.incidentId },
-    select: { id: true, sha256: true, storageState: true },
-  });
-  if (!artifact || artifact.sha256.toLowerCase() !== input.artifactHash.toLowerCase()) {
-    throw new Error("ARTIFACT_SCOPE_MISMATCH");
-  }
-  if (artifact.storageState === "DISPOSED" || artifact.storageState === "RESTORED") {
-    throw new Error("ARTIFACT_NOT_ACTIONABLE");
-  }
-
-  const nonce = randomBytes(32).toString("hex");
   const scopeHash = hashSecurityActionScope(input.actionScope);
-  return prisma.securityApproval.create({
-    data: {
-      incidentId: input.incidentId,
-      artifactId: input.artifactId,
-      actionType: input.actionType,
-      requestedById: input.requestedById,
-      artifactHash: input.artifactHash.toLowerCase(),
-      actionScope: input.actionScope,
-      scopeHash,
-      reason: input.reason.trim(),
-      nonceHash: createHash("sha256").update(nonce).digest("hex"),
-      expiresAt: new Date(now.getTime() + APPROVAL_TTL_MS),
-    },
-  });
+  return prisma.$transaction(async (tx) => {
+    const artifact = await tx.securityArtifact.findFirst({
+      where: { id: input.artifactId, incidentId: input.incidentId },
+      select: { id: true, sha256: true, storageState: true },
+    });
+    if (!artifact || artifact.sha256.toLowerCase() !== input.artifactHash.toLowerCase()) {
+      throw new Error("ARTIFACT_SCOPE_MISMATCH");
+    }
+    if (artifact.storageState === "DISPOSED" || artifact.storageState === "RESTORED") {
+      throw new Error("ARTIFACT_NOT_ACTIONABLE");
+    }
+
+    const approval = await tx.securityApproval.create({
+      data: {
+        incidentId: input.incidentId,
+        artifactId: input.artifactId,
+        actionType: input.actionType,
+        requestedById: input.requestedById,
+        artifactHash: input.artifactHash.toLowerCase(),
+        actionScope: input.actionScope,
+        scopeHash,
+        reason: input.reason.trim(),
+        expiresAt: new Date(now.getTime() + APPROVAL_TTL_MS),
+      },
+    });
+    const incident = await tx.securityIncident.findUnique({
+      where: { id: input.incidentId },
+      select: { workspaceId: true },
+    });
+    await tx.securityEvent.create({
+      data: {
+        workspaceId: incident?.workspaceId ?? null,
+        actorUserId: input.requestedById,
+        type: "SECURITY_APPROVAL_REQUESTED",
+        severity: input.actionType === "DISPOSE" ? "CRITICAL" : "HIGH",
+        targetId: approval.id,
+        metadata: { actionType: input.actionType, artifactId: input.artifactId, scopeHash },
+      },
+    });
+    return approval;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 async function assertFreshFounderApprovalAuthority(
@@ -237,12 +253,13 @@ export async function consumeFounderSecurityApproval(input: {
       },
       select: { id: true },
     });
+    const incident = await tx.securityIncident.findUnique({
+      where: { id: approval.incidentId },
+      select: { workspaceId: true },
+    });
     await tx.securityEvent.create({
       data: {
-        workspaceId: (await tx.securityIncident.findUnique({
-          where: { id: approval.incidentId },
-          select: { workspaceId: true },
-        }))?.workspaceId ?? null,
+        workspaceId: incident?.workspaceId ?? null,
         actorUserId: input.actorUserId ?? null,
         type: "SECURITY_ACTION_APPROVAL_CONSUMED",
         severity: input.actionType === "DISPOSE" ? "CRITICAL" : "HIGH",
