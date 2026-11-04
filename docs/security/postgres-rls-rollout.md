@@ -1,6 +1,10 @@
 # MERIT PostgreSQL Row-Level Security rollout
 
-Status: design and implementation gate only. This document does not apply database changes.\n\n## Current provider blocker\n\nThe Prisma Postgres project currently used by MERIT does not support creating a separate restricted PostgreSQL role with the required grants. A second connection string is not, by itself, a restricted role. Therefore `DATABASE_RUNTIME_URL` and `withTenantDb` are preparatory only and MUST NOT be wired into tenant routes or described as RLS enforcement on the current database. Do not reuse the migration/application credential and assume it is restricted. RLS remains blocked until the provider supports the required role model or MERIT deliberately migrates to a PostgreSQL provider that does. That provider change is a separate architecture and migration decision; it is not part of this PR.
+Status: design and implementation gate only. This document does not apply database changes.
+
+## Current provider blocker
+
+The Prisma Postgres project currently used by MERIT does not support creating a separate restricted PostgreSQL role with the required grants. A second connection string is not, by itself, a restricted role. Therefore `DATABASE_RUNTIME_URL` and `withTenantDb` are preparatory only and MUST NOT be wired into tenant routes or described as RLS enforcement on the current database. Do not reuse the migration/application credential and assume it is restricted. RLS remains blocked until the provider supports the required role model or MERIT deliberately migrates to a PostgreSQL provider that does. That provider change is a separate architecture and migration decision; it is not part of this PR.
 
 ## Why this is a gated rollout
 
