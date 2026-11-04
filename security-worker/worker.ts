@@ -42,7 +42,7 @@ function runScanner(path: string): Promise<{ code: number }> {
 
 async function assertFreshSignatures(): Promise<void> {
   const entries = await readdir("/var/lib/clamav");
-  const databases = entries.filter((name) => /\\.(?:cvd|cld)$/.test(name));
+  const databases = entries.filter((name) => /\.(?:cvd|cld)$/.test(name));
   if (databases.length === 0) throw new Error("SIGNATURE_DATABASE_MISSING");
   const timestamps = await Promise.all(databases.map(async (name) => (await stat(join("/var/lib/clamav", name))).mtimeMs));
   const newest = Math.max(...timestamps);
