@@ -62,7 +62,7 @@ jobs:
       - name: Apply migrations to disposable CI database
         run: npx prisma migrate deploy
 
-      - name: Run database-backed support authorization tests
+      - name: Run database-backed integration tests (support, guest feedback, Red Squid approvals and hunter queue)
         env:
           MERIT_CI_AUTH_TESTS: "true"
         run: npm run test:integration
