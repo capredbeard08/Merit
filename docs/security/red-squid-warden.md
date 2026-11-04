@@ -16,7 +16,9 @@ Red Squid coordinates bounded specialist security workers that detect suspicious
 - Kept `SecurityEvent` as the existing operational event stream; incident records complement it rather than replace it.
 - Kept `workspaceId` on incidents as an unbound nullable historical identifier. Workspace deletion must not cascade-delete incident history.
 - Added pure policy checks: only static analysis and quarantine are eligible for automatic execution; safe unpacking, deobfuscation, restore, and disposal require Founder Super Admin authority with a fresh session and fresh MFA, plus an exact unexpired approval bound to the artifact hash and action.
-- Added a fail-closed release predicate: a quarantined artifact must remain quarantined for malicious, unknown, missing, timed-out, or failed scanner verdicts.
+- Added persisted scanner verdict fields; unknown, malicious, error, and timeout verdicts are not clean.
+- Added a transactional approval service: requests are short-lived, Founder decisions recheck platform role, revocation, MFA enrollment, and the persisted fresh session, and worker consumption is nonce-bound, artifact-hash-bound, scope-bound, and single-use.
+- Revalidates artifact hash and lifecycle state at request, approval, and consumption time. Restoration is blocked unless the persisted scanner verdict is CLEAN.
 
 ## Required execution invariants
 
@@ -34,8 +36,8 @@ Red Squid coordinates bounded specialist security workers that detect suspicious
 
 - Existing `recordSecurityEvent` classifies and stores security events; it is not a source-code scanner.
 - No active CodeQL/Semgrep runner, dependency scanner, secret scanner, integrity monitor, behaviour monitor, or network monitor has been connected by this increment.
-- No worker queue, bounded concurrency controller, isolated analysis sandbox, approval UI, approval-consumption transaction, or disposal/recovery workflow has been connected yet.
-- The current policy module is a pure guard and its tests are not a substitute for server-side authorization or atomic database enforcement. Protected routes must independently verify the Founder role, fresh session, fresh MFA, approval scope, expiry, artifact hash, and one-time consumption.
+- No worker queue, bounded concurrency controller, isolated analysis sandbox, approval UI, scanner adapter, or disposal/recovery executor has been connected yet. Approval consumption records an authorized action but does not execute it.
+- The policy module is a pure guard; `security-warden-approvals.ts` now provides the transactional server-side approval lifecycle. It is not yet connected to Founder-facing HTTP routes, an approval UI, or an execution queue. Route handlers must still call the service using the authenticated Better Auth session ID; never accept client-supplied Founder, MFA, or freshness flags.
 - The Prisma Postgres provider currently used by MERIT does not support custom restricted PostgreSQL roles. Do not claim database RLS isolation or wire a pretend restricted role into runtime connections.
 - No production database migration, production deployment, merge, or destructive operation is authorized by this work.
 
@@ -43,7 +45,7 @@ Red Squid coordinates bounded specialist security workers that detect suspicious
 
 1. Validate Prisma schema and generate the Prisma client.
 2. Replay the complete migration chain against disposable PostgreSQL, then run the security suite, integration tests, type-check, and production build.
-3. Add database-backed tests for approval race/replay, artifact-hash mismatch, cross-workspace access, and incident retention after workspace deletion.
+3. Add database-backed tests for cross-workspace incident access and incident retention after workspace deletion. Approval race/replay, fresh-session gating, and artifact-hash mismatch now have integration coverage.
 4. Implement and test the scanner adapters, queue limits, sandbox, approval UI, atomic approval consumption, audit trail, and recoverable disposal workflow.
 5. Run an independent security review and verify the full route authorization matrix.
 6. Only after all agreed work is complete, review the final branch and explicitly authorize deployment. Until then, keep Vercel previews disabled and production untouched.
