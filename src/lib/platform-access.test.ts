@@ -9,6 +9,7 @@ test("founder super admin receives platform-console capabilities", () => {
   assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:users:manage"), true);
   assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:access:revoke"), true);
   assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:audit:export"), true);
+  assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:security:approve"), true);
 });
 
 test("platform administrators cannot grant platform access", () => {
@@ -17,6 +18,7 @@ test("platform administrators cannot grant platform access", () => {
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:access:revoke"), false);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:audit:export"), false);
   assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:deployments:read"), false);
+  assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:security:approve"), false);
 });
 
 test("engineers receive technical visibility but not user administration", () => {
@@ -25,6 +27,7 @@ test("engineers receive technical visibility but not user administration", () =>
   assert.equal(canAccessPlatform(active("ENGINEER"), "platform:deployments:read"), true);
   assert.equal(canAccessPlatform(active("ENGINEER"), "platform:users:read"), false);
   assert.equal(canAccessPlatform(active("ENGINEER"), "platform:users:manage"), false);
+  assert.equal(canAccessPlatform(active("ENGINEER"), "platform:security:approve"), false);
 });
 
 test("platform roles never imply workspace customer-data access", () => {
