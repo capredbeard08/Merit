@@ -11,3 +11,14 @@ export function classifyClamAvResult(code: number, output: string): ClamAvVerdic
   if (/Heuristics\\.(?:Limits\\.Exceeded|Encrypted)/i.test(output)) return "ERROR";
   return /:\\s+.+\\s+FOUND\\b/i.test(output) ? "MALICIOUS" : "ERROR";
 }
+
+export function areSignaturesFresh(
+  timestamps: number[],
+  now: number,
+  maxAgeMs: number,
+): boolean {
+  if (timestamps.length === 0) return false;
+  return timestamps.every((timestamp) =>
+    Number.isFinite(timestamp) && timestamp <= now && now - timestamp <= maxAgeMs
+  );
+}
