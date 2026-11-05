@@ -12,13 +12,13 @@ export default async function FeedbackPage({
 }) {
   const { id } = await params;
   const { t } = await searchParams;
-  if (!t || !verifyFeedbackToken(id, t)) notFound();
+  if (!t) notFound();
 
   const feedback = await prisma.feedback.findUnique({
     where: { id },
     include: { workspace: true, branch: true, customer: true },
   });
-  if (!feedback || feedback.customer.optedOutAt) notFound();
+  if (!feedback || !verifyFeedbackToken(id, t, feedback.sentAt) || feedback.customer.optedOutAt) notFound();
 
   return (
     <main className="min-h-screen bg-[#f7f3ea] px-6 py-12 text-[#173b2f]">
