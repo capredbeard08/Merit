@@ -164,3 +164,10 @@ Email scanners can follow the GET redirect without changing feedback or consent 
 If upload authorization is revoked after the private Blob upload has completed but before the FileAsset record is written, the completion callback now attempts to delete the orphaned Blob. If that cleanup fails, it records a high-severity `UPLOAD_ORPHAN_CLEANUP_FAILED` security event with the object pathname (not the customer file contents or token) for operator reconciliation. The upload remains rejected and is never made available in MERIT.
 
 The public feedback and opt-out pages set a `no-referrer` policy so their bearer capability query strings are not forwarded as referrer data to other origins.
+
+
+## Tenant ownership immutability (2026-11-05)
+
+The relation guards validate child-to-parent workspace equality on insert/update. A further bypass was identified: changing a parent record's own `workspaceId` could make existing children cross-workspace without touching those child rows. A separate migration now makes `workspaceId` immutable for Member, Branch, Customer, ServiceEvent, Feedback, Invitation, WebhookEndpoint, AuditLog, FollowUp, FeedbackReply, Insight and FileAsset records.
+
+The database integration suite now verifies that Branch, Customer, ServiceEvent and Feedback cannot be reassigned to another workspace. A legitimate future tenant transfer must be an explicit, audited migration that reconciles all dependent records; it must not use ordinary application updates.
