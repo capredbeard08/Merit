@@ -171,3 +171,10 @@ The public feedback and opt-out pages set a `no-referrer` policy so their bearer
 The relation guards validate child-to-parent workspace equality on insert/update. A further bypass was identified: changing a parent record's own `workspaceId` could make existing children cross-workspace without touching those child rows. A separate migration now makes `workspaceId` immutable for Member, Branch, Customer, ServiceEvent, Feedback, Invitation, WebhookEndpoint, AuditLog, FollowUp, FeedbackReply, Insight and FileAsset records.
 
 The database integration suite now verifies that Branch, Customer, ServiceEvent and Feedback cannot be reassigned to another workspace. A legitimate future tenant transfer must be an explicit, audited migration that reconciles all dependent records; it must not use ordinary application updates.
+
+
+## Explicit opt-out precedence for integrations (2026-11-05)
+
+The service-completed webhook no longer clears `Customer.optedOutAt` when an incoming integration event says `feedbackContact: true`. A customer's explicit MERIT opt-out remains authoritative; ordinary service events cannot silently reverse it. The webhook also clears the stored `consentAt` when the incoming event carries no feedback-contact consent, and it does not create a feedback request or follow-up for an opted-out customer.
+
+Re-consent is deliberately deferred to a separate explicit workflow. A regression test covers the case where a later webhook says feedback contact is allowed but the customer already has an opt-out timestamp.
