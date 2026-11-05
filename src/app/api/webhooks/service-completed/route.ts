@@ -98,28 +98,39 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Webhook is not authorized for this branch" }, { status: 403 });
   }
 
-  const existing = await prisma.serviceEvent.findFirst({
-    where: { workspaceId: parsed.data.workspaceId, externalId: parsed.data.eventId },
-    select: { id: true, feedback: { select: { id: true } } },
-  });
-
-  if (existing) {
-    return NextResponse.json({
-      accepted: true,
-      duplicate: true,
-      eventId: parsed.data.eventId,
-      feedbackId: existing.feedback?.id ?? null,
-    }, { status: 202 });
-  }
-
-  const branch = await prisma.branch.findFirst({
-    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
-    select: { id: true },
-  });
-  if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
-
   try {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Hold shared locks on the credential and branch for the whole event
+      // transaction. A concurrent revoke/archive wins first or waits until this
+      // already-authorized event is fully committed.
+      const activeEndpoint = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "WebhookEndpoint"
+        WHERE "id" = ${endpoint.id}
+          AND "workspaceId" = ${parsed.data.workspaceId}
+          AND "revokedAt" IS NULL
+        FOR SHARE
+      `;
+      if (activeEndpoint.length !== 1) throw new Error("WEBHOOK_ENDPOINT_REVOKED");
+
+      const activeBranch = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Branch"
+        WHERE "id" = ${parsed.data.branchId}
+          AND "workspaceId" = ${parsed.data.workspaceId}
+          AND "archivedAt" IS NULL
+        FOR SHARE
+      `;
+      if (activeBranch.length !== 1) throw new Error("BRANCH_NOT_ACTIVE");
+
+      const existing = await tx.serviceEvent.findFirst({
+        where: { workspaceId: parsed.data.workspaceId, externalId: parsed.data.eventId },
+        select: { id: true, feedback: { select: { id: true } } },
+      });
+      if (existing) {
+        return { eventId: parsed.data.eventId, feedbackId: existing.feedback?.id ?? null, duplicate: true };
+      }
+
       const customer = await tx.customer.upsert({
         where: {
           workspaceId_externalId: {
@@ -160,7 +171,7 @@ export async function POST(request: Request): Promise<Response> {
       });
 
       if (!canCreateFeedbackRequest(parsed.data.consent.feedbackContact, customer.optedOutAt)) {
-        return { eventId: event.id, feedbackId: null };
+        return { eventId: event.id, feedbackId: null, duplicate: false };
       }
 
       const feedback = await tx.feedback.create({
@@ -183,7 +194,7 @@ export async function POST(request: Request): Promise<Response> {
         },
       });
 
-      return { eventId: event.id, feedbackId: feedback.id };
+      return { eventId: event.id, feedbackId: feedback.id, duplicate: false };
     });
 
     await prisma.webhookEndpoint.updateMany({
@@ -193,10 +204,17 @@ export async function POST(request: Request): Promise<Response> {
 
     return NextResponse.json({
       accepted: true,
+      ...(result.duplicate ? { duplicate: true } : {}),
       eventId: parsed.data.eventId,
       feedbackId: result.feedbackId,
     }, { status: 202 });
   } catch (error) {
+    if (error instanceof Error && error.message === "WEBHOOK_ENDPOINT_REVOKED") {
+      return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "BRANCH_NOT_ACTIVE") {
+      return NextResponse.json({ error: "Branch not found or no longer active" }, { status: 404 });
+    }
     const duplicate = await prisma.serviceEvent.findFirst({
       where: { workspaceId: parsed.data.workspaceId, externalId: parsed.data.eventId },
       select: { id: true, feedback: { select: { id: true } } },
