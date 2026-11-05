@@ -199,3 +199,6 @@ The worker uses compare-and-set completion. If an opt-out or response cancels th
 The service-completed webhook now revalidates and takes `FOR SHARE` locks on both the matched, non-revoked webhook endpoint and the active branch inside the same database transaction that creates the service event, customer updates, feedback request and follow-up. If credential revocation or branch archival commits first, the webhook is rejected. If event processing acquires the locks first, revocation/archive waits until that already-authorized transaction commits.
 
 This closes the earlier check-then-write window where a credential could be revoked or a branch archived after the initial lookup but before tenant records were created. The database integration suite verifies that concurrent endpoint revocation and branch archival wait on those locks.
+
+
+Public opt-out confirmation now writes the customer preference change, feedback state, cancellation of that customer's queued/processing follow-ups, and a `CUSTOMER_OPTED_OUT` audit entry in one database transaction. The audit entry records only the workspace, customer record ID and source action; it does not copy the customer's email, phone or feedback text.
