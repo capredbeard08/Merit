@@ -39,3 +39,13 @@ export function redactEmail(email?: string) {
 export function canCreateFeedbackRequest(feedbackContact: boolean, optedOutAt: Date | null) {
   return feedbackContact && optedOutAt === null;
 }
+
+
+/** A queued email is eligible only while feedback is still awaiting a response. */
+export function canDispatchFollowUp(
+  feedbackStatus: string,
+  customerEmail: string | null,
+  optedOutAt: Date | null,
+) {
+  return feedbackStatus === "PENDING" && !!customerEmail && optedOutAt === null;
+}
