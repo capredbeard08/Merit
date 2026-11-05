@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, feedbackEmailHtml } from "@/lib/email";
 import { createFeedbackToken } from "@/lib/feedback-token";
+import { canDispatchFollowUp } from "@/lib/security";
 
 export async function POST(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
@@ -47,7 +48,7 @@ export async function POST(request: Request): Promise<Response> {
     if (!item) { skipped++; continue; }
 
     const customer = item.feedback.customer;
-    if (!customer.email || customer.optedOutAt || item.feedback.status === "OPTED_OUT") {
+    if (!canDispatchFollowUp(item.feedback.status, customer.email, customer.optedOutAt)) {
       await prisma.followUp.updateMany({ where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" }, data: { status: "CANCELLED", processingAt: null } });
       continue;
     }
@@ -67,9 +68,11 @@ export async function POST(request: Request): Promise<Response> {
     });
     if (
       !finalCheck ||
-      !finalCheck.feedback.customer.email ||
-      finalCheck.feedback.customer.optedOutAt ||
-      finalCheck.feedback.status === "OPTED_OUT"
+      !canDispatchFollowUp(
+        finalCheck.feedback.status,
+        finalCheck.feedback.customer.email,
+        finalCheck.feedback.customer.optedOutAt,
+      )
     ) {
       await prisma.followUp.updateMany({
         where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
