@@ -130,3 +130,21 @@ The guards lock and inspect each referenced parent row and reject a relation whe
 The CI workflow now provisions a disposable PostgreSQL 16 service, applies the migration chain with `prisma migrate deploy`, and runs database integration tests for cross-workspace relation inserts, updates and bulk updates. These tests validate database integrity, not API authorization.
 
 **Important limits:** these triggers do not provide row-level security and do not prevent an incorrectly scoped SELECT, UPDATE or DELETE that does not change a guarded relation. Application-level membership checks and workspace predicates remain mandatory. API-level negative tests for reads, ordinary updates/deletes, relation traversal and bulk operations are still outstanding. The migration has not been applied to production.
+
+
+## Membership-revocation race hardening (2026-11-05)
+
+`withWorkspacePermission` now acquires a PostgreSQL `FOR SHARE` lock on the authenticated actor's exact `Member` row inside the same transaction as the tenant mutation. A concurrent membership deletion or role update must wait for the authorized mutation to finish; if revocation or downgrade wins first, the helper denies the write.
+
+The helper is now used for:
+- branch creation, update, archive and restore;
+- feedback status updates;
+- file soft-delete, recovery, permanent-erasure claim, and upload-completion record creation;
+- webhook endpoint creation and revocation;
+- invitation and member creation;
+- insight generation; and
+- workspace renaming.
+
+Other flows have separate boundaries: workspace creation inserts its initial owner membership in one nested database write; invitation acceptance conditionally claims a single-use token and creates membership in one transaction; public feedback and opt-out use signed capability tokens; inbound webhooks and follow-up processing use separate integration/cron credentials.
+
+The integration suite also verifies that a concurrent membership deletion blocks while a protected mutation holds the membership lock. This is not a substitute for RLS and does not automatically protect read-only requests. It is also not a full HTTP route integration suite. API-level negative tests for cross-workspace reads, ordinary updates/deletes, relation traversal and bulk operations remain required before merge. Long-running external storage deletion is not performed inside the database transaction; the file is first moved to an authorized, recoverable erasure-pending state.
