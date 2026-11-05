@@ -202,3 +202,16 @@ This closes the earlier check-then-write window where a credential could be revo
 
 
 Public opt-out confirmation now writes the customer preference change, feedback state, cancellation of that customer's queued/processing follow-ups, and a `CUSTOMER_OPTED_OUT` audit entry in one database transaction. The audit entry records only the workspace, customer record ID and source action; it does not copy the customer's email, phone or feedback text.
+
+
+## HTTP route-level tenant boundary tests (2026-11-05)
+
+A database-backed route integration suite now invokes the actual feedback, branch, file and webhook API handlers with a mocked authenticated session and a real disposable PostgreSQL database. It verifies:
+- feedback listing returns only the selected workspace's records;
+- a user without membership cannot list another workspace's feedback;
+- a foreign feedback ID cannot be updated by supplying the caller's own workspace ID;
+- a foreign branch cannot be archived through a different workspace ID;
+- file reads and webhook revocation mask resources owned by a workspace the caller does not belong to; and
+- rejected operations leave the foreign records unchanged.
+
+These tests exercise the route handlers, not merely the underlying SQL triggers. They complement the database relationship tests; they do not constitute exhaustive coverage of every route or every relation traversal/bulk operation.
