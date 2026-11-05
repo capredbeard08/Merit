@@ -30,3 +30,12 @@ export function redactEmail(email?: string) {
   if (parts.length !== 2) return "[redacted]";
   return parts[0].slice(0, 1) + "***@" + parts[1];
 }
+
+
+/**
+ * A later integration event must never silently reverse a customer's explicit
+ * MERIT opt-out. Re-consent requires a separate, deliberate workflow.
+ */
+export function canCreateFeedbackRequest(feedbackContact: boolean, optedOutAt: Date | null) {
+  return feedbackContact && optedOutAt === null;
+}
