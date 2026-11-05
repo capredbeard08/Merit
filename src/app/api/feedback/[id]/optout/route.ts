@@ -19,20 +19,30 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid or expired opt-out link" }, { status: 400 });
   }
 
-  await prisma.$transaction([
-    prisma.customer.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.customer.update({
       where: { id: feedback.customerId, workspaceId: feedback.workspaceId },
       data: { optedOutAt: new Date() },
-    }),
-    prisma.feedback.update({
+    });
+    await tx.feedback.update({
       where: { id, workspaceId: feedback.workspaceId },
       data: { status: "OPTED_OUT" },
-    }),
-    prisma.followUp.updateMany({
+    });
+    await tx.followUp.updateMany({
       where: { workspaceId: feedback.workspaceId, status: { in: ["QUEUED", "PROCESSING"] }, feedback: { customerId: feedback.customerId } },
-      data: { status: "CANCELLED" },
-    }),
-  ]);
+      data: { status: "CANCELLED", processingAt: null },
+    });
+    await tx.auditLog.create({
+      data: {
+        workspaceId: feedback.workspaceId,
+        actorUserId: null,
+        action: "CUSTOMER_OPTED_OUT",
+        targetType: "CUSTOMER",
+        targetId: feedback.customerId,
+        metadata: { source: "public_feedback_link" },
+      },
+    });
+  });
 
   return NextResponse.json({ optedOut: true });
 }
