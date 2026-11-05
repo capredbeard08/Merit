@@ -264,3 +264,78 @@ test("membership role downgrade waits for an already-authorized mutation", async
     await prisma.user.deleteMany({ where: { id: user.id } });
   }
 });
+
+
+test("webhook revocation and branch archival wait for an in-flight authorized event", async () => {
+  const suffix = randomUUID();
+  const workspace = await prisma.workspace.create({ data: { name: "Webhook Lock " + suffix } });
+  const branch = await prisma.branch.create({
+    data: { workspaceId: workspace.id, name: "Webhook Branch" },
+  });
+  const endpoint = await prisma.webhookEndpoint.create({
+    data: {
+      workspaceId: workspace.id,
+      branchId: branch.id,
+      label: "Webhook Lock Test",
+      secretHash: "test-secret-hash",
+    },
+  });
+
+  let notifyLocksAcquired!: () => void;
+  let releaseTransaction!: () => void;
+  const locksAcquired = new Promise<void>((resolve) => { notifyLocksAcquired = resolve; });
+  const holdTransaction = new Promise<void>((resolve) => { releaseTransaction = resolve; });
+
+  const processing = prisma.$transaction(async (tx) => {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "WebhookEndpoint"
+      WHERE "id" = ${endpoint.id} AND "workspaceId" = ${workspace.id} AND "revokedAt" IS NULL
+      FOR SHARE
+    `;
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "Branch"
+      WHERE "id" = ${branch.id} AND "workspaceId" = ${workspace.id} AND "archivedAt" IS NULL
+      FOR SHARE
+    `;
+    notifyLocksAcquired();
+    await holdTransaction;
+    return true;
+  });
+
+  let revokeFinished = false;
+  let archiveFinished = false;
+  let revoke: Promise<unknown> | undefined;
+  let archive: Promise<unknown> | undefined;
+  try {
+    await locksAcquired;
+    revoke = concurrentPrisma.webhookEndpoint.update({
+      where: { id: endpoint.id },
+      data: { revokedAt: new Date() },
+    }).then((result) => {
+      revokeFinished = true;
+      return result;
+    });
+    archive = concurrentPrisma.branch.update({
+      where: { id: branch.id },
+      data: { archivedAt: new Date() },
+    }).then((result) => {
+      archiveFinished = true;
+      return result;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(revokeFinished, false, "credential revocation must wait for the event transaction");
+    assert.equal(archiveFinished, false, "branch archival must wait for the event transaction");
+
+    releaseTransaction();
+    assert.equal(await processing, true);
+    await Promise.all([revoke, archive]);
+    assert.equal(revokeFinished, true);
+    assert.equal(archiveFinished, true);
+  } finally {
+    releaseTransaction();
+    if (revoke) await revoke.catch(() => undefined);
+    if (archive) await archive.catch(() => undefined);
+    await prisma.workspace.deleteMany({ where: { id: workspace.id } });
+  }
+});
