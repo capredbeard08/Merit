@@ -157,3 +157,10 @@ New public feedback and opt-out links use versioned HMAC capabilities containing
 Pre-v2 links are accepted only when the associated feedback record has a persisted successful-send timestamp within the same 30-day grace period. This gives already-sent pilot emails a bounded transition window; legacy links without a recorded send time are rejected. The click redirect, feedback page, feedback submission API, opt-out confirmation page and opt-out API all use the same verification policy.
 
 Email scanners can follow the GET redirect without changing feedback or consent state. Opt-out remains a deliberate POST after a confirmation screen. This token lifetime is a capability expiry, not a replacement for customer consent, one-response state transitions, or application authorization.
+
+
+## Upload cleanup and bearer-token referrer protection (2026-11-05)
+
+If upload authorization is revoked after the private Blob upload has completed but before the FileAsset record is written, the completion callback now attempts to delete the orphaned Blob. If that cleanup fails, it records a high-severity `UPLOAD_ORPHAN_CLEANUP_FAILED` security event with the object pathname (not the customer file contents or token) for operator reconciliation. The upload remains rejected and is never made available in MERIT.
+
+The public feedback and opt-out pages set a `no-referrer` policy so their bearer capability query strings are not forwarded as referrer data to other origins.
