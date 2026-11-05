@@ -12,7 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "test:security": "tsx --test src/lib/security-warden.test.ts src/lib/file-security.test.ts src/lib/domain.test.ts src/lib/workspace-access.test.ts src/lib/feedback-link-safety.test.ts src/lib/consent.test.ts",
-    "test:tenant-db": "tsx --test src/lib/tenant-integrity.integration.test.ts"
+    "test:tenant-db": "tsx --test src/lib/tenant-integrity.integration.test.ts src/lib/tenant-route-boundaries.integration.test.ts"
   },
   "dependencies": {
     "next": "15.5.18",
