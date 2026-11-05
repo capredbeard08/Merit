@@ -14,7 +14,7 @@ after(async () => {
 async function expectTenantGuardFailure(operation: () => Promise<unknown>) {
   await assert.rejects(operation, (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    assert.match(message, /cross-workspace|constraint/i);
+    assert.match(message, /cross-workspace|workspace reassignment|constraint/i);
     return true;
   });
 }
@@ -98,6 +98,24 @@ test("database guards reject cross-workspace tenant relations on create and upda
     await expectTenantGuardFailure(() => prisma.customer.updateMany({
       where: { id: customerA.id },
       data: { branchId: branchB.id },
+    }));
+
+    // Parent reassignment must not invalidate children that were valid when created.
+    await expectTenantGuardFailure(() => prisma.branch.update({
+      where: { id: branchA.id },
+      data: { workspaceId: workspaceB.id },
+    }));
+    await expectTenantGuardFailure(() => prisma.customer.update({
+      where: { id: customerA.id },
+      data: { workspaceId: workspaceB.id },
+    }));
+    await expectTenantGuardFailure(() => prisma.serviceEvent.update({
+      where: { id: eventA.id },
+      data: { workspaceId: workspaceB.id },
+    }));
+    await expectTenantGuardFailure(() => prisma.feedback.update({
+      where: { id: feedbackA.id },
+      data: { workspaceId: workspaceB.id },
     }));
   } finally {
     await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
