@@ -10,7 +10,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const token = new URL(request.url).searchParams.get("t");
   if (!token) return NextResponse.json({ error: "Invalid feedback link" }, { status: 404 });
   let valid = verifyFeedbackToken(id, token);
-  if (!valid) {
+  // Legacy v1 capabilities were 43-character base64url HMACs. Avoid a DB
+  // lookup for malformed random tokens; only check plausible legacy tokens.
+  if (!valid && /^[A-Za-z0-9_-]{43}$/.test(token)) {
     const feedback = await prisma.feedback.findUnique({ where: { id }, select: { sentAt: true } });
     valid = verifyFeedbackToken(id, token, feedback?.sentAt);
   }
