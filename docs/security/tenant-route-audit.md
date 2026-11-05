@@ -192,3 +192,10 @@ After the provider call, the worker only marks the follow-up sent if it still ow
 Follow-up dispatch now requires the feedback record to remain in `PENDING` state, the customer to have a usable email address, and no customer opt-out timestamp. This is checked both after the worker claims the queue item and again immediately before provider dispatch. A customer submission or an administrative status change cancels the associated queued/processing follow-up; an explicit opt-out cancels all queued/processing follow-ups for that customer in the workspace.
 
 The worker uses compare-and-set completion. If an opt-out or response cancels the PROCESSING claim while an external provider call is in flight, the worker cannot mark the follow-up SENT or overwrite the feedback's newer status. An email already accepted by the provider before cancellation is outside MERIT's ability to recall.
+
+
+## In-flight webhook revocation and branch archival (2026-11-05)
+
+The service-completed webhook now revalidates and takes `FOR SHARE` locks on both the matched, non-revoked webhook endpoint and the active branch inside the same database transaction that creates the service event, customer updates, feedback request and follow-up. If credential revocation or branch archival commits first, the webhook is rejected. If event processing acquires the locks first, revocation/archive waits until that already-authorized transaction commits.
+
+This closes the earlier check-then-write window where a credential could be revoked or a branch archived after the initial lookup but before tenant records were created. The database integration suite verifies that concurrent endpoint revocation and branch archival wait on those locks.
