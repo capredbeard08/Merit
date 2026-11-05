@@ -52,6 +52,32 @@ export async function POST(request: Request): Promise<Response> {
       continue;
     }
 
+    // Re-read consent and queue state immediately before dispatch. An opt-out
+    // can cancel PROCESSING jobs while the worker is preparing the email.
+    const finalCheck = await prisma.followUp.findFirst({
+      where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
+      select: {
+        feedback: {
+          select: {
+            status: true,
+            customer: { select: { email: true, optedOutAt: true } },
+          },
+        },
+      },
+    });
+    if (
+      !finalCheck ||
+      !finalCheck.feedback.customer.email ||
+      finalCheck.feedback.customer.optedOutAt ||
+      finalCheck.feedback.status === "OPTED_OUT"
+    ) {
+      await prisma.followUp.updateMany({
+        where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
+        data: { status: "CANCELLED", processingAt: null },
+      });
+      continue;
+    }
+
     const token = createFeedbackToken(item.feedback.id);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const feedbackUrl = appUrl + "/api/feedback/" + item.feedback.id + "/click?t=" + token;
@@ -59,7 +85,7 @@ export async function POST(request: Request): Promise<Response> {
 
     try {
       const result = await sendEmail({
-        to: customer.email,
+        to: finalCheck.feedback.customer.email,
         subject: "We'd value your honest feedback",
         html: feedbackEmailHtml({
           customerName: customer.name,
@@ -71,17 +97,23 @@ export async function POST(request: Request): Promise<Response> {
         idempotencyKey: "merit-followup-" + item.id,
       });
 
-      await prisma.$transaction([
-        prisma.followUp.updateMany({
+      const completed = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.followUp.updateMany({
           where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
           data: { status: "SENT", sentAt: new Date(), providerId: result.id ?? null, processingAt: null, error: null },
-        }),
-        prisma.feedback.updateMany({
-          where: { id: item.feedbackId, workspaceId: item.workspaceId },
+        });
+        if (claimed.count !== 1) return false;
+
+        // Do not overwrite an opt-out, reply, resolution or other state change
+        // that occurred while the provider request was in flight.
+        await tx.feedback.updateMany({
+          where: { id: item.feedbackId, workspaceId: item.workspaceId, status: "PENDING" },
           data: { sentAt: new Date(), status: "CONTACTED" },
-        }),
-      ]);
-      sent++;
+        });
+        return true;
+      });
+      if (completed) sent++;
+      else skipped++;
     } catch (error) {
       await prisma.followUp.updateMany({
         where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
