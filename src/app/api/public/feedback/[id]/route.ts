@@ -44,6 +44,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         email: parsed.data.email,
       },
     });
+    await tx.followUp.updateMany({
+      where: { feedbackId: id, workspaceId: feedback.workspaceId, status: { in: ["QUEUED", "PROCESSING"] } },
+      data: { status: "CANCELLED", processingAt: null },
+    });
     return true;
   });
 
