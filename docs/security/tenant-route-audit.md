@@ -185,3 +185,10 @@ Re-consent is deliberately deferred to a separate explicit workflow. A regressio
 An explicit customer opt-out now cancels all queued and currently processing follow-ups for that customer across the workspace, not only the single feedback request whose link was used. The worker rechecks both queue state and the customer's latest opt-out state immediately before provider dispatch.
 
 After the provider call, the worker only marks the follow-up sent if it still owns the PROCESSING claim. It updates the feedback status only while that feedback remains PENDING, so a concurrent opt-out, reply or resolution is not overwritten by a late worker completion. An email request already accepted by an external provider cannot be recalled; the final check narrows that unavoidable external-system race, while the database state remains opt-out-safe.
+
+
+## Feedback completion and queued-email suppression (2026-11-05)
+
+Follow-up dispatch now requires the feedback record to remain in `PENDING` state, the customer to have a usable email address, and no customer opt-out timestamp. This is checked both after the worker claims the queue item and again immediately before provider dispatch. A customer submission or an administrative status change cancels the associated queued/processing follow-up; an explicit opt-out cancels all queued/processing follow-ups for that customer in the workspace.
+
+The worker uses compare-and-set completion. If an opt-out or response cancels the PROCESSING claim while an external provider call is in flight, the worker cannot mark the follow-up SENT or overwrite the feedback's newer status. An email already accepted by the provider before cancellation is outside MERIT's ability to recall.
