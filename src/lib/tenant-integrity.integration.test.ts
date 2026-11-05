@@ -176,3 +176,91 @@ test("membership lock prevents revocation racing a protected tenant mutation", a
 
   assert.equal(membership.workspaceId, workspace.id);
 });
+
+
+test("workspace permission helper fails closed for absent membership and insufficient role", async () => {
+  const suffix = randomUUID();
+  const workspaceA = await prisma.workspace.create({ data: { name: "Access A " + suffix } });
+  const workspaceB = await prisma.workspace.create({ data: { name: "Access B " + suffix } });
+  const user = await prisma.user.create({
+    data: { id: "access-user-" + suffix, name: "Access Test", email: "access-" + suffix + "@example.test" },
+  });
+  await prisma.member.create({
+    data: { workspaceId: workspaceA.id, userId: user.id, email: user.email, role: "VIEWER" },
+  });
+
+  let operationRan = false;
+  try {
+    await assert.rejects(
+      withWorkspacePermission(workspaceB.id, user.id, "branches:manage", async () => {
+        operationRan = true;
+        return true;
+      }),
+      /FORBIDDEN/,
+    );
+    await assert.rejects(
+      withWorkspacePermission(workspaceA.id, user.id, "branches:manage", async () => {
+        operationRan = true;
+        return true;
+      }),
+      /FORBIDDEN/,
+    );
+    assert.equal(operationRan, false);
+  } finally {
+    await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
+  }
+});
+
+test("membership role downgrade waits for an already-authorized mutation", async () => {
+  const suffix = randomUUID();
+  const workspace = await prisma.workspace.create({ data: { name: "Role Lock " + suffix } });
+  const user = await prisma.user.create({
+    data: { id: "role-user-" + suffix, name: "Role Lock", email: "role-" + suffix + "@example.test" },
+  });
+  await prisma.member.create({
+    data: { workspaceId: workspace.id, userId: user.id, email: user.email, role: "OWNER" },
+  });
+
+  let notifyLockAcquired!: () => void;
+  let releaseTransaction!: () => void;
+  const lockAcquired = new Promise<void>((resolve) => { notifyLockAcquired = resolve; });
+  const holdTransaction = new Promise<void>((resolve) => { releaseTransaction = resolve; });
+
+  const protectedMutation = withWorkspacePermission(
+    workspace.id,
+    user.id,
+    "branches:manage",
+    async () => {
+      notifyLockAcquired();
+      await holdTransaction;
+      return "authorized";
+    },
+  );
+
+  let downgradeFinished = false;
+  let downgrade: Promise<unknown> | undefined;
+  try {
+    await lockAcquired;
+    downgrade = concurrentPrisma.member.update({
+      where: { workspaceId_userId: { workspaceId: workspace.id, userId: user.id } },
+      data: { role: "VIEWER" },
+    }).then((result) => {
+      downgradeFinished = true;
+      return result;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(downgradeFinished, false, "role downgrade must wait while the authorization lock is held");
+
+    releaseTransaction();
+    assert.equal(await protectedMutation, "authorized");
+    await downgrade;
+    assert.equal(downgradeFinished, true);
+  } finally {
+    releaseTransaction();
+    if (downgrade) await downgrade.catch(() => undefined);
+    await prisma.workspace.deleteMany({ where: { id: workspace.id } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
+  }
+});
