@@ -12,17 +12,18 @@ export default async function OptOutPage({
 }) {
   const { id } = await params;
   const { t } = await searchParams;
-  if (!t || !verifyFeedbackToken(id, t)) notFound();
+  if (!t) notFound();
 
   const feedback = await prisma.feedback.findUnique({
     where: { id },
     select: {
       id: true,
+      sentAt: true,
       workspace: { select: { name: true } },
       customer: { select: { optedOutAt: true } },
     },
   });
-  if (!feedback) notFound();
+  if (!feedback || !verifyFeedbackToken(id, t, feedback.sentAt)) notFound();
 
   return (
     <main className="min-h-screen bg-[#f7f3ea] px-6 py-16 text-[#173b2f]">
