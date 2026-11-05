@@ -13,15 +13,16 @@ const schema = z.object({
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
   const parsed = schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success || !verifyFeedbackToken(id, parsed.data?.token ?? "")) {
-    return NextResponse.json({ error: "Invalid feedback request" }, { status: 400 });
-  }
+  if (!parsed.success) return NextResponse.json({ error: "Invalid feedback request" }, { status: 400 });
 
   const feedback = await prisma.feedback.findUnique({
     where: { id },
-    select: { id: true, workspaceId: true, status: true },
+    select: { id: true, workspaceId: true, status: true, sentAt: true },
   });
   if (!feedback) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
+  if (!verifyFeedbackToken(id, parsed.data.token, feedback.sentAt)) {
+    return NextResponse.json({ error: "Invalid or expired feedback request" }, { status: 400 });
+  }
 
   const rating = ["ONE", "TWO", "THREE", "FOUR", "FIVE"][parsed.data.rating - 1] as never;
 
