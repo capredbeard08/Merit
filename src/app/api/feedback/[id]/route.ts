@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1).max(128),
@@ -40,7 +41,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     OPTED_OUT: {},
   } as const;
 
-  const updated = await prisma.$transaction(async (tx) => {
+  let updated;
+  try {
+    updated = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "feedback:write",
+      async (tx) => {
     // Keep tenant scope on the mutation itself. The earlier read is not the
     // authorization boundary for this write.
     const claim = await tx.feedback.updateMany({
@@ -60,11 +67,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       });
     }
 
-    return tx.feedback.findFirst({
-      where: { id, workspaceId: parsed.data.workspaceId },
-      select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true },
-    });
-  });
+        return tx.feedback.findFirst({
+          where: { id, workspaceId: parsed.data.workspaceId },
+          select: { id: true, status: true, sentAt: true, clickedAt: true, repliedAt: true, resolvedAt: true },
+        });
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
 
   if (!updated) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
 
