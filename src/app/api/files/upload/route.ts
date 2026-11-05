@@ -1,4 +1,5 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { del } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
@@ -68,6 +69,26 @@ export async function POST(request: Request): Promise<Response> {
           );
         } catch (error) {
           if (error instanceof Error && error.message === "FORBIDDEN") {
+            // The Blob has already been uploaded, but no FileAsset was recorded.
+            // Remove the orphan where possible; if cleanup fails, leave a security
+            // event so an operator can reconcile the private object.
+            try {
+              await del(blob.url);
+            } catch {
+              try {
+                await recordSecurityEvent({
+                  type: "UPLOAD_ORPHAN_CLEANUP_FAILED",
+                  workspaceId: payload.workspaceId,
+                  actorUserId: payload.userId,
+                  targetId: blob.pathname,
+                  metadata: { reason: "permission_revoked_before_upload_completion" },
+                  request,
+                });
+              } catch {
+                // Preserve the original authorization failure; do not mask it
+                // with a secondary logging failure.
+              }
+            }
             throw new Error("Upload authorization expired");
           }
           throw error;
