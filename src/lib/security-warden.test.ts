@@ -31,3 +31,8 @@ test("bounds metadata key count and string length", () => {
   assert.equal((result.longValue as string).length, 240);
   assert.equal(Object.keys(result).length, 20);
 });
+
+
+test("records failed orphan-upload cleanup as high severity", () => {
+  assert.equal(getSecuritySeverity("UPLOAD_ORPHAN_CLEANUP_FAILED"), "HIGH");
+});
