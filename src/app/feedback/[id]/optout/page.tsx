@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyFeedbackToken } from "@/lib/feedback-token";
 import OptOutForm from "./optout-form";
 
+export const metadata = { referrer: "no-referrer" as const };
+
 export default async function OptOutPage({
   params,
   searchParams,
