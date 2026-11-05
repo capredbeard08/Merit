@@ -66,11 +66,13 @@ export async function POST(request: Request): Promise<Response> {
         },
       },
     });
+    const recipientEmail = finalCheck?.feedback.customer.email;
     if (
       !finalCheck ||
+      !recipientEmail ||
       !canDispatchFollowUp(
         finalCheck.feedback.status,
-        finalCheck.feedback.customer.email,
+        recipientEmail,
         finalCheck.feedback.customer.optedOutAt,
       )
     ) {
@@ -88,7 +90,7 @@ export async function POST(request: Request): Promise<Response> {
 
     try {
       const result = await sendEmail({
-        to: finalCheck.feedback.customer.email,
+        to: recipientEmail,
         subject: "We'd value your honest feedback",
         html: feedbackEmailHtml({
           customerName: customer.name,
