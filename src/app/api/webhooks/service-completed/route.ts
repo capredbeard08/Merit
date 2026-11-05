@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { serviceCompletedEventSchema } from "@/lib/security";
+import { canCreateFeedbackRequest, serviceCompletedEventSchema } from "@/lib/security";
 import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/webhook-constants";
 import { recordSecurityEvent } from "@/lib/security-warden";
 
@@ -141,9 +141,9 @@ export async function POST(request: Request): Promise<Response> {
           name: parsed.data.customer.name ?? undefined,
           email: parsed.data.customer.email ?? undefined,
           phone: parsed.data.customer.phone ?? undefined,
-          ...(parsed.data.consent.feedbackContact
-            ? { consentAt: new Date(parsed.data.consent.recordedAt), optedOutAt: null }
-            : {}),
+          consentAt: parsed.data.consent.feedbackContact
+            ? new Date(parsed.data.consent.recordedAt)
+            : null,
         },
       });
 
@@ -159,7 +159,9 @@ export async function POST(request: Request): Promise<Response> {
         },
       });
 
-      if (!parsed.data.consent.feedbackContact) return { eventId: event.id, feedbackId: null };
+      if (!canCreateFeedbackRequest(parsed.data.consent.feedbackContact, customer.optedOutAt)) {
+        return { eventId: event.id, feedbackId: null };
+      }
 
       const feedback = await tx.feedback.create({
         data: {
