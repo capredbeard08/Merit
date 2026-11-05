@@ -8,15 +8,16 @@ const schema = z.object({ token: z.string().min(10).max(512) });
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
   const parsed = schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success || !verifyFeedbackToken(id, parsed.data?.token ?? "")) {
-    return NextResponse.json({ error: "Invalid opt-out link" }, { status: 400 });
-  }
+  if (!parsed.success) return NextResponse.json({ error: "Invalid opt-out link" }, { status: 400 });
 
   const feedback = await prisma.feedback.findUnique({
     where: { id },
-    select: { id: true, workspaceId: true, customerId: true },
+    select: { id: true, workspaceId: true, customerId: true, sentAt: true },
   });
   if (!feedback) return NextResponse.json({ error: "Feedback request not found" }, { status: 404 });
+  if (!verifyFeedbackToken(id, parsed.data.token, feedback.sentAt)) {
+    return NextResponse.json({ error: "Invalid or expired opt-out link" }, { status: 400 });
+  }
 
   await prisma.$transaction([
     prisma.customer.update({
