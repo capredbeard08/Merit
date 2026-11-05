@@ -80,7 +80,7 @@ These paths were present in the branch tree but were not fully source-reviewed i
 
 - `PATCH/DELETE /api/branches/[id]`: mutations now include branch ID and workspace ID.
 - `POST /api/branches/[id]/restore`: restoration is a conditional workspace-scoped mutation.
-- `GET /api/feedback/[id]/click`: click tracking update includes workspace ID.
+- `GET /api/feedback/[id]/click`: validates and redirects only; no GET-based click mutation.
 - `GET /api/feedback/[id]/optout`: customer, feedback and queued follow-up mutations include workspace ID.
 - `POST /api/public/feedback/[id]`: atomic claim includes feedback ID and workspace ID.
 - `POST /api/webhooks/service-completed`: endpoint last-used update includes endpoint ID, workspace ID and active status.
@@ -89,7 +89,7 @@ These paths were present in the branch tree but were not fully source-reviewed i
 - `POST /api/files/[id]/erase`: final row deletion is conditional on tenant ID and the exact pending-erasure state.
 - `GET /api/replies`: requires explicit workspace ID and validates exact membership/role rather than selecting the oldest membership.\n- `POST /api/follow-ups/process`: worker candidate selection, claims, fetches and follow-up/feedback status mutations now include workspace ID; state changes are conditional on expected status. The worker remains cross-tenant by design and is not RLS-isolated.
 
-These remain application-level protections using the global Prisma client. They are not a substitute for RLS. The signed public feedback token currently has no expiry; it is deterministic from the feedback ID and `AUTH_SECRET`. Before production use, decide on a bounded token lifetime and a safe rotation/compatibility plan for already-issued links. Also review whether GET-based click/opt-out actions should use CSRF-resistant POST flows where practical.
+These remain application-level protections using the global Prisma client. They are not a substitute for RLS. The signed public feedback token currently has no expiry; it is deterministic from the feedback ID and `AUTH_SECRET`. Before production use, decide on a bounded token lifetime and a safe rotation/compatibility plan for already-issued links. GET-based click tracking is now read-only, and opt-out state changes require an explicit POST confirmation. The signed public feedback token still has no expiry; before production use, implement a bounded token lifetime and a safe rotation/compatibility plan for already-issued links.
 
 ## Immediate next implementation step
 
@@ -106,3 +106,10 @@ A review-only SQL candidate was added at `docs/security/composite-tenant-keys-re
 - is intentionally not in `prisma/migrations/` and has not been executed.
 
 This is not yet implemented schema enforcement: Prisma relation definitions must be updated to represent the composite keys, generated-client/type validation must pass, and the PostgreSQL server version must be checked for the optional-branch `ON DELETE SET NULL (branchId)` syntax. Do not promote the candidate to a migration until those steps and a read-only data-integrity review are complete.
+
+
+## Public feedback link safety follow-up (2026-11-05)
+
+- The email feedback CTA's GET endpoint now validates the signed token and redirects without changing feedback state. Automated link scanners may follow the URL, but cannot set `clickedAt` or change the feedback status.
+- The opt-out page now presents a confirmation step. Only an explicit client POST to `/api/feedback/[id]/optout` performs the customer opt-out, feedback status update, and queued follow-up cancellation.
+- These changes prevent GET prefetches from silently changing customer preferences or feedback state. They do not add token expiry: the deterministic HMAC token remains non-expiring and must be replaced with a bounded-lifetime, rotatable capability before production email rollout.
