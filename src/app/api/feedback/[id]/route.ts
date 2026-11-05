@@ -62,7 +62,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         data: { optedOutAt: now },
       });
       await tx.followUp.updateMany({
-        where: { feedbackId: id, workspaceId: parsed.data.workspaceId, status: "QUEUED" },
+        where: { workspaceId: parsed.data.workspaceId, status: { in: ["QUEUED", "PROCESSING"] }, feedback: { customerId: feedback.customerId } },
         data: { status: "CANCELLED" },
       });
     }
