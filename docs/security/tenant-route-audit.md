@@ -113,3 +113,20 @@ This is not yet implemented schema enforcement: Prisma relation definitions must
 - The email feedback CTA's GET endpoint now validates the signed token and redirects without changing feedback state. Automated link scanners may follow the URL, but cannot set `clickedAt` or change the feedback status.
 - The opt-out page now presents a confirmation step. Only an explicit client POST to `/api/feedback/[id]/optout` performs the customer opt-out, feedback status update, and queued follow-up cancellation.
 - These changes prevent GET prefetches from silently changing customer preferences or feedback state. They do not add token expiry: the deterministic HMAC token remains non-expiring and must be replaced with a bounded-lifetime, rotatable capability before production email rollout.
+
+
+## Database relation-guard implementation (2026-11-05)
+
+A PostgreSQL migration candidate is now included at `prisma/migrations/20261105090000_workspace_relation_guards/migration.sql`. It installs BEFORE INSERT/UPDATE guards for:
+- Customer → optional Branch
+- ServiceEvent → Branch and Customer
+- Feedback → Branch, Customer and ServiceEvent
+- FollowUp → Feedback
+- FeedbackReply → Feedback
+- WebhookEndpoint → optional Branch
+
+The guards lock and inspect each referenced parent row and reject a relation when its workspace ID differs from the child row's workspace ID. This preserves the current optional-branch behavior without relying on a composite `ON DELETE SET NULL` action that could accidentally null the required child workspace ID.
+
+The CI workflow now provisions a disposable PostgreSQL 16 service, applies the migration chain with `prisma migrate deploy`, and runs database integration tests for cross-workspace relation inserts, updates and bulk updates. These tests validate database integrity, not API authorization.
+
+**Important limits:** these triggers do not provide row-level security and do not prevent an incorrectly scoped SELECT, UPDATE or DELETE that does not change a guarded relation. Application-level membership checks and workspace predicates remain mandatory. API-level negative tests for reads, ordinary updates/deletes, relation traversal and bulk operations are still outstanding. The migration has not been applied to production.
