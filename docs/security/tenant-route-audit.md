@@ -178,3 +178,10 @@ The database integration suite now verifies that Branch, Customer, ServiceEvent 
 The service-completed webhook no longer clears `Customer.optedOutAt` when an incoming integration event says `feedbackContact: true`. A customer's explicit MERIT opt-out remains authoritative; ordinary service events cannot silently reverse it. The webhook also clears the stored `consentAt` when the incoming event carries no feedback-contact consent, and it does not create a feedback request or follow-up for an opted-out customer.
 
 Re-consent is deliberately deferred to a separate explicit workflow. A regression test covers the case where a later webhook says feedback contact is allowed but the customer already has an opt-out timestamp.
+
+
+## Opt-out propagation through the follow-up queue (2026-11-05)
+
+An explicit customer opt-out now cancels all queued and currently processing follow-ups for that customer across the workspace, not only the single feedback request whose link was used. The worker rechecks both queue state and the customer's latest opt-out state immediately before provider dispatch.
+
+After the provider call, the worker only marks the follow-up sent if it still owns the PROCESSING claim. It updates the feedback status only while that feedback remains PENDING, so a concurrent opt-out, reply or resolution is not overwritten by a late worker completion. An email request already accepted by an external provider cannot be recalled; the final check narrows that unavoidable external-system race, while the database state remains opt-out-safe.
