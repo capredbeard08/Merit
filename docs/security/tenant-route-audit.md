@@ -148,3 +148,12 @@ The helper is now used for:
 Other flows have separate boundaries: workspace creation inserts its initial owner membership in one nested database write; invitation acceptance conditionally claims a single-use token and creates membership in one transaction; public feedback and opt-out use signed capability tokens; inbound webhooks and follow-up processing use separate integration/cron credentials.
 
 The integration suite also verifies that a concurrent membership deletion blocks while a protected mutation holds the membership lock. This is not a substitute for RLS and does not automatically protect read-only requests. It is also not a full HTTP route integration suite. API-level negative tests for cross-workspace reads, ordinary updates/deletes, relation traversal and bulk operations remain required before merge. Long-running external storage deletion is not performed inside the database transaction; the file is first moved to an authorized, recoverable erasure-pending state.
+
+
+## Public feedback capability lifetime (2026-11-05)
+
+New public feedback and opt-out links use versioned HMAC capabilities containing a signed issue time and expiry. The default validity period is 30 days. The signature is bound to the feedback ID and both timestamps; malformed, tampered, expired, or implausibly future-dated tokens are rejected.
+
+Pre-v2 links are accepted only when the associated feedback record has a persisted successful-send timestamp within the same 30-day grace period. This gives already-sent pilot emails a bounded transition window; legacy links without a recorded send time are rejected. The click redirect, feedback page, feedback submission API, opt-out confirmation page and opt-out API all use the same verification policy.
+
+Email scanners can follow the GET redirect without changing feedback or consent state. Opt-out remains a deliberate POST after a confirmation screen. This token lifetime is a capability expiry, not a replacement for customer consent, one-response state transitions, or application authorization.
