@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyFeedbackToken } from "@/lib/feedback-token";
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
+const schema = z.object({ token: z.string().min(10).max(512) });
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
-  const url = new URL(request.url);
-  const token = url.searchParams.get("t");
-  if (!token || !verifyFeedbackToken(id, token)) {
+  const parsed = schema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success || !verifyFeedbackToken(id, parsed.data?.token ?? "")) {
     return NextResponse.json({ error: "Invalid opt-out link" }, { status: 400 });
   }
 
@@ -31,5 +33,5 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     }),
   ]);
 
-  return NextResponse.redirect(new URL("/feedback/" + id + "/opted-out", request.url));
+  return NextResponse.json({ optedOut: true });
 }
