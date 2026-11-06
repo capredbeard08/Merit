@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, feedbackEmailHtml } from "@/lib/email";
-import { createFeedbackToken } from "@/lib/feedback-token";
+import { createFeedbackToken, FEEDBACK_TOKEN_TTL_SECONDS } from "@/lib/feedback-token";
 import { canDispatchFollowUp } from "@/lib/security";
 
 export async function POST(request: Request): Promise<Response> {
@@ -13,10 +13,24 @@ export async function POST(request: Request): Promise<Response> {
 
   const now = new Date();
   const staleClaim = new Date(now.getTime() - 10 * 60 * 1000);
-  // Recover jobs abandoned by a crashed worker. Provider idempotency protects retries
-  // if a provider accepted an email immediately before the worker stopped.
+  // Resend retains idempotency keys for 24 hours. Leave a one-hour margin:
+  // processingAt is recorded before the provider request begins, so older
+  // ambiguous attempts must be reconciled instead of blindly resent.
+  const safeRetryCutoff = new Date(now.getTime() - 23 * 60 * 60 * 1000);
   await prisma.followUp.updateMany({
-    where: { status: "PROCESSING", processingAt: { lt: staleClaim } },
+    where: { status: "PROCESSING", processingAt: { lt: safeRetryCutoff } },
+    data: {
+      status: "FAILED",
+      failedAt: now,
+      processingAt: null,
+      error: "Provider outcome is unknown and the idempotency window has elapsed; manual reconciliation is required.",
+    },
+  });
+  await prisma.followUp.updateMany({
+    where: {
+      status: "PROCESSING",
+      processingAt: { lt: staleClaim, gte: safeRetryCutoff },
+    },
     data: { status: "QUEUED", processingAt: null },
   });
 
@@ -83,7 +97,24 @@ export async function POST(request: Request): Promise<Response> {
       continue;
     }
 
-    const token = createFeedbackToken(item.feedback.id);
+    // A retry must reproduce the same email body for Resend's idempotency
+    // check. Use the immutable follow-up creation time rather than a fresh
+    // timestamp on each worker attempt.
+    const tokenIssuedAt = Math.floor(item.createdAt.getTime() / 1000);
+    if (Math.floor(Date.now() / 1000) >= tokenIssuedAt + FEEDBACK_TOKEN_TTL_SECONDS) {
+      await prisma.followUp.updateMany({
+        where: { id: item.id, workspaceId: item.workspaceId, status: "PROCESSING" },
+        data: {
+          status: "FAILED",
+          failedAt: new Date(),
+          processingAt: null,
+          error: "Feedback link lifetime elapsed before dispatch; create a new feedback request instead of sending an expired link.",
+        },
+      });
+      failed++;
+      continue;
+    }
+    const token = createFeedbackToken(item.feedback.id, tokenIssuedAt);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const feedbackUrl = appUrl + "/api/feedback/" + item.feedback.id + "/click?t=" + token;
     const optOutUrl = appUrl + "/feedback/" + item.feedback.id + "/optout?t=" + token;
