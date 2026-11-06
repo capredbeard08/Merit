@@ -12,6 +12,7 @@ import { GET as getMembers, POST as createMember } from "../app/api/members/rout
 import { POST as createInvitation } from "../app/api/invitations/route";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { GET as getInsights } from "../app/api/insights/route";
+import { POST as generateInsight } from "../app/api/insights/generate/route";
 import { GET as getReplies } from "../app/api/replies/route";
 import { GET as getSecurityEvents } from "../app/api/security/events/route";
 
@@ -170,6 +171,15 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
       );
       assert.equal(foreignInsightsResponse.status, 404);
 
+      const foreignInsightGeneration = await generateInsight(
+        new Request("https://merit.example.test/api/insights/generate", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ workspaceId: workspaceB.id }),
+        }),
+      );
+      assert.equal(foreignInsightGeneration.status, 404);
+
       const scopedRepliesResponse = await getReplies(
         new Request("https://merit.example.test/api/replies?workspaceId=" + encodeURIComponent(workspaceA.id)),
       );
@@ -257,6 +267,7 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
       sessionMock.mock.restore();
     }
   } finally {
+    await prisma.securityEvent.deleteMany({ where: { workspaceId: { in: [workspaceA.id, workspaceB.id] } } });
     await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
     await prisma.user.deleteMany({ where: { id: user.id } });
   }
