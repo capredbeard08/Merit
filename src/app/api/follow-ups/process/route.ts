@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, feedbackEmailHtml } from "@/lib/email";
 import { createFeedbackToken, FEEDBACK_TOKEN_TTL_SECONDS } from "@/lib/feedback-token";
-import { canDispatchFollowUp } from "@/lib/security";
+import { canDispatchFollowUp, FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS } from "@/lib/security";
 
 export async function POST(request: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
@@ -16,7 +16,7 @@ export async function POST(request: Request): Promise<Response> {
   // Resend retains idempotency keys for 24 hours. Leave a one-hour margin:
   // processingAt is recorded before the provider request begins, so older
   // ambiguous attempts must be reconciled instead of blindly resent.
-  const safeRetryCutoff = new Date(now.getTime() - 23 * 60 * 60 * 1000);
+  const safeRetryCutoff = new Date(now.getTime() - FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS);
   await prisma.followUp.updateMany({
     where: { status: "PROCESSING", processingAt: { lt: safeRetryCutoff } },
     data: {
