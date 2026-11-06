@@ -246,7 +246,8 @@ The email adapter sends a stable per-follow-up `Idempotency-Key` to Resend. Rese
 
 The worker now:
 - derives the feedback-link issue time from the immutable follow-up creation timestamp, so retrying the same follow-up does not change the signed URL on every attempt;
-- retries an abandoned PROCESSING claim only within a conservative 23-hour window; and
+- persists `firstAttemptAt` separately from the per-attempt `processingAt`, so requeueing a stale claim cannot reset the provider-idempotency clock;
+- retries an abandoned PROCESSING claim only while the original first attempt is within a conservative 23-hour window; and
 - marks older ambiguous attempts FAILED for manual reconciliation rather than blindly resending after the provider's idempotency retention may have elapsed.
 
 If business/customer display data changes between attempts, the resulting email payload may differ and Resend can reject reuse of the same key; the worker records the failure rather than bypassing idempotency with a new key. A durable provider-outcome reconciliation workflow and immutable send-payload snapshot remain future hardening items.
