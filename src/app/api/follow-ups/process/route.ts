@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<Response> {
   // ambiguous attempts must be reconciled instead of blindly resent.
   const safeRetryCutoff = new Date(now.getTime() - FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS);
   await prisma.followUp.updateMany({
-    where: { status: "PROCESSING", processingAt: { lt: safeRetryCutoff } },
+    where: { status: "PROCESSING", firstAttemptAt: { lt: safeRetryCutoff } },
     data: {
       status: "FAILED",
       failedAt: now,
@@ -29,7 +29,8 @@ export async function POST(request: Request): Promise<Response> {
   await prisma.followUp.updateMany({
     where: {
       status: "PROCESSING",
-      processingAt: { lt: staleClaim, gte: safeRetryCutoff },
+      processingAt: { lt: staleClaim },
+      firstAttemptAt: { gte: safeRetryCutoff },
     },
     data: { status: "QUEUED", processingAt: null },
   });
@@ -38,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
     where: { status: "QUEUED", scheduledAt: { lte: now } },
     orderBy: { scheduledAt: "asc" },
     take: 25,
-    select: { id: true, workspaceId: true },
+    select: { id: true, workspaceId: true, firstAttemptAt: true },
   });
 
   let sent = 0;
@@ -46,9 +47,14 @@ export async function POST(request: Request): Promise<Response> {
   let skipped = 0;
 
   for (const candidate of due) {
+    const claimStartedAt = new Date();
     const claim = await prisma.followUp.updateMany({
       where: { id: candidate.id, workspaceId: candidate.workspaceId, status: "QUEUED" },
-      data: { status: "PROCESSING", processingAt: new Date() },
+      data: {
+        status: "PROCESSING",
+        processingAt: claimStartedAt,
+        firstAttemptAt: candidate.firstAttemptAt ?? claimStartedAt,
+      },
     });
     if (claim.count !== 1) { skipped++; continue; }
 
