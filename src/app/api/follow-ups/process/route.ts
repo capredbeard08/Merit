@@ -14,7 +14,7 @@ export async function POST(request: Request): Promise<Response> {
   const now = new Date();
   const staleClaim = new Date(now.getTime() - 10 * 60 * 1000);
   // Resend retains idempotency keys for 24 hours. Leave a one-hour margin:
-  // processingAt is recorded before the provider request begins, so older
+  // firstAttemptAt is recorded before the first provider request, so older
   // ambiguous attempts must be reconciled instead of blindly resent.
   const safeRetryCutoff = new Date(now.getTime() - FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS);
   await prisma.followUp.updateMany({
