@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<Response> {
   // ambiguous attempts must be reconciled instead of blindly resent.
   const safeRetryCutoff = new Date(now.getTime() - FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS);
   await prisma.followUp.updateMany({
-    where: { status: "PROCESSING", firstAttemptAt: { lt: safeRetryCutoff } },
+    where: { status: { in: ["PROCESSING", "QUEUED"] }, firstAttemptAt: { lt: safeRetryCutoff } },
     data: {
       status: "FAILED",
       failedAt: now,
