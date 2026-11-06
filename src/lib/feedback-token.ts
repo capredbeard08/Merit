@@ -71,7 +71,7 @@ export function verifyFeedbackToken(
       expiresAt - issuedAt > FEEDBACK_TOKEN_TTL_SECONDS
     ) return false;
 
-    return keys.some((key) => safeEqual(signV2(feedbackId, issuedAt, expiresAt, key), signature));
+    return keys.reduce((matched, key) => safeEqual(signV2(feedbackId, issuedAt, expiresAt, key), signature) || matched, false);
   }
 
   // Legacy tokens contained only HMAC(feedbackId), so their age must be
@@ -79,8 +79,8 @@ export function verifyFeedbackToken(
   if (!legacySentAt || Number.isNaN(legacySentAt.getTime())) return false;
   const sentAt = Math.floor(legacySentAt.getTime() / 1000);
   if (sentAt > now + CLOCK_SKEW_SECONDS || sentAt < now - FEEDBACK_TOKEN_TTL_SECONDS) return false;
-  return keys.some((key) => {
+  return keys.reduce((matched, key) => {
     const legacySignature = createHmac("sha256", key).update(feedbackId).digest("base64url");
-    return safeEqual(legacySignature, token);
-  });
+    return safeEqual(legacySignature, token) || matched;
+  }, false);
 }
