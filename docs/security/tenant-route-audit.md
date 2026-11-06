@@ -215,3 +215,40 @@ A database-backed route integration suite now invokes the actual feedback, branc
 - rejected operations leave the foreign records unchanged.
 
 These tests exercise the route handlers, not merely the underlying SQL triggers. They complement the database relationship tests; they do not constitute exhaustive coverage of every route or every relation traversal/bulk operation.
+
+
+## Expanded HTTP tenant boundary tests (2026-11-06)
+
+The route integration suite now also invokes the actual insights, replies, security-event, member and invitation handlers against the disposable PostgreSQL database. It verifies that:
+- insights and replies return only records belonging to the selected workspace;
+- reply relation traversal does not expose a foreign feedback record;
+- security-event rows and severity aggregate counts are both workspace-filtered;
+- a caller without membership cannot list members or create a member/invitation in another workspace; and
+- an invitation token cannot be accepted by a signed-in account whose email does not match the invitation.
+
+The suite verifies rejected foreign-workspace operations leave the corresponding foreign records unchanged. Invitation acceptance is a deliberate bootstrap exception: a correctly addressed recipient may accept a valid invitation to a workspace they do not yet belong to. The negative test therefore checks identity binding, not a blanket rejection of cross-workspace invitation acceptance.
+
+## Feedback capability key rotation (2026-11-06)
+
+Feedback capabilities now support a dedicated `FEEDBACK_TOKEN_SECRET`. When unset, signing continues to use `AUTH_SECRET` for backwards compatibility. During rotation, `FEEDBACK_TOKEN_PREVIOUS_SECRETS` accepts a comma-separated list of verification-only keys. If a dedicated key is introduced, the current `AUTH_SECRET` is also retained as a verification key so existing v2 and bounded legacy links can survive the cutover. New links are always signed with the current key.
+
+Rotation procedure:
+1. Configure a new `FEEDBACK_TOKEN_SECRET` and include the prior signing secret in `FEEDBACK_TOKEN_PREVIOUS_SECRETS`.
+2. Keep previous keys available for at least the maximum 30-day token lifetime and bounded legacy-send grace.
+3. Remove retired keys only after the last token signed with them has expired.
+4. Do not reuse or rotate the Better Auth secret as a substitute for a dedicated feedback capability key.
+
+The implementation does not configure production secrets. A rotation test covers current, previous and legacy signing keys.
+
+## Email provider idempotency and opt-out race (2026-11-06)
+
+The email adapter sends a stable per-follow-up `Idempotency-Key` to Resend. Resend documents that email idempotency is retained for 24 hours, requires the same key and identical request payload, and may return a conflict while another request with the same key is still in progress. This is provider-level duplicate suppression, not a durable MERIT delivery ledger.
+
+The worker now:
+- derives the feedback-link issue time from the immutable follow-up creation timestamp, so retrying the same follow-up does not change the signed URL on every attempt;
+- retries an abandoned PROCESSING claim only within a conservative 23-hour window; and
+- marks older ambiguous attempts FAILED for manual reconciliation rather than blindly resending after the provider's idempotency retention may have elapsed.
+
+If business/customer display data changes between attempts, the resulting email payload may differ and Resend can reject reuse of the same key; the worker records the failure rather than bypassing idempotency with a new key. A durable provider-outcome reconciliation workflow and immutable send-payload snapshot remain future hardening items.
+
+An explicit opt-out cancels queued/processing records and prevents late worker completion from changing MERIT's state. It cannot recall an email that the provider has already accepted or that is already in flight after the final pre-dispatch check. This is an external-system race, not a claim that email delivery can be atomically coupled to a database transaction.
