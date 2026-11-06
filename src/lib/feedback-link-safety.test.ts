@@ -60,3 +60,30 @@ test("legacy feedback tokens are accepted only within the sent feedback grace pe
   assert.equal(verifyFeedbackToken(id, token, expiredSentAt, now), false);
   assert.equal(verifyFeedbackToken(id, token, null, now), false);
 });
+
+
+test("feedback token signing keys can rotate without invalidating still-live links", () => {
+  const id = "feedback-key-rotation-test";
+  const now = 1_700_000_000;
+  const oldAuthSecret = process.env.AUTH_SECRET!;
+  const oldToken = createFeedbackToken(id, now);
+  const oldLegacy = createHmac("sha256", oldAuthSecret).update(id).digest("base64url");
+
+  process.env.FEEDBACK_TOKEN_SECRET = "new-dedicated-feedback-secret";
+  process.env.FEEDBACK_TOKEN_PREVIOUS_SECRETS = "previous-dedicated-feedback-secret," + oldAuthSecret;
+  const previousDedicatedToken = createHmac("sha256", "previous-dedicated-feedback-secret")
+    .update("merit-feedback-v2:" + id + ":" + now + ":" + (now + FEEDBACK_TOKEN_TTL_SECONDS))
+    .digest("base64url");
+  const previousDedicated = ["v2", now, now + FEEDBACK_TOKEN_TTL_SECONDS, previousDedicatedToken].join(".");
+  const recentSentAt = new Date((now - 10) * 1000);
+
+  assert.equal(verifyFeedbackToken(id, oldToken, null, now + 10), true);
+  assert.equal(verifyFeedbackToken(id, previousDedicated, null, now + 10), true);
+  assert.equal(verifyFeedbackToken(id, oldLegacy, recentSentAt, now), true);
+
+  const newToken = createFeedbackToken(id, now);
+  assert.equal(verifyFeedbackToken(id, newToken, null, now + 10), true);
+
+  delete process.env.FEEDBACK_TOKEN_SECRET;
+  delete process.env.FEEDBACK_TOKEN_PREVIOUS_SECRETS;
+});
