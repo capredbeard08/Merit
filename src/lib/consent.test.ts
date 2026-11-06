@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canCreateFeedbackRequest, canDispatchFollowUp } from "./security";
+import { canCreateFeedbackRequest, canDispatchFollowUp, isWithinFollowUpIdempotencyWindow, FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS } from "./security";
 
 test("a customer with no opt-out can receive feedback when consent is present", () => {
   assert.equal(canCreateFeedbackRequest(true, null), true);
@@ -26,4 +26,13 @@ test("follow-up dispatch is allowed only for pending feedback with an email and 
   assert.equal(canDispatchFollowUp("OPTED_OUT", "customer@example.test", null), false);
   assert.equal(canDispatchFollowUp("PENDING", null, null), false);
   assert.equal(canDispatchFollowUp("PENDING", "customer@example.test", new Date()), false);
+});
+
+
+test("stale follow-up attempts are retried only while provider idempotency is guaranteed", () => {
+  const now = 1_800_000_000_000;
+  assert.equal(isWithinFollowUpIdempotencyWindow(new Date(now - FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS + 1), now), true);
+  assert.equal(isWithinFollowUpIdempotencyWindow(new Date(now - FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS), now), false);
+  assert.equal(isWithinFollowUpIdempotencyWindow(null, now), false);
+  assert.equal(isWithinFollowUpIdempotencyWindow(new Date(now + 1), now), false);
 });
