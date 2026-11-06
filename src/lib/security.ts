@@ -49,3 +49,17 @@ export function canDispatchFollowUp(
 ) {
   return feedbackStatus === "PENDING" && !!customerEmail && optedOutAt === null;
 }
+
+
+/**
+ * Resend retains email idempotency keys for 24 hours. Keep a one-hour safety
+ * margin because processingAt is recorded before the provider request starts.
+ */
+export const FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
+
+export function isWithinFollowUpIdempotencyWindow(processingAt: Date | null, now = Date.now()) {
+  return !!processingAt &&
+    !Number.isNaN(processingAt.getTime()) &&
+    now >= processingAt.getTime() &&
+    now - processingAt.getTime() < FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS;
+}
