@@ -59,6 +59,24 @@ test("database guards reject cross-workspace tenant relations on create and upda
       },
     });
 
+    const firstAttemptAt = new Date("2026-11-06T08:00:00.000Z");
+    const followUp = await prisma.followUp.create({
+      data: {
+        workspaceId: workspaceA.id,
+        feedbackId: feedbackA.id,
+        scheduledAt: new Date(),
+        status: "PROCESSING",
+        processingAt: firstAttemptAt,
+        firstAttemptAt,
+      },
+    });
+    await prisma.followUp.update({
+      where: { id: followUp.id },
+      data: { status: "QUEUED", processingAt: null },
+    });
+    const retriedFollowUp = await prisma.followUp.findUnique({ where: { id: followUp.id } });
+    assert.equal(retriedFollowUp?.firstAttemptAt?.getTime(), firstAttemptAt.getTime());
+
     await expectTenantGuardFailure(() => prisma.customer.create({
       data: { workspaceId: workspaceA.id, branchId: branchB.id, externalId: "bad-customer-" + suffix },
     }));
