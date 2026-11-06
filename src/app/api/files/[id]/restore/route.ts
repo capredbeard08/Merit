@@ -3,6 +3,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -18,7 +19,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const member = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } },
   });
-  if (!member || !can(member.role.toLowerCase() as Role, "files:recover")) {
+  if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!can(member.role.toLowerCase() as Role, "files:recover")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!file.deletedAt || file.status !== "DELETED") {
@@ -27,21 +29,34 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   // Match the exact deletion generation read above. A stale restore request
   // must not restore a file that was deleted again after this request began.
-  const claim = await prisma.fileAsset.updateMany({
-    where: {
-      id: file.id,
-      workspaceId: file.workspaceId,
-      status: "DELETED",
-      deletedAt: file.deletedAt,
-      priorStatus: file.priorStatus,
-    },
-    data: {
-      status: file.priorStatus || "AVAILABLE",
-      deletedAt: null,
-      deletedById: null,
-      priorStatus: null,
-    },
-  });
+  let claim;
+  try {
+    claim = await withWorkspacePermission(
+      file.workspaceId,
+      session.user.id,
+      "files:recover",
+      (tx) => tx.fileAsset.updateMany({
+        where: {
+          id: file.id,
+          workspaceId: file.workspaceId,
+          status: "DELETED",
+          deletedAt: file.deletedAt,
+          priorStatus: file.priorStatus,
+        },
+        data: {
+          status: file.priorStatus || "AVAILABLE",
+          deletedAt: null,
+          deletedById: null,
+          priorStatus: null,
+        },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
   if (claim.count !== 1) {
     return NextResponse.json({ error: "File recovery state changed; refresh and try again." }, { status: 409 });
   }

@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const createSchema = z.object({
   workspaceId: z.string().min(1),
@@ -59,20 +60,37 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Owner membership cannot be assigned through this endpoint" }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (!user) {
-    return NextResponse.json({ error: "User does not have a MERIT account yet; invite flow comes next." }, { status: 404 });
+  let member;
+  try {
+    member = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      result.session.user.id,
+      "members:manage",
+      async (tx) => {
+        const user = await tx.user.findUnique({ where: { email: parsed.data.email } });
+        if (!user) throw new Error("USER_NOT_FOUND");
+        const existing = await tx.member.findUnique({
+          where: { workspaceId_userId: { workspaceId: parsed.data.workspaceId, userId: user.id } },
+        });
+        if (existing) throw new Error("ALREADY_MEMBER");
+        return tx.member.create({
+          data: { workspaceId: parsed.data.workspaceId, userId: user.id, email: user.email, role: parsed.data.role.toUpperCase() as never },
+          select: { id: true, email: true, role: true, createdAt: true },
+        });
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return NextResponse.json({ error: "User does not have a MERIT account yet; invite flow comes next." }, { status: 404 });
+    }
+    if (error instanceof Error && error.message === "ALREADY_MEMBER") {
+      return NextResponse.json({ error: "User is already a member" }, { status: 409 });
+    }
+    throw error;
   }
-
-  const existing = await prisma.member.findUnique({
-    where: { workspaceId_userId: { workspaceId: parsed.data.workspaceId, userId: user.id } },
-  });
-  if (existing) return NextResponse.json({ error: "User is already a member" }, { status: 409 });
-
-  const member = await prisma.member.create({
-    data: { workspaceId: parsed.data.workspaceId, userId: user.id, email: user.email, role: parsed.data.role.toUpperCase() as never },
-    select: { id: true, email: true, role: true, createdAt: true },
-  });
 
   await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: result.session.user.id, action: "MEMBER_CREATED", targetType: "MEMBER", targetId: member.id, metadata: { role: parsed.data.role }, request });
 

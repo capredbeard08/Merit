@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -35,26 +36,43 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: parsed.data.email } });
-  if (existingUser) {
-    const existingMember = await prisma.member.findUnique({
-      where: { workspaceId_userId: { workspaceId: parsed.data.workspaceId, userId: existingUser.id } },
-    });
-    if (existingMember) return NextResponse.json({ error: "User is already a member" }, { status: 409 });
-  }
-
   const token = randomBytes(32).toString("base64url");
-  const invitation = await prisma.invitation.create({
-    data: {
-      workspaceId: parsed.data.workspaceId,
-      email: parsed.data.email,
-      role: parsed.data.role.toUpperCase() as never,
-      tokenHash: hash(token),
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
-      invitedByUserId: session.user.id,
-    },
-    select: { id: true, email: true, role: true, expiresAt: true },
-  });
+  let invitation;
+  try {
+    invitation = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "members:manage",
+      async (tx) => {
+        const existingUser = await tx.user.findUnique({ where: { email: parsed.data.email } });
+        if (existingUser) {
+          const existingMember = await tx.member.findUnique({
+            where: { workspaceId_userId: { workspaceId: parsed.data.workspaceId, userId: existingUser.id } },
+          });
+          if (existingMember) throw new Error("ALREADY_MEMBER");
+        }
+        return tx.invitation.create({
+          data: {
+            workspaceId: parsed.data.workspaceId,
+            email: parsed.data.email,
+            role: parsed.data.role.toUpperCase() as never,
+            tokenHash: hash(token),
+            expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
+            invitedByUserId: session.user.id,
+          },
+          select: { id: true, email: true, role: true, expiresAt: true },
+        });
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "ALREADY_MEMBER") {
+      return NextResponse.json({ error: "User is already a member" }, { status: 409 });
+    }
+    throw error;
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) {

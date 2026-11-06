@@ -3,6 +3,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -18,11 +19,29 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const branch = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: { not: null } } });
   if (!branch) return NextResponse.json({ error: "Archived branch not found" }, { status: 404 });
 
-  const restored = await prisma.branch.update({
-    where: { id },
-    data: { archivedAt: null, archivedById: null },
+  let claim;
+  try {
+    claim = await withWorkspacePermission(
+      workspaceId,
+      session.user.id,
+      "branches:manage",
+      (tx) => tx.branch.updateMany({
+        where: { id, workspaceId, archivedAt: { not: null } },
+        data: { archivedAt: null, archivedById: null },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
+  if (claim.count !== 1) return NextResponse.json({ error: "Archived branch not found" }, { status: 404 });
+  const restored = await prisma.branch.findFirst({
+    where: { id, workspaceId },
     select: { id: true, name: true, externalId: true, updatedAt: true },
   });
+  if (!restored) return NextResponse.json({ error: "Branch could not be restored" }, { status: 409 });
   await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_RESTORED", targetType: "BRANCH", targetId: id, request });
   return NextResponse.json({ branch: restored });
 }

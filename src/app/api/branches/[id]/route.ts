@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -29,14 +30,33 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const existing = await prisma.branch.findFirst({ where: { id, workspaceId: parsed.data.workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
-  const branch = await prisma.branch.update({
-    where: { id },
-    data: {
-      ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-      ...(parsed.data.externalId !== undefined ? { externalId: parsed.data.externalId || null } : {}),
-    },
+  let changed;
+  try {
+    changed = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "branches:manage",
+      (tx) => tx.branch.updateMany({
+        where: { id, workspaceId: parsed.data.workspaceId, archivedAt: null },
+        data: {
+          ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+          ...(parsed.data.externalId !== undefined ? { externalId: parsed.data.externalId || null } : {}),
+        },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
+  if (changed.count !== 1) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
+
+  const branch = await prisma.branch.findFirst({
+    where: { id, workspaceId: parsed.data.workspaceId },
     select: { id: true, name: true, externalId: true, updatedAt: true },
   });
+  if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
   await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "BRANCH_UPDATED", targetType: "BRANCH", targetId: id, metadata: { changedName: parsed.data.name !== undefined, changedExternalId: parsed.data.externalId !== undefined }, request });
 
@@ -61,7 +81,24 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const existing = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
-  await prisma.branch.update({ where: { id }, data: { archivedAt: new Date(), archivedById: session.user.id } });
+  let archived;
+  try {
+    archived = await withWorkspacePermission(
+      workspaceId,
+      session.user.id,
+      "branches:manage",
+      (tx) => tx.branch.updateMany({
+        where: { id, workspaceId, archivedAt: null },
+        data: { archivedAt: new Date(), archivedById: session.user.id },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
+  if (archived.count !== 1) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
   await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_ARCHIVED", targetType: "BRANCH", targetId: id, metadata: { dataPreserved: true }, request });
   return new NextResponse(null, { status: 204 });
 }

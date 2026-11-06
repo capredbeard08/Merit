@@ -30,3 +30,29 @@ export function redactEmail(email?: string) {
   if (parts.length !== 2) return "[redacted]";
   return parts[0].slice(0, 1) + "***@" + parts[1];
 }
+
+
+/**
+ * A later integration event must never silently reverse a customer's explicit
+ * MERIT opt-out. Re-consent requires a separate, deliberate workflow.
+ */
+export function canCreateFeedbackRequest(feedbackContact: boolean, optedOutAt: Date | null) {
+  return feedbackContact && optedOutAt === null;
+}
+
+
+/** A queued email is eligible only while feedback is still awaiting a response. */
+export function canDispatchFollowUp(
+  feedbackStatus: string,
+  customerEmail: string | null,
+  optedOutAt: Date | null,
+) {
+  return feedbackStatus === "PENDING" && !!customerEmail && optedOutAt === null;
+}
+
+
+/**
+ * Resend retains email idempotency keys for 24 hours. Keep a one-hour safety
+ * margin because processingAt is recorded before the provider request starts.
+ */
+export const FOLLOW_UP_IDEMPOTENCY_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
