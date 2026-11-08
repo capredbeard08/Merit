@@ -61,6 +61,8 @@ jobs:
         run: npx prisma migrate deploy
 
       - name: Run Security Warden and database integration tests
+        env:
+          NODE_ENV: test
         run: npm run test:security
 
       - name: Type-check TypeScript
