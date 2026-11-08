@@ -91,20 +91,24 @@ export async function POST(request: Request): Promise<Response> {
         idempotencyKey: "merit-followup-" + item.id,
       });
 
-      await prisma.$transaction([
-        prisma.followUp.update({
-          where: { id: item.id },
+      const finalized = await prisma.$transaction(async (tx) => {
+        const owned = await tx.followUp.updateMany({
+          where: { id: item.id, status: "PROCESSING" },
           data: { status: "SENT", sentAt: new Date(), providerId: result.id ?? null, processingAt: null, error: null },
-        }),
-        prisma.feedback.update({
-          where: { id: item.feedbackId },
-          data: { sentAt: new Date(), status: "CONTACTED" },
-        }),
-      ]);
-      sent++;
+        });
+        if (owned.count === 1) {
+          await tx.feedback.update({
+            where: { id: item.feedbackId },
+            data: { sentAt: new Date(), status: "CONTACTED" },
+          });
+        }
+        return owned.count;
+      });
+      if (finalized === 1) sent++;
+      else skipped++;
     } catch (error) {
-      await prisma.followUp.update({
-        where: { id: item.id },
+      const markedFailed = await prisma.followUp.updateMany({
+        where: { id: item.id, status: "PROCESSING" },
         data: {
           status: "FAILED",
           failedAt: new Date(),
@@ -112,7 +116,8 @@ export async function POST(request: Request): Promise<Response> {
           error: error instanceof Error ? error.message.slice(0, 500) : "Unknown email error",
         },
       });
-      failed++;
+      if (markedFailed.count === 1) failed++;
+      else skipped++;
     }
   }
 
