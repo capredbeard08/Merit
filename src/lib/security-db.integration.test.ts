@@ -143,6 +143,11 @@ test("database security transitions are single-winner and workspace-scoped", { s
     }),
   ]);
   assert.equal(await prisma.branch.count({ where: { id: branch.id, workspaceId: workspace.id, archivedAt: null } }), 0);
+  const lateFinalize = await prisma.followUp.updateMany({
+    where: { id: followUp.id, status: "PROCESSING" },
+    data: { status: "SENT", sentAt: new Date(), processingAt: null },
+  });
+  assert.equal(lateFinalize.count, 0, "a late provider response must not overwrite an opt-out cancellation");
   const optedOutFollowUp = await prisma.followUp.findUnique({ where: { id: followUp.id } });
   assert.equal(optedOutFollowUp?.status, "CANCELLED");
 });
