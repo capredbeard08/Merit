@@ -10,6 +10,7 @@ import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
 import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
+import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 const prisma = new PrismaClient();
@@ -304,5 +305,49 @@ test("database security transitions are single-winner and workspace-scoped", { s
     body: JSON.stringify({ ...webhookEvent, eventId: "archived-event-" + suffix }),
   }));
   assert.equal(rejectedArchivedWebhook.status, 404);
+
+  // Exercise stale-claim recovery through the real cron handler. With no
+  // provider API key in CI, the recovered job must fail safely rather than
+  // remain PROCESSING or be silently lost.
+  const recoveryBranch = await prisma.branch.create({ data: { workspaceId: workspace.id, name: "Recovery branch " + suffix } });
+  const recoveryCustomer = await prisma.customer.create({
+    data: { workspaceId: workspace.id, branchId: recoveryBranch.id, externalId: "recovery-customer-" + suffix, email: "recovery@example.invalid" },
+  });
+  const recoveryEvent = await prisma.serviceEvent.create({
+    data: { workspaceId: workspace.id, branchId: recoveryBranch.id, customerId: recoveryCustomer.id, externalId: "recovery-event-" + suffix, completedAt: new Date(Date.now() - 30 * 60 * 1000) },
+  });
+  const recoveryFeedback = await prisma.feedback.create({
+    data: { workspaceId: workspace.id, branchId: recoveryBranch.id, customerId: recoveryCustomer.id, serviceEventId: recoveryEvent.id },
+  });
+  const staleFollowUp = await prisma.followUp.create({
+    data: {
+      workspaceId: workspace.id,
+      feedbackId: recoveryFeedback.id,
+      status: "PROCESSING",
+      processingAt: new Date(Date.now() - 20 * 60 * 1000),
+      scheduledAt: new Date(Date.now() - 20 * 60 * 1000),
+    },
+  });
+  const oldResendKey = process.env.RESEND_API_KEY;
+  const oldEmailKey = process.env.EMAIL_PROVIDER_API_KEY;
+  delete process.env.RESEND_API_KEY;
+  delete process.env.EMAIL_PROVIDER_API_KEY;
+  try {
+    const recoveryResponse = await processFollowUps(new Request("http://localhost/api/follow-ups/process", {
+      method: "POST",
+      headers: { "x-merit-cron-secret": process.env.CRON_SECRET || "" },
+    }));
+    assert.equal(recoveryResponse.status, 200);
+    const recoverySummary = await recoveryResponse.json() as { failed?: number };
+    assert.equal(recoverySummary.failed, 1);
+    const recoveredJob = await prisma.followUp.findUnique({ where: { id: staleFollowUp.id } });
+    assert.equal(recoveredJob?.status, "FAILED");
+    assert.equal(recoveredJob?.processingAt, null);
+  } finally {
+    if (oldResendKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = oldResendKey;
+    if (oldEmailKey === undefined) delete process.env.EMAIL_PROVIDER_API_KEY;
+    else process.env.EMAIL_PROVIDER_API_KEY = oldEmailKey;
+  }
 
 });
