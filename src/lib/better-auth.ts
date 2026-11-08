@@ -12,6 +12,7 @@ if (!secret || secret.length < 32) {
 }
 
 const captchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+const emailVerificationEnabled = process.env.MERIT_EMAIL_VERIFICATION_ENABLED === "true";
 if (!captchaSecret) {
   throw new Error("RECAPTCHA_SECRET_KEY must be configured");
 }
@@ -40,7 +41,7 @@ export const auth = betterAuth({
     enabled: true,
     // Keep the pilot behavior explicit until the verified sender domain and
     // complete verification journey have been confirmed end to end.
-    requireEmailVerification: false,
+    requireEmailVerification: emailVerificationEnabled,
     minPasswordLength: 12,
     maxPasswordLength: 128,
     resetPasswordTokenExpiresIn: 60 * 60,
@@ -67,9 +68,9 @@ export const auth = betterAuth({
         });
       });
     },
-    // Deliberately dormant until EMAIL_FROM is a verified sender and delivery
-    // plus callback behavior are tested. Do not claim email verification is enforced.
-    sendOnSignUp: false,
+    // Enable only after the Resend sender is verified and the full delivery
+    // and callback journey has passed in staging. Keep false by default.
+    sendOnSignUp: emailVerificationEnabled,
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
   },
