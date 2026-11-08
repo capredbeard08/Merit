@@ -57,14 +57,42 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Content-Type must be application/json" }, { status: 415 });
   }
 
-  const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > 2048) {
+  const declaredLength = Number(request.headers.get("content-length") || 0);
+  if (declaredLength > 2048) {
     return NextResponse.json({ error: "Request body is too large" }, { status: 413 });
+  }
+  if (!request.body) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > 2048) {
+        await reader.cancel();
+        return NextResponse.json({ error: "Request body is too large" }, { status: 413 });
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bodyBytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bodyBytes.set(chunk, offset);
+    offset += chunk.byteLength;
   }
 
   let body: unknown;
   try {
-    body = JSON.parse(rawBody);
+    body = JSON.parse(new TextDecoder().decode(bodyBytes));
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
