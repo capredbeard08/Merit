@@ -4,7 +4,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStatus, Role } from "@prisma/client";
 import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
-import { executeApprovedSupportReadInTransaction } from "./support-access";
+import { executeApprovedSupportReadInTransaction, withApprovedSupportRead } from "./support-access";
 import { createSupportAccessDecisionHandler } from "./support-access-api";
 import { createSupportAccessRequestHandler, createSupportAccessRequesterCancelHandler } from "./support-access-request-api";
 import { auth } from "./better-auth";
@@ -484,6 +484,17 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(await prisma.auditLog.count({
       where: { workspaceId, action: "SUPPORT_ACCESS_USED", targetType: "INTEGRATION_TEST" },
     }), 1);
+
+    const guardedSupportRead = await withApprovedSupportRead({
+      request: new Request("https://merit-olive.vercel.app/api/platform/support-read", { headers: sessionHeaders }),
+      workspaceId,
+      scope: SupportAccessScope.FEEDBACK_READ,
+      targetType: "INTEGRATION_TEST_STEP_UP_GUARD",
+      read: async (readTx) => readTx.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } }),
+    });
+    assert.equal(guardedSupportRead.authorized, true,
+      "support data reads must require a recent session issued after TOTP verification");
+    if (guardedSupportRead.authorized) assert.equal(guardedSupportRead.data?.id, workspaceId);
 
     let wrongWorkspaceQueryExecuted = false;
     const wrongWorkspaceRead = await prisma.$transaction((tx) =>
