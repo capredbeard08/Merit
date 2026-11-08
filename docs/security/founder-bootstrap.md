@@ -7,6 +7,8 @@
 Requirements enforced by the route:
 
 - An existing authenticated Better Auth session.
+- The signed-in email must exactly match the normalized server-side `FOUNDER_BOOTSTRAP_EMAIL` allowlist. The designated account is `osagieuduebor6@gmail.com`; `crystallae9@gmail.com` remains a testing inbox and is not eligible for Founder bootstrap.
+- The allowlist is not proof of email ownership and does not set `emailVerified`; the account must independently satisfy Better Auth email-verification requirements.
 - The account's `emailVerified` flag must be true.
 - A same-origin browser request.
 - A deployment-only `FOUNDER_BOOTSTRAP_SECRET` with at least 32 UTF-8 bytes.
@@ -19,7 +21,7 @@ The grant and its high-severity `SecurityEvent` are written in one serializable 
 ## Operational ceremony
 
 1. Deploy the reviewed platform-access migration only after the backup/recovery gate and environment approvals are satisfied.
-2. Configure a newly generated, high-entropy `FOUNDER_BOOTSTRAP_SECRET` as a server-only environment variable. Never use a `NEXT_PUBLIC_` name.
+2. Configure `FOUNDER_BOOTSTRAP_EMAIL=osagieuduebor6@gmail.com` and a newly generated, high-entropy `FOUNDER_BOOTSTRAP_SECRET` as a server-only environment variable. Never use a `NEXT_PUBLIC_` name.
 3. Create the intended founder account and complete email verification.
 4. While signed in to that account, send the secret to this endpoint from the same origin.
 5. Confirm the success response and the platform-access record/security event.
