@@ -687,12 +687,14 @@ test("Founder bootstrap and operator grant/revoke require real verified sessions
   const unverifiedEmail = `unverified-${suffix}@example.invalid`;
   const bootstrapSecret = `ci-founder-bootstrap-secret-${suffix}-with-more-than-32-bytes`;
   const previousSecret = process.env.FOUNDER_BOOTSTRAP_SECRET;
+  const previousFounderEmail = process.env.FOUNDER_BOOTSTRAP_EMAIL;
   let founderId = "";
   let targetId = "";
   let unverifiedId = "";
 
   try {
     process.env.FOUNDER_BOOTSTRAP_SECRET = bootstrapSecret;
+    process.env.FOUNDER_BOOTSTRAP_EMAIL = founderEmail;
     const signupResponse = await auth.api.signUpEmail({
       body: {
         name: "CI Founder",
@@ -871,5 +873,7 @@ test("Founder bootstrap and operator grant/revoke require real verified sessions
     if (unverifiedId) await prisma.user.delete({ where: { id: unverifiedId } }).catch(() => undefined);
     if (previousSecret === undefined) delete process.env.FOUNDER_BOOTSTRAP_SECRET;
     else process.env.FOUNDER_BOOTSTRAP_SECRET = previousSecret;
+    if (previousFounderEmail === undefined) delete process.env.FOUNDER_BOOTSTRAP_EMAIL;
+    else process.env.FOUNDER_BOOTSTRAP_EMAIL = previousFounderEmail;
   }
 });
