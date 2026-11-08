@@ -4,7 +4,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import { PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStatus, Role } from "@prisma/client";
 import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
-import { executeApprovedSupportReadInTransaction } from "./support-access";
+import { executeApprovedSupportReadInTransaction, withApprovedSupportRead } from "./support-access";
 import { createSupportAccessDecisionHandler } from "./support-access-api";
 import { createSupportAccessRequestHandler, createSupportAccessRequesterCancelHandler } from "./support-access-request-api";
 import { auth } from "./better-auth";
@@ -44,6 +44,39 @@ function currentTotp(secret: string): string {
     ((digest[offset + 2] & 0xff) << 8) |
     (digest[offset + 3] & 0xff);
   return String(binary % 1_000_000).padStart(6, "0");
+}
+
+async function signInWithTotp(email: string, password: string, secret: string): Promise<string> {
+  const challenge = await auth.api.signInEmail({
+    body: { email, password },
+    returnHeaders: true,
+  });
+  const challengeBody = challenge.response as { twoFactorRedirect?: boolean };
+  assert.equal(challengeBody.twoFactorRedirect, true, "enabled MFA must withhold the authenticated session");
+  const challengeHeaders = challenge.headers as Headers & { getSetCookie?: () => string[] };
+  const challengeCookies = challengeHeaders.getSetCookie?.() ?? [challengeHeaders.get("set-cookie") ?? ""];
+  const challengeCookie = challengeCookies.map((value) => value.split(";")[0]).filter(Boolean).join("; ");
+  assert.ok(challengeCookie, "Better Auth must issue a two-factor challenge cookie");
+
+  const verified = await auth.api.verifyTOTP({
+    body: { code: currentTotp(secret), trustDevice: false },
+    headers: new Headers({
+      cookie: challengeCookie,
+      origin: "https://merit-olive.vercel.app",
+      "user-agent": "MERIT-CI-Integration-Test",
+    }),
+    asResponse: true,
+  });
+  assert.equal(
+    verified.status,
+    200,
+    "valid TOTP must complete the pending sign-in challenge: " + await verified.clone().text(),
+  );
+  const verifiedHeaders = verified.headers as Headers & { getSetCookie?: () => string[] };
+  const sessionCookies = verifiedHeaders.getSetCookie?.() ?? [verifiedHeaders.get("set-cookie") ?? ""];
+  const sessionCookie = sessionCookies.map((value) => value.split(";")[0]).filter(Boolean).join("; ");
+  assert.ok(sessionCookie, "successful TOTP verification must issue an authenticated session cookie");
+  return sessionCookie;
 }
 
 test("platform rate limiting is shared, fixed-window, and fails closed on excess", async () => {
@@ -169,13 +202,40 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(totpVerificationResponse.status, 200, "Better Auth must accept a valid TOTP enrollment code");
     const refreshedSessionCookie = totpVerificationResponse.headers.get("set-cookie")?.split(";")[0];
     if (refreshedSessionCookie) sessionHeaders.set("cookie", refreshedSessionCookie);
-    const sessionAfterMfa = await auth.api.getSession({ headers: sessionHeaders });
-    assert.equal(sessionAfterMfa?.user.id, operatorId, "TOTP verification must leave a valid authenticated session");
+    const sessionAfterEnrollment = await auth.api.getSession({ headers: sessionHeaders });
+    assert.equal(sessionAfterEnrollment?.user.id, operatorId, "enrollment session should remain authenticated");
     const persistedMfa = await prisma.user.findUniqueOrThrow({
       where: { id: operatorId },
-      select: { twoFactorEnabled: true },
+      select: { twoFactorEnabled: true, twoFactorEnabledAt: true },
     });
     assert.equal(persistedMfa.twoFactorEnabled, true, "MFA is enabled only after a valid TOTP enrollment code");
+    assert.ok(persistedMfa.twoFactorEnabledAt, "database trigger must timestamp verified MFA enrollment");
+
+    // Simulate a still-valid session that predates an already-enrolled MFA
+    // factor (for example, a legacy session surviving a security-policy change).
+    // A fresh password + TOTP challenge below must replace this stale proof.
+    await prisma.session.update({
+      where: { id: sessionAfterEnrollment!.session.id },
+      data: { createdAt: new Date(persistedMfa.twoFactorEnabledAt!.getTime() - 1000) },
+    });
+
+    const preEnrollmentSession = await requirePlatformCapability(
+      new Request("https://merit-olive.vercel.app/api/platform/security-events", { headers: sessionHeaders }),
+      "platform:security:read",
+      true,
+      { requireMfa: true },
+    );
+    assert.equal(preEnrollmentSession.ok, false,
+      "a session created before MFA enrollment must not satisfy privileged step-up");
+
+    const freshMfaCookie = await signInWithTotp(operatorEmail, "CI-only-strong-password-123!", totpSecret);
+    sessionHeaders.set("cookie", freshMfaCookie);
+    const sessionAfterMfa = await auth.api.getSession({ headers: sessionHeaders });
+    assert.equal(sessionAfterMfa?.user.id, operatorId);
+    assert.ok(
+      new Date(sessionAfterMfa!.session.createdAt).getTime() >= persistedMfa.twoFactorEnabledAt!.getTime(),
+      "the authenticated session must be issued after successful MFA verification",
+    );
 
     const requestAfterMfa = new Request(
       "https://merit-olive.vercel.app/api/platform/security-events",
@@ -187,7 +247,7 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       true,
       { requireMfa: true },
     );
-    if (!allowedWithMfa.ok) assert.fail("MFA-enrolled account was denied: " + await allowedWithMfa.response.clone().text());
+    if (!allowedWithMfa.ok) assert.fail("MFA-verified session was denied: " + await allowedWithMfa.response.clone().text());
     const unauthenticatedByRealMiddleware = await requirePlatformCapability(
       new Request("https://merit-olive.vercel.app/api/platform/security-events", {
         headers: { origin: "https://merit-olive.vercel.app" },
@@ -431,6 +491,17 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       where: { workspaceId, action: "SUPPORT_ACCESS_USED", targetType: "INTEGRATION_TEST" },
     }), 1);
 
+    const guardedSupportRead = await withApprovedSupportRead({
+      request: new Request("https://merit-olive.vercel.app/api/platform/support-read", { headers: sessionHeaders }),
+      workspaceId,
+      scope: SupportAccessScope.FEEDBACK_READ,
+      targetType: "INTEGRATION_TEST_STEP_UP_GUARD",
+      read: async (readTx) => readTx.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } }),
+    });
+    assert.equal(guardedSupportRead.authorized, true,
+      "support data reads must require a recent session issued after TOTP verification");
+    if (guardedSupportRead.authorized) assert.equal(guardedSupportRead.data?.id, workspaceId);
+
     let wrongWorkspaceQueryExecuted = false;
     const wrongWorkspaceRead = await prisma.$transaction((tx) =>
       executeApprovedSupportReadInTransaction(tx, {
@@ -633,12 +704,31 @@ test("Founder bootstrap and operator grant/revoke require real verified sessions
     assert.equal(signupResponse.status, 200);
     const signupBody = await signupResponse.json() as { user: { id: string } };
     founderId = signupBody.user.id;
-    const sessionCookie = signupResponse.headers.get("set-cookie")?.split(";")[0];
-    assert.ok(sessionCookie, "Founder bootstrap must use a real Better Auth session cookie");
+    const signupSessionCookie = signupResponse.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(signupSessionCookie, "Founder bootstrap must use a real Better Auth session cookie");
 
-    await prisma.user.update({ where: { id: founderId }, data: { emailVerified: true, twoFactorEnabled: true } });
+    await prisma.user.update({ where: { id: founderId }, data: { emailVerified: true } });
+    const enrollmentHeaders = new Headers({ cookie: signupSessionCookie });
+    const enrollment = await auth.api.enableTwoFactor({
+      body: { password: "CI-only-strong-password-123!", method: "totp", issuer: "MERIT" },
+      headers: enrollmentHeaders,
+    }) as { method: "totp"; totpURI: string; backupCodes: string[] };
+    assert.equal(enrollment.method, "totp");
+    const founderTotpSecret = new URL(enrollment.totpURI).searchParams.get("secret");
+    assert.ok(founderTotpSecret);
+    const enrollmentVerification = await auth.api.verifyTOTP({
+      body: { code: currentTotp(founderTotpSecret), trustDevice: false },
+      headers: enrollmentHeaders,
+      asResponse: true,
+    });
+    assert.equal(enrollmentVerification.status, 200);
+    const founderSessionCookie = await signInWithTotp(
+      founderEmail,
+      "CI-only-strong-password-123!",
+      founderTotpSecret,
+    );
     const founderHeaders = {
-      cookie: sessionCookie,
+      cookie: founderSessionCookie,
       origin: "https://merit-olive.vercel.app",
       "content-type": "application/json",
       "user-agent": "MERIT-CI-Integration-Test",

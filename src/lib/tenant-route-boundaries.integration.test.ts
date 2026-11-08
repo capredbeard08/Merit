@@ -4,6 +4,11 @@ import { randomUUID, createHash } from "node:crypto";
 import { prisma } from "./prisma";
 import { auth } from "./better-auth";
 import { GET as getFeedback } from "../app/api/feedback/route";
+import { GET as getBranches } from "../app/api/branches/route";
+import { GET as getFiles } from "../app/api/files/route";
+import { GET as getWorkspace } from "../app/api/workspaces/route";
+import { PATCH as patchWorkspace } from "../app/api/workspaces/[workspaceId]/route";
+import { GET as getWorkspaceSupportAccess } from "../app/api/workspaces/[workspaceId]/support-access/route";
 import { PATCH as patchFeedback } from "../app/api/feedback/[id]/route";
 import { DELETE as deleteBranch } from "../app/api/branches/[id]/route";
 import { GET as getFile } from "../app/api/files/[id]/route";
@@ -91,6 +96,17 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
       },
     });
 
+    const fileA = await prisma.fileAsset.create({
+      data: {
+        workspaceId: workspaceA.id,
+        uploadedById: user.id,
+        originalName: "workspace-a.pdf",
+        pathname: "private/route-test-a-" + suffix + ".pdf",
+        contentType: "application/pdf",
+        sizeBytes: 0,
+        status: "AVAILABLE",
+      },
+    });
     const fileB = await prisma.fileAsset.create({
       data: {
         workspaceId: workspaceB.id,
@@ -116,6 +132,54 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
     } as never));
 
     try {
+      const scopedBranchesResponse = await getBranches(
+        new Request("https://merit.example.test/api/branches?workspaceId=" + encodeURIComponent(workspaceA.id)),
+      );
+      assert.equal(scopedBranchesResponse.status, 200);
+      const scopedBranches = await scopedBranchesResponse.json();
+      assert.deepEqual(scopedBranches.branches.map((item: { id: string }) => item.id), [branchA.id]);
+      assert.equal((await getBranches(
+        new Request("https://merit.example.test/api/branches?workspaceId=" + encodeURIComponent(workspaceB.id)),
+      )).status, 403);
+
+      const scopedFilesResponse = await getFiles(
+        new Request("https://merit.example.test/api/files?workspaceId=" + encodeURIComponent(workspaceA.id)),
+      );
+      assert.equal(scopedFilesResponse.status, 200);
+      const scopedFiles = await scopedFilesResponse.json();
+      assert.deepEqual(scopedFiles.files.map((item: { id: string }) => item.id), [fileA.id]);
+      assert.equal((await getFiles(
+        new Request("https://merit.example.test/api/files?workspaceId=" + encodeURIComponent(workspaceB.id)),
+      )).status, 403);
+
+      const selectedWorkspaceResponse = await getWorkspace(
+        new Request("https://merit.example.test/api/workspaces?workspaceId=" + encodeURIComponent(workspaceA.id)),
+      );
+      assert.equal(selectedWorkspaceResponse.status, 200);
+      const selectedWorkspace = await selectedWorkspaceResponse.json();
+      assert.equal(selectedWorkspace.workspace.id, workspaceA.id);
+      assert.equal((await getWorkspace(
+        new Request("https://merit.example.test/api/workspaces?workspaceId=" + encodeURIComponent(workspaceB.id)),
+      )).status, 404);
+
+      const foreignWorkspaceRename = await patchWorkspace(
+        new Request("https://merit.example.test/api/workspaces/" + workspaceB.id, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: "Attacker renamed workspace" }),
+        }),
+        { params: Promise.resolve({ workspaceId: workspaceB.id }) },
+      );
+      assert.equal(foreignWorkspaceRename.status, 403);
+      const unchangedWorkspaceB = await prisma.workspace.findUnique({ where: { id: workspaceB.id } });
+      assert.equal(unchangedWorkspaceB?.name, "Route Tenant B " + suffix);
+
+      const foreignSupportRequests = await getWorkspaceSupportAccess(
+        new Request("https://merit.example.test/api/workspaces/" + workspaceB.id + "/support-access"),
+        { params: Promise.resolve({ workspaceId: workspaceB.id }) },
+      );
+      assert.equal(foreignSupportRequests.status, 403);
+
       const scopedFeedbackResponse = await getFeedback(
         new Request("https://merit.example.test/api/feedback?workspaceId=" + encodeURIComponent(workspaceA.id)),
       );

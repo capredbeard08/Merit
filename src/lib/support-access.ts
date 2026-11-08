@@ -1,6 +1,6 @@
 import { Prisma, type SupportAccessScope } from "@prisma/client";
-import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
+import { requirePlatformCapability } from "@/lib/platform-admin";
 import { canAccessPlatform } from "@/lib/platform-access";
 import { isSupportAuthorizationActive } from "@/lib/support-access-policy";
 export { isSupportAuthorizationActive } from "@/lib/support-access-policy";
@@ -91,14 +91,21 @@ export async function withApprovedSupportRead<T>(input: {
   | { authorized: true; requestId: string; data: T }
   | { authorized: false; response: Response }
 > {
-  const session = await auth.api.getSession({ headers: input.request.headers });
-  if (!session?.user) {
-    return { authorized: false, response: Response.json({ error: "Authentication required" }, { status: 401 }) };
+  // A business grant is necessary but not sufficient: the operator must
+  // also present a recent session issued after a successful TOTP challenge.
+  const authz = await requirePlatformCapability(
+    input.request,
+    "platform:security:read",
+    false,
+    { requireRecentAuthentication: true, requireMfa: true },
+  );
+  if (!authz.ok) {
+    return { authorized: false, response: authz.response };
   }
 
   return prisma.$transaction(async (tx) => {
     const result = await executeApprovedSupportReadInTransaction(tx, {
-      actorUserId: session.user.id,
+      actorUserId: authz.session.user.id,
       workspaceId: input.workspaceId,
       scope: input.scope,
       targetType: input.targetType,

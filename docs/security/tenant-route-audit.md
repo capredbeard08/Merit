@@ -26,34 +26,11 @@ This document separates confirmed observations from routes that still require so
 | `GET /api/security/events` | Auth session, explicit membership and role checks, workspace-filtered event query and groupBy via global Prisma | Application-level filters are present; ensure both queries execute under the same tenant transaction after RLS is introduced. |
 | `POST /api/follow-ups/process` | Cron-secret authentication; global worker scans queued jobs across workspaces; claims, fetches and state changes now carry workspace ID and expected status | Still a cross-tenant system worker using global Prisma. It needs a dedicated, tightly scoped worker role/capability and per-workspace transaction context. Do not expose this worker to ordinary tenant runtime credentials. |
 
-## Remaining route inventory
+## Full API route inventory and source review (2026-11-08)
 
-These paths were present in the branch tree but were not fully source-reviewed in this pass. Each requires a deliberate classification before RLS rollout:
+The current API route tree was enumerated and source-reviewed for authentication, membership/capability checks, workspace predicates, mutation guards, and intentional public/system boundaries. This is a source review, not proof that every handler has exhaustive integration coverage. The main authenticated tenant families are branches, feedback, files, insights, integrations, invitations, members, replies, security events, and workspaces. Public capability routes are the feedback and opt-out links plus permanent guest-feedback QR submission. System routes are the authenticated webhook receiver, cron follow-up worker, Better Auth handler, and health endpoint. Platform routes use the separate platform capability model.
 
-- `/api/branches/[id]/restore` — reviewed; restoration now uses a conditional update scoped by branch ID and workspace ID.
-
-- `/api/feedback/[id]`
-- `/api/feedback/[id]/click` — reviewed; click tracking now scopes the mutation to the feedback's workspace.
-
-- `/api/feedback/[id]/optout` — reviewed; customer opt-out, feedback status and follow-up cancellation now include workspace scope.
-
-- `/api/files/[id]`
-- `/api/files/[id]/erase` — reviewed; final database deletion is conditional on file ID, workspace ID, erasure-pending status and the exact deletion timestamp.
-
-- `/api/files/[id]/restore`
-- `/api/files/upload`
-- `/api/insights/generate`
-- `/api/integrations/webhook` — reviewed; endpoint revocation uses a workspace-scoped conditional mutation.
-
-- `/api/invitations/accept`
-- `/api/public/feedback/[id]`
-- `/api/replies` — reviewed; now requires explicit workspace ID and validates exact membership instead of silently selecting the oldest membership.
-
-- `/api/webhooks/service-completed`
-- `/api/workspaces`
-- `/api/workspaces/[workspaceId]`
-- `/api/auth/[...all]`
-- `/api/health`
+The remaining work is not to discover the route files; it is to expand route-level negative and concurrency tests for the less-covered handlers, especially file restore/erase/upload, invitation acceptance edge cases, webhook revocation/branch scope, public feedback capability replay, and workspace creation/selection. Every authenticated tenant route still uses application-level authorization and the global Prisma client; this source review does not enable RLS.
 
 ## Required classifications before RLS
 
@@ -89,7 +66,7 @@ These paths were present in the branch tree but were not fully source-reviewed i
 - `POST /api/files/[id]/erase`: final row deletion is conditional on tenant ID and the exact pending-erasure state.
 - `GET /api/replies`: requires explicit workspace ID and validates exact membership/role rather than selecting the oldest membership.\n- `POST /api/follow-ups/process`: worker candidate selection, claims, fetches and follow-up/feedback status mutations now include workspace ID; state changes are conditional on expected status. The worker remains cross-tenant by design and is not RLS-isolated.
 
-These remain application-level protections using the global Prisma client. They are not a substitute for RLS. The signed public feedback token currently has no expiry; it is deterministic from the feedback ID and `AUTH_SECRET`. Before production use, decide on a bounded token lifetime and a safe rotation/compatibility plan for already-issued links. GET-based click tracking is now read-only, and opt-out state changes require an explicit POST confirmation. The signed public feedback token still has no expiry; before production use, implement a bounded token lifetime and a safe rotation/compatibility plan for already-issued links.
+These remain application-level protections using the global Prisma client. They are not a substitute for RLS. New public feedback and opt-out capabilities are versioned, HMAC-signed, expire after 30 days, and support verification-only previous keys during rotation. Legacy links are accepted only when a persisted successful-send timestamp falls within the same bounded grace period. GET click redirects are read-only; opt-out state changes require an explicit POST confirmation.
 
 ## Immediate next implementation step
 
@@ -253,3 +230,15 @@ The worker now:
 If business/customer display data changes between attempts, the resulting email payload may differ and Resend can reject reuse of the same key; the worker records the failure rather than bypassing idempotency with a new key. A durable provider-outcome reconciliation workflow and immutable send-payload snapshot remain future hardening items.
 
 An explicit opt-out cancels queued/processing records and prevents late worker completion from changing MERIT's state. It cannot recall an email that the provider has already accepted or that is already in flight after the final pre-dispatch check. This is an external-system race, not a claim that email delivery can be atomically coupled to a database transaction.
+
+
+## Expanded route-level negative tests (2026-11-08)
+
+The disposable PostgreSQL HTTP-handler suite now also verifies:
+- branch listing returns only the selected workspace's branches and denies a non-member;
+- file listing returns only the selected workspace's files and denies a non-member;
+- explicit workspace lookup returns only a workspace the signed-in user belongs to;
+- a non-member cannot rename another workspace, and the foreign workspace name remains unchanged; and
+- support-access request listings are unavailable to a user who is not an Owner/Admin of the target workspace.
+
+These checks complement the existing feedback, file-by-ID, branch mutation, webhook revocation, insights, replies, security-event, member, invitation and invitation-token tests. They are still not exhaustive for every endpoint or background worker.
