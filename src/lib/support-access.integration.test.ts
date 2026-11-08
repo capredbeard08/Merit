@@ -211,6 +211,14 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
     assert.equal(persistedMfa.twoFactorEnabled, true, "MFA is enabled only after a valid TOTP enrollment code");
     assert.ok(persistedMfa.twoFactorEnabledAt, "database trigger must timestamp verified MFA enrollment");
 
+    // Simulate a still-valid session that predates an already-enrolled MFA
+    // factor (for example, a legacy session surviving a security-policy change).
+    // A fresh password + TOTP challenge below must replace this stale proof.
+    await prisma.session.update({
+      where: { id: sessionAfterEnrollment!.session.id },
+      data: { createdAt: new Date(persistedMfa.twoFactorEnabledAt!.getTime() - 1000) },
+    });
+
     const preEnrollmentSession = await requirePlatformCapability(
       new Request("https://merit-olive.vercel.app/api/platform/security-events", { headers: sessionHeaders }),
       "platform:security:read",
