@@ -16,27 +16,29 @@ jobs:
     name: Create and verify PostgreSQL backup
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment:
+      name: production
     steps:
       - name: Check required secret is present
         env:
-          MERIT_DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          MERIT_PRODUCTION_DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
         run: |
-          if [ -z "$MERIT_DATABASE_URL" ]; then
-            echo "::error::MERIT_DATABASE_URL secret is missing."
+          if [ -z "$MERIT_PRODUCTION_DATABASE_URL" ]; then
+            echo "::error::MERIT_PRODUCTION_DATABASE_URL secret is missing from the protected production environment."
             exit 1
           fi
 
       - name: Create custom-format database dump
         env:
-          MERIT_DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          MERIT_PRODUCTION_DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
         run: |
           set -euo pipefail
           BACKUP_FILE="merit-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.dump"
           docker run --rm \
-            --env MERIT_DATABASE_URL \
+            --env MERIT_PRODUCTION_DATABASE_URL \
             --volume "$RUNNER_TEMP:/backup" \
             postgres:17-alpine \
-            sh -ceu 'pg_dump "$MERIT_DATABASE_URL" --format=custom --no-owner --no-acl --file="/backup/'"$BACKUP_FILE"'"'
+            sh -ceu 'pg_dump "$MERIT_PRODUCTION_DATABASE_URL" --format=custom --no-owner --no-acl --file="/backup/'"$BACKUP_FILE"'"'
           test -s "$RUNNER_TEMP/$BACKUP_FILE"
           echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
           echo "Backup file created; connection details are not printed."
