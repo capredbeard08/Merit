@@ -58,7 +58,10 @@ export const auth = betterAuth({
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
   },
-  plugins: [
+  // The isolated route-integration suite uses real Better Auth sessions but
+  // skips Google's external CAPTCHA verification. Production/development keep
+  // the CAPTCHA plugin enabled.
+  plugins: process.env.NODE_ENV === "test" ? [] : [
     captcha({
       provider: "google-recaptcha",
       secretKey: captchaSecret,
