@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
@@ -18,10 +19,18 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const branch = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: { not: null } } });
   if (!branch) return NextResponse.json({ error: "Archived branch not found" }, { status: 404 });
 
-  const changed = await prisma.branch.updateMany({
-    where: { id, workspaceId, archivedAt: { not: null } },
-    data: { archivedAt: null, archivedById: null },
-  });
+  let changed;
+  try {
+    changed = await prisma.$transaction(async (tx) => tx.branch.updateMany({
+      where: { id, workspaceId, archivedAt: { not: null } },
+      data: { archivedAt: null, archivedById: null },
+    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return NextResponse.json({ error: "Branch state changed concurrently; refresh and try again." }, { status: 409 });
+    }
+    throw error;
+  }
   if (changed.count !== 1) return NextResponse.json({ error: "Branch recovery state changed; refresh and try again." }, { status: 409 });
   const restored = await prisma.branch.findFirst({
     where: { id, workspaceId, archivedAt: null },
