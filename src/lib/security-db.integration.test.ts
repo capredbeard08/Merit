@@ -103,6 +103,11 @@ test("database security transitions are single-winner and workspace-scoped", { s
     }
   }
   assert.equal(await prisma.member.count({ where: { workspaceId: workspace.id, userId: user.id } }), 1);
+  // Elevate the fixture to OWNER for the authenticated management-route tests below.
+  await prisma.member.update({
+    where: { workspaceId_userId: { workspaceId: workspace.id, userId: user.id } },
+    data: { role: "OWNER" },
+  });
 
   // Concurrent archival attempts have one winner; archived branches cannot be treated as active.
   const branch = await prisma.branch.create({ data: { workspaceId: workspace.id, name: "Branch " + suffix } });
