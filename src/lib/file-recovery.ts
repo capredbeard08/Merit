@@ -2,7 +2,7 @@ export type FileRecoveryPolicy = { retentionDays: number };
 
 /** Returns null when permanent erasure must remain disabled. */
 export function parseFileRecoveryPolicy(value: string | undefined): FileRecoveryPolicy | null {
-  if (!value || !/^\\d+$/.test(value)) return null;
+  if (!value || !/^\d+$/.test(value)) return null;
   const retentionDays = Number(value);
   if (!Number.isSafeInteger(retentionDays) || retentionDays < 1 || retentionDays > 3650) return null;
   return { retentionDays };
