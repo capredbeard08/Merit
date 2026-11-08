@@ -50,7 +50,7 @@ export async function analyzeGuestFeedbackThemes(
     },
     signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       temperature: 0.2,
       max_tokens: 1200,
       response_format: { type: "json_object" },
