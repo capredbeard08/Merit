@@ -88,10 +88,19 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 
 - [x] Extract file-recovery retention parsing and eligibility calculation into a pure, testable module.
 - [x] Add boundary tests for unset, malformed, fractional, out-of-range and valid retention settings, including the exact eligibility instant.
-- [x] Include the file-recovery policy tests in `npm run test:security`.
-- [x] Require the database-backup workflow to use the protected `production` environment and dedicated `MERIT_PRODUCTION_DATABASE_URL` secret; keep backup dispatch blocked until the age recipient and private identity are safely configured.
-- [ ] Add database-backed route tests for file soft-delete/restore/erasure, branch archive/restore, invitation acceptance/replay, follow-up concurrent claims/recovery, webhook replay and archived-branch rejection.
-- [ ] Verify the production environment has required reviewers; a workflow environment declaration alone is not proof of approval protection.
+- [x] Include file-recovery policy tests in `npm run test:security`.
+- [x] Require the database-backup workflow to use the protected `production` environment and dedicated `MERIT_PRODUCTION_DATABASE_URL` secret; do not dispatch it until the age recipient and private identity are safely configured.
+- [x] Make invitation acceptance a conditional, single-use transaction; reject replay and concurrent acceptance conflicts.
+- [x] Make branch archive/restore serializable and conditional; coordinate branch archival with serializable webhook processing.
+- [x] Re-check customer consent immediately before follow-up dispatch; cancel queued and processing jobs when opt-out is recorded.
+- [x] Add isolated PostgreSQL CI service and apply the full migration chain to a fresh CI database.
+- [x] Add database integration coverage for file deletion/recovery generations, concurrent invitation acceptance, concurrent branch archive, webhook external-event uniqueness, concurrent follow-up claims and opt-out cancellation.
+- [x] CI run [42493131441](https://github.com/capredbeard08/Merit/actions/runs/42493131441) on commit `d44608fcc0bc25d001261bba949405e55f3a8620` passed: migrations, security/database integration tests, TypeScript and production build.
+- [ ] Complete CI on the latest head after adding webhook replay and follow-up concurrency assertions.
+- [ ] Add endpoint-level tests for authenticated file soft-delete/restore/erasure, branch archive/restore, invitation acceptance/replay, follow-up crash recovery and webhook archived-branch rejection. Current database tests validate persistence/concurrency primitives, not the HTTP route handlers themselves.
+- [ ] Verify GitHub `production` environment required reviewers; a workflow environment declaration alone does not prove approval protection.
 - [ ] Confirm backup encryption can be decrypted and perform a restore drill using the separately held private age identity before production use.
-- [ ] Review all route authorization and tenant-scoped relation traversals; do not claim PostgreSQL RLS.
-- [x] Re-run CI against latest PR head `d53579c72c60ec0b84ac47fd2a68cbea0f3c3601`; run `42491948603` completed successfully (Security tests, TypeScript and production build). This does not replace the outstanding integration, deployment or operational acceptance tests.
+- [ ] Review every route's authorization and tenant-scoped relation traversal. PostgreSQL RLS is not implemented; do not claim database-enforced tenant isolation.
+- [ ] Reconcile Vercel Preview and Production database target assignments before write-capable preview testing.
+- [ ] Verify real email sender domain and run signup/verification/invitation delivery E2E before enabling email verification.
+- [ ] Add malware scanning, file-signature verification and server-verified file-size checks; keep unverified uploads quarantined.
