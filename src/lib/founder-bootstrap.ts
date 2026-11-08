@@ -21,3 +21,9 @@ export function isSameOriginRequest(origin: string | null, requestUrl: string): 
     return false;
   }
 }
+
+/** Match the designated Founder email without case or surrounding-whitespace differences. */
+export function matchesFounderBootstrapEmail(signedInEmail: string, configuredEmail: string | undefined): boolean {
+  const expected = configuredEmail?.trim().toLowerCase();
+  return Boolean(expected && signedInEmail.trim().toLowerCase() === expected);
+}
