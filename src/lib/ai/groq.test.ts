@@ -79,7 +79,7 @@ test("redacts URLs, caps each message, and sends no more than 100 entries", asyn
 
   const sent = JSON.parse(requestBody.messages[1].content).feedback;
   assert.equal(sent.length, 100);
-  assert.equal(sent[0].message.includes("https://example.com"), false);
+  assert.equal(sent[0].message, "[link] " + "x".repeat(1193));
   assert.equal(sent[0].message.includes("secret"), false);
   assert.ok(sent[0].message.length <= 1200);
 });
