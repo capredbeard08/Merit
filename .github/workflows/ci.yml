@@ -70,6 +70,9 @@ jobs:
       - name: Run Security Warden tests
         run: npm run test:security
 
+      - name: Run tenant database integrity tests
+        run: npm run test:tenant-db
+
       - name: Type-check TypeScript
         run: npx tsc --noEmit
 

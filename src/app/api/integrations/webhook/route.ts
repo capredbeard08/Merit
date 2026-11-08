@@ -5,6 +5,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -30,24 +31,39 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (parsed.data.branchId) {
-    const branch = await prisma.branch.findFirst({
-      where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
-      select: { id: true },
-    });
-    if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
-  }
-
   const secret = "merit_" + randomBytes(32).toString("base64url");
-  const endpoint = await prisma.webhookEndpoint.create({
-    data: {
-      workspaceId: parsed.data.workspaceId,
-      label: parsed.data.label,
-      branchId: parsed.data.branchId ?? null,
-      secretHash: hashSecret(secret),
-    },
-    select: { id: true, label: true, branchId: true, createdAt: true },
-  });
+  let endpoint;
+  try {
+    endpoint = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "integrations:manage",
+      async (tx) => {
+        if (parsed.data.branchId) {
+          const branch = await tx.branch.findFirst({
+            where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
+            select: { id: true },
+          });
+          if (!branch) return null;
+        }
+        return tx.webhookEndpoint.create({
+          data: {
+            workspaceId: parsed.data.workspaceId,
+            label: parsed.data.label,
+            branchId: parsed.data.branchId ?? null,
+            secretHash: hashSecret(secret),
+          },
+          select: { id: true, label: true, branchId: true, createdAt: true },
+        });
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
+  if (!endpoint) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
   await writeAuditLog({
     workspaceId: parsed.data.workspaceId,
@@ -105,15 +121,29 @@ export async function DELETE(request: Request): Promise<Response> {
   const membership = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId: endpoint.workspaceId, userId: session.user.id } },
   });
-  if (!membership || !can(membership.role.toLowerCase() as Role, "integrations:manage")) {
+  if (!membership) return NextResponse.json({ error: "Webhook endpoint not found" }, { status: 404 });
+  if (!can(membership.role.toLowerCase() as Role, "integrations:manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   if (!endpoint.revokedAt) {
-    const revoked = await prisma.webhookEndpoint.updateMany({
-      where: { id: endpointId, workspaceId: endpoint.workspaceId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    let revoked;
+    try {
+      revoked = await withWorkspacePermission(
+        endpoint.workspaceId,
+        session.user.id,
+        "integrations:manage",
+        (tx) => tx.webhookEndpoint.updateMany({
+          where: { id: endpointId, workspaceId: endpoint.workspaceId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        }),
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message === "FORBIDDEN") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      throw error;
+    }
     if (revoked.count !== 1) return NextResponse.json({ error: "Webhook endpoint state changed; refresh and try again." }, { status: 409 });
     await writeAuditLog({
       workspaceId: endpoint.workspaceId,

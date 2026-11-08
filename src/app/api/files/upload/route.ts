@@ -1,11 +1,12 @@
-import { del, head } from "@vercel/blob";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { del, head } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, FILE_MAX_BYTES, safeOriginalName } from "@/lib/file-security";
 import { recordSecurityEvent } from "@/lib/security-warden";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 
@@ -40,11 +41,18 @@ export async function POST(request: Request): Promise<Response> {
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         const payload = JSON.parse(tokenPayload || "{}") as { workspaceId?: string; userId?: string; originalName?: string; sizeBytes?: number };
         if (!payload.workspaceId || !payload.userId || !payload.originalName) throw new Error("Missing verified upload metadata");
-        const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: payload.workspaceId, userId: payload.userId } } });
-        if (!member) throw new Error("Workspace membership no longer exists");
+        // Revalidate and lock the permission at completion, not only when the
+        // upload token was issued. A role may have been revoked while it ran.
         const originalName = safeOriginalName(payload.originalName);
-        // The browser-reported size is untrusted. Read authoritative Blob metadata
-        // before recording the asset, and reject empty/oversized uploads.
+        // Recheck permission at completion; a role may have been revoked while
+        // the client was uploading the private Blob.
+        await withWorkspacePermission(
+          payload.workspaceId,
+          payload.userId,
+          "files:manage",
+          async () => true,
+        );
+        // Verify the real Blob size; never trust browser-reported size.
         const metadata = await head(blob.pathname);
         if (!Number.isSafeInteger(metadata.size) || metadata.size < 1) {
           throw new Error("Uploaded file size could not be verified");
@@ -61,23 +69,55 @@ export async function POST(request: Request): Promise<Response> {
           });
           return;
         }
-        await prisma.fileAsset.upsert({
-          where: { pathname: blob.pathname },
-          create: {
-            workspaceId: payload.workspaceId,
-            uploadedById: payload.userId,
-            originalName,
-            pathname: blob.pathname,
-            contentType: contentTypeForName(originalName),
-            // The client-reported size is untrusted, and this callback does not provide
-            // a verified object size. Do not persist a forged size as authoritative.
-            sizeBytes: metadata.size,
-            // Keep uploads unavailable until server-side content/size verification
-            // and malware scanning are implemented.
-            status: "QUARANTINED",
-          },
-          update: {},
-        });
+        try {
+          await withWorkspacePermission(
+            payload.workspaceId,
+            payload.userId,
+            "files:manage",
+            (tx) => tx.fileAsset.upsert({
+              where: { pathname: blob.pathname },
+              create: {
+                workspaceId: payload.workspaceId!,
+                uploadedById: payload.userId!,
+                originalName,
+                pathname: blob.pathname,
+                contentType: contentTypeForName(originalName),
+                // The client-reported size is untrusted, and this callback does not provide
+                // a verified object size. Do not persist a forged size as authoritative.
+                sizeBytes: metadata.size,
+                // Keep uploads unavailable until server-side content/size verification
+                // and malware scanning are implemented.
+                status: "QUARANTINED",
+              },
+              update: {},
+            }),
+          );
+        } catch (error) {
+          if (error instanceof Error && error.message === "FORBIDDEN") {
+            // The Blob has already been uploaded, but no FileAsset was recorded.
+            // Remove the orphan where possible; if cleanup fails, leave a security
+            // event so an operator can reconcile the private object.
+            try {
+              await del(blob.url);
+            } catch {
+              try {
+                await recordSecurityEvent({
+                  type: "UPLOAD_ORPHAN_CLEANUP_FAILED",
+                  workspaceId: payload.workspaceId,
+                  actorUserId: payload.userId,
+                  targetId: blob.pathname,
+                  metadata: { reason: "permission_revoked_before_upload_completion" },
+                  request,
+                });
+              } catch {
+                // Preserve the original authorization failure; do not mask it
+                // with a secondary logging failure.
+              }
+            }
+            throw new Error("Upload authorization expired");
+          }
+          throw error;
+        }
         await recordSecurityEvent({
           type: "UPLOAD_QUARANTINED",
           workspaceId: payload.workspaceId,

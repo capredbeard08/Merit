@@ -344,6 +344,7 @@ model FollowUp {
   status      FollowUpStatus @default(QUEUED)
   scheduledAt DateTime
   processingAt DateTime?
+  firstAttemptAt DateTime?
   sentAt      DateTime?
   failedAt    DateTime?
   providerId  String?
