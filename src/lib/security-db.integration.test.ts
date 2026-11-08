@@ -244,7 +244,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const inviteeHeaders = await createCredentialAccount(invitee.id, invitee.email, "invitee-" + suffix);
   inviteeHeaders.set("content-type", "application/json");
   const rawInvitationToken = "invitation-" + suffix;
-  await prisma.invitation.create({
+  const routeInvitation = await prisma.invitation.create({
     data: {
       workspaceId: workspace.id, email: invitee.email, role: "VIEWER",
       tokenHash: createHash("sha256").update(rawInvitationToken).digest("hex"),
@@ -263,6 +263,11 @@ test("database security transitions are single-winner and workspace-scoped", { s
     }),
   );
   assert.equal(replayResponse.status, 400);
+  assert.equal(
+    await prisma.securityEvent.count({ where: { type: "INVITATION_REPLAY", targetId: routeInvitation.id } }),
+    1,
+    "replayed invitation acceptance must be recorded by Security Warden",
+  );
 
   // Exercise webhook idempotency and archived-branch rejection through the
   // actual public route, including endpoint-secret hashing and payload checks.
