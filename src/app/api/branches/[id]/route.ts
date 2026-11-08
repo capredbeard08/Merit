@@ -29,14 +29,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const existing = await prisma.branch.findFirst({ where: { id, workspaceId: parsed.data.workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
-  const branch = await prisma.branch.update({
-    where: { id },
+  const changed = await prisma.branch.updateMany({
+    where: { id, workspaceId: parsed.data.workspaceId, archivedAt: null },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.externalId !== undefined ? { externalId: parsed.data.externalId || null } : {}),
     },
+  });
+  if (changed.count !== 1) return NextResponse.json({ error: "Branch state changed; refresh and try again." }, { status: 409 });
+  const branch = await prisma.branch.findFirst({
+    where: { id, workspaceId: parsed.data.workspaceId, archivedAt: null },
     select: { id: true, name: true, externalId: true, updatedAt: true },
   });
+  if (!branch) return NextResponse.json({ error: "Branch is no longer active." }, { status: 409 });
 
   await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "BRANCH_UPDATED", targetType: "BRANCH", targetId: id, metadata: { changedName: parsed.data.name !== undefined, changedExternalId: parsed.data.externalId !== undefined }, request });
 
@@ -61,7 +66,11 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const existing = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
-  await prisma.branch.update({ where: { id }, data: { archivedAt: new Date(), archivedById: session.user.id } });
+  const archived = await prisma.branch.updateMany({
+    where: { id, workspaceId, archivedAt: null },
+    data: { archivedAt: new Date(), archivedById: session.user.id },
+  });
+  if (archived.count !== 1) return NextResponse.json({ error: "Branch state changed; refresh and try again." }, { status: 409 });
   await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_ARCHIVED", targetType: "BRANCH", targetId: id, metadata: { dataPreserved: true }, request });
   return new NextResponse(null, { status: 204 });
 }
