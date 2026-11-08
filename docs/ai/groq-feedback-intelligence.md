@@ -31,6 +31,8 @@ Do not require email verification until all of the following are complete:
 2. Confirm the exact `EMAIL_FROM` identity is authorized by Resend.
 3. Send a controlled test message and confirm delivery (including spam-folder checks).
 4. Test sign-up, resend-verification, verification callback, sign-in, and password reset end to end.
-5. Only then enable sign-up verification and make it a required authentication step.
+5. Only then set `MERIT_EMAIL_VERIFICATION_ENABLED=true` for the approved environment, redeploy that environment, and make verification a required authentication step.
+
+The code defaults this flag to off. This PR does not set the flag in Vercel.
 
 No Vercel environment values are changed by this PR.
