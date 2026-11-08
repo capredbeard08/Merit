@@ -26,7 +26,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       data: { status: "OPTED_OUT" },
     }),
     prisma.followUp.updateMany({
-      where: { feedbackId: id, status: "QUEUED" },
+      where: { feedbackId: id, status: { in: ["QUEUED", "PROCESSING"] } },
       data: { status: "CANCELLED" },
     }),
   ]);
