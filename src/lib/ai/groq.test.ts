@@ -1,0 +1,58 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { analyzeGuestFeedbackThemes } from "./groq";
+
+const originalFetch = globalThis.fetch;
+const originalKey = process.env.GROQ_API_KEY;
+const originalModel = process.env.GROQ_MODEL;
+
+test.afterEach(() => {
+  globalThis.fetch = originalFetch;
+  if (originalKey === undefined) delete process.env.GROQ_API_KEY;
+  else process.env.GROQ_API_KEY = originalKey;
+  if (originalModel === undefined) delete process.env.GROQ_MODEL;
+  else process.env.GROQ_MODEL = originalModel;
+});
+
+test("returns a neutral result without a provider call when there are no comments", async () => {
+  delete process.env.GROQ_API_KEY;
+  const result = await analyzeGuestFeedbackThemes([]);
+  assert.equal(result.themes.length, 0);
+  assert.match(result.overallSummary, /not enough written feedback/i);
+});
+
+test("sends bounded, redacted feedback to Groq and validates the response", async () => {
+  process.env.GROQ_API_KEY = "test-groq-key";
+  let requestUrl = "";
+  let requestInit: RequestInit | undefined;
+  globalThis.fetch = (async (input, init) => {
+    requestUrl = String(input);
+    requestInit = init;
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      themes: [{ name: "Service", sentiment: "positive", mentions: 1, summary: "Guests appreciated the service.", suggestedAction: "Maintain the current service standard." }],
+      overallSummary: "Written feedback is positive about service.",
+      priority: "Continue monitoring service consistency.",
+    }) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  const result = await analyzeGuestFeedbackThemes([
+    { rating: 5, message: "Great service. Contact me at guest@example.com or +234 801 234 5678" },
+  ]);
+  const body = JSON.parse(String(requestInit?.body));
+  assert.equal(requestUrl, "https://api.groq.com/openai/v1/chat/completions");
+  assert.equal(new Headers(requestInit?.headers).get("Authorization"), "Bearer test-groq-key");
+  assert.equal(body.model, "llama-3.3-70b-versatile");
+  assert.match(body.messages[1].content, /\[email\]/);
+  assert.match(body.messages[1].content, /\[phone\]/);
+  assert.equal(body.messages[1].content.includes("guest@example.com"), false);
+  assert.equal(result.themes[0].name, "Service");
+});
+
+test("rejects malformed model output and provider errors without leaking provider details", async () => {
+  process.env.GROQ_API_KEY = "test-groq-key";
+  globalThis.fetch = (async () => new Response(JSON.stringify({ error: "private provider detail" }), { status: 429 })) as typeof fetch;
+  await assert.rejects(
+    analyzeGuestFeedbackThemes([{ rating: 2, message: "Slow service" }]),
+    (error: unknown) => error instanceof Error && error.message === "AI analysis is temporarily unavailable",
+  );
+});
