@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
@@ -66,10 +67,18 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const existing = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: null } });
   if (!existing) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
-  const archived = await prisma.branch.updateMany({
-    where: { id, workspaceId, archivedAt: null },
-    data: { archivedAt: new Date(), archivedById: session.user.id },
-  });
+  let archived;
+  try {
+    archived = await prisma.$transaction(async (tx) => tx.branch.updateMany({
+      where: { id, workspaceId, archivedAt: null },
+      data: { archivedAt: new Date(), archivedById: session.user.id },
+    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return NextResponse.json({ error: "Branch state changed concurrently; refresh and try again." }, { status: 409 });
+    }
+    throw error;
+  }
   if (archived.count !== 1) return NextResponse.json({ error: "Branch state changed; refresh and try again." }, { status: 409 });
   await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_ARCHIVED", targetType: "BRANCH", targetId: id, metadata: { dataPreserved: true }, request });
   return new NextResponse(null, { status: 204 });
