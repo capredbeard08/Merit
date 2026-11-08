@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { hashPassword } from "better-auth/crypto";
+import { auth } from "./better-auth";
 import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
 import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
 import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
@@ -11,6 +13,26 @@ import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-com
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 const prisma = new PrismaClient();
+
+async function createCredentialAccount(userId: string, email: string, suffix: string) {
+  const password = "MeritSecurityTest!123";
+  await prisma.account.create({
+    data: {
+      id: "account-" + suffix,
+      accountId: userId,
+      providerId: "credential",
+      userId,
+      password: await hashPassword(password),
+    },
+  });
+  const signedIn = await auth.api.signInEmail({
+    body: { email, password },
+    returnHeaders: true,
+  });
+  const cookie = signedIn.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ");
+  assert.ok(cookie.length > 0, "Better Auth sign-in must issue a signed session cookie");
+  return new Headers({ cookie });
+}
 
 test("database security transitions are single-winner and workspace-scoped", { skip: !enabled }, async (t) => {
   const suffix = randomUUID();
@@ -27,13 +49,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     await prisma.$disconnect();
   });
 
-  const sessionToken = "session-" + suffix;
-  await prisma.session.create({
-    data: { id: "session-" + suffix, token: sessionToken, userId: user.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
-  });
-  const sessionHeaders = new Headers({
-    cookie: "better-auth.session_token=" + sessionToken + "; __Secure-better-auth.session_token=" + sessionToken,
-  });
+  const sessionHeaders = await createCredentialAccount(user.id, user.email, "owner-" + suffix);
 
   // A stale restore must not resurrect a later deletion generation.
   const file = await prisma.fileAsset.create({
@@ -198,13 +214,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     data: { id: "outsider-" + suffix, name: "Outsider", email: "outsider-" + suffix + "@example.invalid" },
   });
   outsiderId = outsider.id;
-  const outsiderToken = "outsider-session-" + suffix;
-  await prisma.session.create({
-    data: { id: "outsider-session-" + suffix, token: outsiderToken, userId: outsider.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
-  });
-  const outsiderHeaders = new Headers({
-    cookie: "better-auth.session_token=" + outsiderToken + "; __Secure-better-auth.session_token=" + outsiderToken,
-  });
+  const outsiderHeaders = await createCredentialAccount(outsider.id, outsider.email, "outsider-" + suffix);
   const crossWorkspaceDelete = await softDeleteFile(
     new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: outsiderHeaders }),
     { params: Promise.resolve({ id: routeFile.id }) },
@@ -230,14 +240,8 @@ test("database security transitions are single-winner and workspace-scoped", { s
     data: { id: "invitee-" + suffix, name: "Invitee", email: "invitee-" + suffix + "@example.invalid" },
   });
   inviteeId = invitee.id;
-  const inviteeToken = "invitee-session-" + suffix;
-  await prisma.session.create({
-    data: { id: "invitee-session-" + suffix, token: inviteeToken, userId: invitee.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
-  });
-  const inviteeHeaders = new Headers({
-    cookie: "better-auth.session_token=" + inviteeToken + "; __Secure-better-auth.session_token=" + inviteeToken,
-    "content-type": "application/json",
-  });
+  const inviteeHeaders = await createCredentialAccount(invitee.id, invitee.email, "invitee-" + suffix);
+  inviteeHeaders.set("content-type", "application/json");
   const rawInvitationToken = "invitation-" + suffix;
   await prisma.invitation.create({
     data: {
