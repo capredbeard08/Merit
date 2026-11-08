@@ -52,6 +52,26 @@ export async function POST(request: Request): Promise<Response> {
       continue;
     }
 
+    // Opt-out can arrive after the initial job read. Re-read immediately
+    // before dispatch and require this worker still owns the PROCESSING state.
+    const dispatchState = await prisma.followUp.findUnique({
+      where: { id: item.id },
+      include: { feedback: { include: { customer: true } } },
+    });
+    if (
+      !dispatchState ||
+      dispatchState.status !== "PROCESSING" ||
+      dispatchState.feedback.customer.optedOutAt ||
+      dispatchState.feedback.status === "OPTED_OUT"
+    ) {
+      await prisma.followUp.updateMany({
+        where: { id: item.id, status: "PROCESSING" },
+        data: { status: "CANCELLED", processingAt: null },
+      });
+      skipped++;
+      continue;
+    }
+
     const token = createFeedbackToken(item.feedback.id);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const feedbackUrl = appUrl + "/api/feedback/" + item.feedback.id + "/click?t=" + token;
