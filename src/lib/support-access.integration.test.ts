@@ -64,7 +64,11 @@ async function signInWithTotp(email: string, password: string, secret: string): 
 
   const verified = await auth.api.verifyTOTP({
     body: { code: currentTotp(secret), trustDevice: false },
-    headers: new Headers({ cookie: challengeCookie }),
+    headers: new Headers({
+      cookie: challengeCookie,
+      origin: "https://merit-olive.vercel.app",
+      "user-agent": "MERIT-CI-Integration-Test",
+    }),
     asResponse: true,
   });
   assert.equal(
