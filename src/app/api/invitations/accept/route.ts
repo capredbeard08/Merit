@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -27,24 +28,45 @@ export async function POST(request: Request): Promise<Response> {
     where: { workspaceId_userId: { workspaceId: invitation.workspaceId, userId: session.user.id } },
   });
   if (existing) {
-    await prisma.invitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });
+    const claimed = await prisma.invitation.updateMany({
+      where: { id: invitation.id, tokenHash: hash(token), acceptedAt: null, expiresAt: { gt: new Date() } },
+      data: { acceptedAt: new Date() },
+    });
+    if (claimed.count !== 1) return NextResponse.json({ error: "Invitation has already been accepted or expired" }, { status: 409 });
     return NextResponse.json({ accepted: true, workspaceId: invitation.workspaceId });
   }
 
-  await prisma.$transaction([
-    prisma.member.create({
-      data: {
-        workspaceId: invitation.workspaceId,
-        userId: session.user.id,
-        email: session.user.email,
-        role: invitation.role,
-      },
-    }),
-    prisma.invitation.update({
-      where: { id: invitation.id },
-      data: { acceptedAt: new Date() },
-    }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Compare-and-set the invitation before creating membership. This makes
+      // the bearer token single-use even when two acceptance requests race.
+      const claimed = await tx.invitation.updateMany({
+        where: { id: invitation.id, tokenHash: hash(token), acceptedAt: null, expiresAt: { gt: new Date() } },
+        data: { acceptedAt: new Date() },
+      });
+      if (claimed.count !== 1) throw new Error("INVITATION_ALREADY_CLAIMED");
+
+      await tx.member.create({
+        data: {
+          workspaceId: invitation.workspaceId,
+          userId: session.user.id,
+          email: session.user.email,
+          role: invitation.role,
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (error) {
+    if (error instanceof Error && error.message === "INVITATION_ALREADY_CLAIMED") {
+      return NextResponse.json({ error: "Invitation has already been accepted or expired" }, { status: 409 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json({ error: "This account is already a workspace member" }, { status: 409 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return NextResponse.json({ error: "Invitation state changed during acceptance; retry once." }, { status: 409 });
+    }
+    throw error;
+  }
 
   return NextResponse.json({ accepted: true, workspaceId: invitation.workspaceId });
 }
