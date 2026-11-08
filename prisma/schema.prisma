@@ -214,6 +214,7 @@ model User {
   email         String    @unique
   emailVerified Boolean   @default(false)
   twoFactorEnabled Boolean @default(false)
+  twoFactorEnabledAt DateTime?
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

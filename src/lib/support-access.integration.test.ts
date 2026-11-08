@@ -54,7 +54,12 @@ async function signInWithTotp(email: string, password: string, secret: string): 
   assert.equal(challenge.status, 200, "password sign-in should create a pending two-factor challenge");
   const challengeBody = await challenge.clone().json() as { twoFactorRedirect?: boolean };
   assert.equal(challengeBody.twoFactorRedirect, true, "enabled MFA must withhold the authenticated session");
-  const challengeCookie = challenge.headers.get("set-cookie")?.split(";")[0];
+  const responseCookies = (response: Response) => {
+    const responseHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
+    const setCookies = responseHeaders.getSetCookie?.() ?? [response.headers.get("set-cookie") ?? ""];
+    return setCookies.map((value) => value.split(";")[0]).filter(Boolean).join("; ");
+  };
+  const challengeCookie = responseCookies(challenge);
   assert.ok(challengeCookie, "Better Auth must issue a two-factor challenge cookie");
 
   const verified = await auth.api.verifyTOTP({
@@ -62,8 +67,12 @@ async function signInWithTotp(email: string, password: string, secret: string): 
     headers: new Headers({ cookie: challengeCookie }),
     asResponse: true,
   });
-  assert.equal(verified.status, 200, "valid TOTP must complete the pending sign-in challenge");
-  const sessionCookie = verified.headers.get("set-cookie")?.split(";")[0];
+  assert.equal(
+    verified.status,
+    200,
+    "valid TOTP must complete the pending sign-in challenge: " + await verified.clone().text(),
+  );
+  const sessionCookie = responseCookies(verified);
   assert.ok(sessionCookie, "successful TOTP verification must issue an authenticated session cookie");
   return sessionCookie;
 }
