@@ -49,17 +49,13 @@ function currentTotp(secret: string): string {
 async function signInWithTotp(email: string, password: string, secret: string): Promise<string> {
   const challenge = await auth.api.signInEmail({
     body: { email, password },
-    asResponse: true,
+    returnHeaders: true,
   });
-  assert.equal(challenge.status, 200, "password sign-in should create a pending two-factor challenge");
-  const challengeBody = await challenge.clone().json() as { twoFactorRedirect?: boolean };
+  const challengeBody = challenge.response as { twoFactorRedirect?: boolean };
   assert.equal(challengeBody.twoFactorRedirect, true, "enabled MFA must withhold the authenticated session");
-  const responseCookies = (response: Response) => {
-    const responseHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
-    const setCookies = responseHeaders.getSetCookie?.() ?? [response.headers.get("set-cookie") ?? ""];
-    return setCookies.map((value) => value.split(";")[0]).filter(Boolean).join("; ");
-  };
-  const challengeCookie = responseCookies(challenge);
+  const challengeHeaders = challenge.headers as Headers & { getSetCookie?: () => string[] };
+  const challengeCookies = challengeHeaders.getSetCookie?.() ?? [challengeHeaders.get("set-cookie") ?? ""];
+  const challengeCookie = challengeCookies.map((value) => value.split(";")[0]).filter(Boolean).join("; ");
   assert.ok(challengeCookie, "Better Auth must issue a two-factor challenge cookie");
 
   const verified = await auth.api.verifyTOTP({
@@ -76,7 +72,9 @@ async function signInWithTotp(email: string, password: string, secret: string): 
     200,
     "valid TOTP must complete the pending sign-in challenge: " + await verified.clone().text(),
   );
-  const sessionCookie = responseCookies(verified);
+  const verifiedHeaders = verified.headers as Headers & { getSetCookie?: () => string[] };
+  const sessionCookies = verifiedHeaders.getSetCookie?.() ?? [verifiedHeaders.get("set-cookie") ?? ""];
+  const sessionCookie = sessionCookies.map((value) => value.split(";")[0]).filter(Boolean).join("; ");
   assert.ok(sessionCookie, "successful TOTP verification must issue an authenticated session cookie");
   return sessionCookie;
 }
