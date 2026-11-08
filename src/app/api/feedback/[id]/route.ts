@@ -52,7 +52,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         data: { optedOutAt: now },
       });
       await tx.followUp.updateMany({
-        where: { feedbackId: id, status: "QUEUED" },
+        where: { feedbackId: id, status: { in: ["QUEUED", "PROCESSING"] } },
         data: { status: "CANCELLED" },
       });
     }
