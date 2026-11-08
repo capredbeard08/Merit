@@ -2,9 +2,9 @@ name: MERIT CI
 
 on:
   push:
-    branches: [main, feat/platform-access-foundation, feat/guest-feedback-foundation, feat/red-squid-security-warden]
+    branches: [main, feat/platform-access-foundation, feat/guest-feedback-foundation, feat/red-squid-security-warden, feat/groq-feedback-intelligence-email-readiness]
   pull_request:
-    branches: [main, feat/explicit-workspace-selection, feat/platform-access-foundation, feat/guest-feedback-foundation]
+    branches: [main, feat/explicit-workspace-selection, feat/platform-access-foundation, feat/guest-feedback-foundation, feat/red-squid-security-warden]
   workflow_dispatch:
 
 permissions:
@@ -69,6 +69,9 @@ jobs:
 
       - name: Run Security Warden tests
         run: npm run test:security
+
+      - name: Run Groq AI integration unit tests (mocked provider)
+        run: npm run test:ai
 
       - name: Run Red Squid approval lifecycle integration tests
         run: npx tsx --test src/lib/security-warden-approvals.integration.test.ts
