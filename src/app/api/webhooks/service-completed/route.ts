@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serviceCompletedEventSchema } from "@/lib/security";
 import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/webhook-constants";
@@ -120,6 +120,15 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Re-check the branch inside a serializable transaction. The preflight
+      // check above improves the common response path, but only this check
+      // protects against a branch being archived while the webhook is in flight.
+      const activeBranch = await tx.branch.findFirst({
+        where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
+        select: { id: true },
+      });
+      if (!activeBranch) throw new Error("MERIT_BRANCH_NOT_ACTIVE");
+
       const customer = await tx.customer.upsert({
         where: {
           workspaceId_externalId: {
@@ -182,7 +191,7 @@ export async function POST(request: Request): Promise<Response> {
       });
 
       return { eventId: event.id, feedbackId: feedback.id };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     await prisma.webhookEndpoint.update({
       where: { id: endpoint.id },
@@ -209,6 +218,12 @@ export async function POST(request: Request): Promise<Response> {
       }, { status: 202 });
     }
 
+    if (error instanceof Error && error.message === "MERIT_BRANCH_NOT_ACTIVE") {
+      return NextResponse.json({ error: "Branch is no longer active." }, { status: 404 });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return NextResponse.json({ error: "Branch or event state changed during processing; retry the webhook." }, { status: 409 });
+    }
     console.error("MERIT webhook transaction failed", error);
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
