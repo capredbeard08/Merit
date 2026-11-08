@@ -47,13 +47,19 @@ export async function requirePlatformCapability(
   if (options.requireMfa) {
     const userSecurity = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { twoFactorEnabled: true },
+      select: { twoFactorEnabled: true, twoFactorEnabledAt: true },
     });
-    if (!userSecurity?.twoFactorEnabled) {
+    const sessionCreatedAt = new Date(session.session.createdAt).getTime();
+    const mfaEnabledAt = userSecurity?.twoFactorEnabledAt?.getTime() ?? Number.POSITIVE_INFINITY;
+    if (
+      !userSecurity?.twoFactorEnabled ||
+      !Number.isFinite(sessionCreatedAt) ||
+      sessionCreatedAt < mfaEnabledAt
+    ) {
       return {
         ok: false as const,
         response: NextResponse.json(
-          { error: "Authenticator-based two-factor authentication must be enabled before this sensitive action." },
+          { error: "Complete a fresh sign-in with your authenticator code before this sensitive action." },
           { status: 403 },
         ),
       };
