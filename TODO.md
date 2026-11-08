@@ -82,3 +82,16 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Test Chrome, Safari and Firefox where available.
 - [ ] Run security tests, type diagnostics, lint, Prisma validation, production build and endpoint checks before merging.
 - [ ] Verify the deployed preview uses the reviewed commit and required environment variables.
+
+
+## PR #3 follow-up validation — 8 November 2026
+
+- [x] Extract file-recovery retention parsing and eligibility calculation into a pure, testable module.
+- [x] Add boundary tests for unset, malformed, fractional, out-of-range and valid retention settings, including the exact eligibility instant.
+- [x] Include the file-recovery policy tests in `npm run test:security`.
+- [x] Require the database-backup workflow to use the protected `production` environment and dedicated `MERIT_PRODUCTION_DATABASE_URL` secret; keep backup dispatch blocked until the age recipient and private identity are safely configured.
+- [ ] Add database-backed route tests for file soft-delete/restore/erasure, branch archive/restore, invitation acceptance/replay, follow-up concurrent claims/recovery, webhook replay and archived-branch rejection.
+- [ ] Verify the production environment has required reviewers; a workflow environment declaration alone is not proof of approval protection.
+- [ ] Confirm backup encryption can be decrypted and perform a restore drill using the separately held private age identity before production use.
+- [ ] Review all route authorization and tenant-scoped relation traversals; do not claim PostgreSQL RLS.
+- [ ] Re-run CI against the latest PR head and review every job result before marking ready.
