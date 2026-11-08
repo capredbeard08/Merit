@@ -1,7 +1,7 @@
 -- MERIT composite tenant-integrity constraints (REVIEW CANDIDATE ONLY)
 -- This file is intentionally under docs/, not prisma/migrations/.
--- Do not execute against production. First run the preflight queries below in a
--- disposable copy of the target database and review every reported row.
+-- Do not execute against production. Run preflight on a disposable database
+-- copy and review every reported row before promoting any DDL to a migration.
 
 -- 1) Preflight: every relation must remain inside the same workspace.
 SELECT 'Customer.branch' AS relation, c.id AS child_id, c.workspaceId AS child_workspace,
@@ -39,19 +39,29 @@ WHERE r."workspaceId" <> f."workspaceId"
 UNION ALL
 SELECT 'WebhookEndpoint.branch', w.id, w."workspaceId", b."workspaceId", w."branchId"
 FROM "WebhookEndpoint" w JOIN "Branch" b ON b.id = w."branchId"
-WHERE w."branchId" IS NOT NULL AND w."workspaceId" <> b."workspaceId";
+WHERE w."branchId" IS NOT NULL AND w."workspaceId" <> b."workspaceId"
+UNION ALL
+SELECT 'GuestQrCode.branch', q.id, q."workspaceId", b."workspaceId", q."branchId"
+FROM "GuestQrCode" q JOIN "Branch" b ON b.id = q."branchId"
+WHERE q."workspaceId" <> b."workspaceId"
+UNION ALL
+SELECT 'GuestFeedback.branch', g.id, g."workspaceId", b."workspaceId", g."branchId"
+FROM "GuestFeedback" g JOIN "Branch" b ON b.id = g."branchId"
+WHERE g."workspaceId" <> b."workspaceId"
+UNION ALL
+SELECT 'GuestFeedback.qrCode', g.id, g."workspaceId", q."workspaceId", g."qrCodeId"
+FROM "GuestFeedback" g JOIN "GuestQrCode" q ON q.id = g."qrCodeId"
+WHERE g."workspaceId" <> q."workspaceId"
+   OR g."branchId" <> q."branchId";
 
--- 2) Preflight uniqueness: these parent pairs must be unique before they can
--- be referenced by composite foreign keys. Existing primary keys guarantee
--- this logically, but PostgreSQL requires a matching unique constraint/index.
--- Run only after the mismatch query above returns zero rows.
-
--- 3) Candidate DDL. Review Prisma schema relation definitions and on-delete
--- semantics before promoting this into a timestamped Prisma migration.
+-- 2) Candidate DDL only. Review Prisma composite relation definitions,
+-- on-delete semantics, PostgreSQL version, and all preflight results first.
 CREATE UNIQUE INDEX "Branch_workspaceId_id_key" ON "Branch" ("workspaceId", id);
 CREATE UNIQUE INDEX "Customer_workspaceId_id_key" ON "Customer" ("workspaceId", id);
 CREATE UNIQUE INDEX "ServiceEvent_workspaceId_id_key" ON "ServiceEvent" ("workspaceId", id);
 CREATE UNIQUE INDEX "Feedback_workspaceId_id_key" ON "Feedback" ("workspaceId", id);
+CREATE UNIQUE INDEX "GuestQrCode_workspace_branch_id_key"
+  ON "GuestQrCode" ("workspaceId", "branchId", id);
 
 ALTER TABLE "Customer"
   ADD CONSTRAINT "Customer_workspace_branch_fkey"
@@ -101,8 +111,22 @@ ALTER TABLE "WebhookEndpoint"
   REFERENCES "Branch" ("workspaceId", id)
   ON DELETE SET NULL ("branchId") ON UPDATE CASCADE;
 
--- 4) After application/schema migration is reviewed, add automated negative
--- tests proving that cross-workspace relation inserts and updates are rejected.
--- Note: PostgreSQL supports column-list SET NULL on modern versions. Confirm
--- the deployed server version before using that clause; otherwise use a
--- workspace-preserving trigger or redesign optional branch references.
+ALTER TABLE "GuestQrCode"
+  ADD CONSTRAINT "GuestQrCode_workspace_branch_fkey"
+  FOREIGN KEY ("workspaceId", "branchId")
+  REFERENCES "Branch" ("workspaceId", id)
+  ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "GuestFeedback"
+  ADD CONSTRAINT "GuestFeedback_workspace_branch_fkey"
+  FOREIGN KEY ("workspaceId", "branchId")
+  REFERENCES "Branch" ("workspaceId", id)
+  ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT "GuestFeedback_workspace_branch_qr_fkey"
+  FOREIGN KEY ("workspaceId", "branchId", "qrCodeId")
+  REFERENCES "GuestQrCode" ("workspaceId", "branchId", id)
+  ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- 3) Add automated negative tests proving cross-workspace inserts and updates
+-- are rejected. Confirm PostgreSQL 15+ before using column-list SET NULL.
+-- This candidate is documentation, not executable migration material.

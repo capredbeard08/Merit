@@ -61,3 +61,14 @@ FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
 CREATE TRIGGER file_asset_workspace_immutable
 BEFORE UPDATE OF "workspaceId" ON "FileAsset"
 FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
+
+
+-- Guest-feedback records must not be reassigned across workspaces.
+-- The guest-feedback foundation migration runs before this migration.
+CREATE TRIGGER guest_qr_workspace_immutable
+BEFORE UPDATE OF "workspaceId" ON "GuestQrCode"
+FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
+
+CREATE TRIGGER guest_feedback_workspace_immutable
+BEFORE UPDATE OF "workspaceId" ON "GuestFeedback"
+FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
