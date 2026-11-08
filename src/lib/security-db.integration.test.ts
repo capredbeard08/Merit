@@ -19,10 +19,11 @@ test("database security transitions are single-winner and workspace-scoped", { s
     data: { id: "security-test-" + suffix, name: "Security Test", email: suffix + "@example.invalid" },
   });
   let inviteeId: string | null = null;
+  let outsiderId: string | null = null;
 
   t.after(async () => {
     await prisma.workspace.deleteMany({ where: { id: workspace.id } });
-    await prisma.user.deleteMany({ where: { id: { in: [user.id, ...(inviteeId ? [inviteeId] : [])] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [user.id, ...(inviteeId ? [inviteeId] : []), ...(outsiderId ? [outsiderId] : [])] } } });
     await prisma.$disconnect();
   });
 
@@ -193,6 +194,23 @@ test("database security transitions are single-winner and workspace-scoped", { s
       pathname: "security-test/" + suffix + "/route-proof.pdf", contentType: "application/pdf", sizeBytes: 32,
     },
   });
+  const outsider = await prisma.user.create({
+    data: { id: "outsider-" + suffix, name: "Outsider", email: "outsider-" + suffix + "@example.invalid" },
+  });
+  outsiderId = outsider.id;
+  const outsiderToken = "outsider-session-" + suffix;
+  await prisma.session.create({
+    data: { id: "outsider-session-" + suffix, token: outsiderToken, userId: outsider.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+  });
+  const outsiderHeaders = new Headers({
+    cookie: "better-auth.session_token=" + outsiderToken + "; __Secure-better-auth.session_token=" + outsiderToken,
+  });
+  const crossWorkspaceDelete = await softDeleteFile(
+    new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: outsiderHeaders }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(crossWorkspaceDelete.status, 403);
+
   const softDeletedResponse = await softDeleteFile(
     new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: sessionHeaders }),
     { params: Promise.resolve({ id: routeFile.id }) },
