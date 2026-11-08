@@ -19,6 +19,11 @@ export async function POST(request: Request): Promise<Response> {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
+  const configuredFounderEmail = process.env.FOUNDER_BOOTSTRAP_EMAIL?.trim().toLowerCase();
+  const signedInEmail = session.user.email.trim().toLowerCase();
+  if (!configuredFounderEmail || signedInEmail !== configuredFounderEmail) {
+    return NextResponse.json({ error: "This account is not designated for Founder bootstrap" }, { status: 403 });
+  }
   const authenticatedAt = new Date(session.session.createdAt).getTime();
   if (!Number.isFinite(authenticatedAt) || Date.now() - authenticatedAt > 10 * 60 * 1000 || Date.now() < authenticatedAt) {
     return NextResponse.json({ error: "Fresh authentication required. Sign in again before founder bootstrap." }, { status: 428 });
