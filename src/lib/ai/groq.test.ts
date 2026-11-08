@@ -41,7 +41,7 @@ test("sends bounded, redacted feedback to Groq and validates the response", asyn
   const body = JSON.parse(String(requestInit?.body));
   assert.equal(requestUrl, "https://api.groq.com/openai/v1/chat/completions");
   assert.equal(new Headers(requestInit?.headers).get("Authorization"), "Bearer test-groq-key");
-  assert.equal(body.model, "llama-3.3-70b-versatile");
+  assert.equal(body.model, "openai/gpt-oss-120b");
   assert.match(body.messages[1].content, /\[email\]/);
   assert.match(body.messages[1].content, /\[phone\]/);
   assert.equal(body.messages[1].content.includes("guest@example.com"), false);
