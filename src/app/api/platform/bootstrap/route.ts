@@ -28,10 +28,18 @@ export async function POST(request: Request): Promise<Response> {
   }
   const securityState = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { twoFactorEnabled: true },
+    select: { twoFactorEnabled: true, twoFactorEnabledAt: true },
   });
-  if (!securityState?.twoFactorEnabled) {
-    return NextResponse.json({ error: "Enable authenticator-based two-factor authentication before founder bootstrap." }, { status: 403 });
+  const sessionCreatedAt = new Date(session.session.createdAt).getTime();
+  const mfaEnabledAt = securityState?.twoFactorEnabledAt?.getTime() ?? Number.POSITIVE_INFINITY;
+  if (
+    !securityState?.twoFactorEnabled ||
+    !Number.isFinite(sessionCreatedAt) ||
+    sessionCreatedAt < mfaEnabledAt
+  ) {
+    return NextResponse.json({
+      error: "Complete a fresh sign-in with your authenticator code before founder bootstrap.",
+    }, { status: 403 });
   }
 
   const rateLimit = await consumePlatformRateLimit(session.user.id, "founder-bootstrap", 3, 60 * 60 * 1000);
