@@ -30,7 +30,7 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 
 - [ ] Configure GitHub's `production` environment with required reviewers and verify its protection rules; the workflow's environment declaration alone does not prove approval is enforced.
 - [ ] Verify the Resend sender domain, then enable and enforce email verification on signup; the current callback is configured but sending and enforcement remain disabled. Test verification expiry, resend, callback, and protected-route behavior end to end.
-- [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Vercel environment-variable metadata assigns one DATABASE_URL entry to both targets.
+- [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Preview-versus-Production `DATABASE_URL` assignment is not yet reconciled against the PR description; verify the actual Vercel target assignments before write-capable preview testing.
 - [ ] Design and implement PostgreSQL RLS for every tenant-owned table only after defining a non-owner runtime DB role and transaction-scoped tenant context; add cross-workspace isolation tests before claiming database-enforced isolation.
 - [ ] Add automated integration tests for soft deletion, recovery, retention enforcement and permanent erasure.
 - [ ] Add tests for branch archival/restoration and webhook rejection for archived branches.
@@ -94,4 +94,4 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Verify the production environment has required reviewers; a workflow environment declaration alone is not proof of approval protection.
 - [ ] Confirm backup encryption can be decrypted and perform a restore drill using the separately held private age identity before production use.
 - [ ] Review all route authorization and tenant-scoped relation traversals; do not claim PostgreSQL RLS.
-- [ ] Re-run CI against the latest PR head and review every job result before marking ready.
+- [x] Re-run CI against latest PR head `d53579c72c60ec0b84ac47fd2a68cbea0f3c3601`; run `42491948603` completed successfully (Security tests, TypeScript and production build). This does not replace the outstanding integration, deployment or operational acceptance tests.
