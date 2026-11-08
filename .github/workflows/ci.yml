@@ -73,6 +73,9 @@ jobs:
       - name: Run Red Squid approval lifecycle integration tests
         run: npx tsx --test src/lib/security-warden-approvals.integration.test.ts
 
+      - name: Run tenant database integrity tests
+        run: npm run test:tenant-db
+
       - name: Type-check application TypeScript
         run: npx tsc --noEmit
 

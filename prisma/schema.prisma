@@ -111,7 +111,6 @@ model Branch {
   @@index([workspaceId, archivedAt])
 }
 
-
 /// Permanent, public-facing QR identity for one workspace branch.
 /// The publicId is a random locator, not an authentication credential.
 model GuestQrCode {
@@ -143,12 +142,12 @@ model GuestFeedback {
   message           String?        @db.VarChar(2000)
   answers           Json?
   submissionKeyHash String?        @unique
-  source             String         @default("PERMANENT_QR")
-  submittedAt        DateTime       @default(now())
-  createdAt          DateTime       @default(now())
-  workspace          Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  branch             Branch         @relation(fields: [workspaceId, branchId], references: [workspaceId, id], onDelete: Cascade)
-  qrCode             GuestQrCode    @relation(fields: [workspaceId, branchId, qrCodeId], references: [workspaceId, branchId, id], onDelete: Cascade)
+  source            String         @default("PERMANENT_QR")
+  submittedAt       DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch            Branch         @relation(fields: [workspaceId, branchId], references: [workspaceId, id], onDelete: Cascade)
+  qrCode            GuestQrCode    @relation(fields: [workspaceId, branchId, qrCodeId], references: [workspaceId, branchId, id], onDelete: Cascade)
   @@index([workspaceId, submittedAt])
   @@index([branchId, submittedAt])
   @@index([qrCodeId, submittedAt])
@@ -400,6 +399,7 @@ model FollowUp {
   status      FollowUpStatus @default(QUEUED)
   scheduledAt DateTime
   processingAt DateTime?
+  firstAttemptAt DateTime?
   sentAt      DateTime?
   failedAt    DateTime?
   providerId  String?
@@ -585,8 +585,6 @@ enum SecurityCorrelationType {
   RELATED_EVENT
 }
 
-/// Durable case record. workspaceId is deliberately an unbound historical
-/// identifier: deleting a workspace must not erase an investigation.
 model SecurityIncident {
   id          String                 @id @default(cuid())
   workspaceId String?
@@ -612,8 +610,6 @@ model SecurityIncident {
   @@index([fingerprint, lastSeenAt])
 }
 
-/// Sanitized detector output. Raw customer content and secrets do not belong
-/// in evidenceMetadata; sensitive source artefacts stay in private storage.
 model SecurityFinding {
   id               String                 @id @default(cuid())
   incidentId       String
@@ -639,8 +635,6 @@ model SecurityFinding {
   @@index([sha256])
 }
 
-/// Private immutable original-object reference plus chain-of-custody metadata.
-/// The source object is never overwritten by analysis.
 model SecurityArtifact {
   id                String               @id @default(cuid())
   incidentId        String?
@@ -667,8 +661,6 @@ model SecurityArtifact {
   @@index([retainedUntil])
 }
 
-/// Founder-authorized, short-lived, single-use capability bound to an exact
-/// artifact hash and exact operation. Approval is not a general-purpose grant.
 model SecurityApproval {
   id            String                @id @default(cuid())
   incidentId    String
@@ -694,8 +686,6 @@ model SecurityApproval {
   @@index([approvedById, approvedAt])
 }
 
-/// Append-only execution record. No Warden worker may create a destructive
-/// action without a matching consumed Founder approval.
 model SecurityAction {
   id             String               @id @default(cuid())
   incidentId     String
@@ -719,8 +709,6 @@ model SecurityAction {
   @@index([status, createdAt])
 }
 
-/// Bounded specialist-worker execution record; not a request to spawn an
-/// unbounded swarm. Queue concurrency and resource limits live in the worker.
 model SecurityHunterRun {
   id           String                 @id @default(cuid())
   incidentId   String?
@@ -744,8 +732,6 @@ model SecurityHunterRun {
   @@index([incidentId, createdAt])
 }
 
-/// Explicit evidence links used by the coordinator to correlate independent
-/// findings without silently asserting that they share a malicious cause.
 model SecurityCorrelation {
   id             String                @id @default(cuid())
   incidentId     String

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -52,14 +53,25 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const branch = await prisma.branch.create({
-    data: {
-      workspaceId: parsed.data.workspaceId,
-      name: parsed.data.name,
-      externalId: parsed.data.externalId || null,
-    },
-    select: { id: true, name: true, externalId: true, createdAt: true },
-  });
-
-  return NextResponse.json({ branch }, { status: 201 });
+  try {
+    const branch = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "branches:manage",
+      (tx) => tx.branch.create({
+        data: {
+          workspaceId: parsed.data.workspaceId,
+          name: parsed.data.name,
+          externalId: parsed.data.externalId || null,
+        },
+        select: { id: true, name: true, externalId: true, createdAt: true },
+      }),
+    );
+    return NextResponse.json({ branch }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
 }

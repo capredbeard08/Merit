@@ -2,6 +2,10 @@
 
 Status: design and implementation gate only. This document does not apply database changes.
 
+## Current provider blocker
+
+The Prisma Postgres project currently used by MERIT does not support creating a separate restricted PostgreSQL role with the required grants. A second connection string is not, by itself, a restricted role. Therefore `DATABASE_RUNTIME_URL` and `withTenantDb` are preparatory only and MUST NOT be wired into tenant routes or described as RLS enforcement on the current database. Do not reuse the migration/application credential and assume it is restricted. RLS remains blocked until the provider supports the required role model or MERIT deliberately migrates to a PostgreSQL provider that does. That provider change is a separate architecture and migration decision; it is not part of this PR.
+
 ## Why this is a gated rollout
 
 The application currently uses one Prisma client created from `DATABASE_URL`. The repository does not yet establish a restricted runtime database role, and normal Prisma calls are not consistently wrapped in transactions that set a verified user/workspace context. Enabling tenant policies before those two pieces exist would either break legitimate requests or tempt the app to keep using a privileged owner connection, which would make the protection ineffective.
@@ -24,6 +28,8 @@ Workspace-scoped records:
 - `FeedbackReply`
 - `Insight`
 - `FileAsset`
+- `GuestQrCode` — workspace/branch-owned QR configuration with an opaque public locator.
+- `GuestFeedback` — anonymous submissions associated with a workspace, branch, and QR record.
 
 `SecurityEvent` has a nullable `workspaceId`; it needs a deliberate policy for workspace events versus platform-wide events before it is included. Authentication tables (`User`, `Session`, `Account`, `Verification`) are not tenant tables and need a separate narrowly scoped authentication access design.
 
@@ -83,6 +89,9 @@ Use two workspaces and at least two users (one user in both workspaces; one user
 - Transaction rollback and connection reuse do not leak context.
 - Concurrent requests for different workspaces cannot see each other's context.
 - Webhook/public-feedback paths work only with their dedicated verified capability.
+- Guest QR public IDs reveal no tenant/internal IDs and never permit general tenant reads.
+- Paused/revoked QR codes and archived branches cannot accept guest submissions.
+- GuestQrCode → Branch, GuestFeedback → Branch, and GuestFeedback → GuestQrCode composite relations reject cross-workspace or cross-branch combinations.
 - Migration/owner credentials are unavailable to web runtime code.
 
 ## Rollout sequence
@@ -93,7 +102,7 @@ Use two workspaces and at least two users (one user in both workspaces; one user
 4. Add composite tenant foreign keys after a read-only integrity audit.
 5. Add RLS policies in a new migration on a disposable test database first.
 6. Run the complete cross-tenant and concurrency suite against the restricted runtime role.
-7. Deploy to Preview only after CI passes; verify signup, dashboard, webhook, files, and feedback flows.
+7. Only after explicit approval, deploy to a non-production preview isolated from Production; verify signup, dashboard, webhook, files, feedback, and guest QR flows.
 8. Schedule Production only with a reviewed backup, restore plan, migration approval, and explicit owner approval.
 
 ## Current decision

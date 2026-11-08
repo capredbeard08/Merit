@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const CONFIRMATION = "PERMANENTLY ERASE";
 
@@ -26,7 +27,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const member = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } },
   });
-  if (!member || !can(member.role.toLowerCase() as Role, "files:erase")) {
+  if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!can(member.role.toLowerCase() as Role, "files:erase")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!file.deletedAt || (file.status !== "DELETED" && file.status !== "ERASURE_PENDING")) {
@@ -44,14 +46,28 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   // Atomically claim the transition out of the recoverable state. A concurrent
   // restore can win this compare-and-set, but it cannot race past this claim.
-  if (file.status === "DELETED") {
-    const claim = await prisma.fileAsset.updateMany({
-      where: { id: file.id, workspaceId: file.workspaceId, status: "DELETED", deletedAt: file.deletedAt },
-      data: { status: "ERASURE_PENDING" },
-    });
-    if (claim.count !== 1) {
-      return NextResponse.json({ error: "File recovery state changed; refresh and try again." }, { status: 409 });
+  try {
+    if (file.status === "DELETED") {
+      const claim = await withWorkspacePermission(
+        file.workspaceId,
+        session.user.id,
+        "files:erase",
+        (tx) => tx.fileAsset.updateMany({
+          where: { id: file.id, workspaceId: file.workspaceId, status: "DELETED", deletedAt: file.deletedAt },
+          data: { status: "ERASURE_PENDING" },
+        }),
+      );
+      if (claim.count !== 1) {
+        return NextResponse.json({ error: "File recovery state changed; refresh and try again." }, { status: 409 });
+      }
+    } else {
+      await withWorkspacePermission(file.workspaceId, session.user.id, "files:erase", async () => true);
     }
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
   }
 
   await writeAuditLog({
