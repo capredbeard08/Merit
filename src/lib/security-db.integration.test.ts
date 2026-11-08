@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
+import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
+import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
+import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
+import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
+import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 const prisma = new PrismaClient();
@@ -12,11 +18,20 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const user = await prisma.user.create({
     data: { id: "security-test-" + suffix, name: "Security Test", email: suffix + "@example.invalid" },
   });
+  let inviteeId: string | null = null;
 
   t.after(async () => {
     await prisma.workspace.deleteMany({ where: { id: workspace.id } });
-    await prisma.user.deleteMany({ where: { id: user.id } });
+    await prisma.user.deleteMany({ where: { id: { in: [user.id, ...(inviteeId ? [inviteeId] : [])] } } });
     await prisma.$disconnect();
+  });
+
+  const sessionToken = "session-" + suffix;
+  await prisma.session.create({
+    data: { id: "session-" + suffix, token: sessionToken, userId: user.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+  });
+  const sessionHeaders = new Headers({
+    cookie: "better-auth.session_token=" + sessionToken + "; __Secure-better-auth.session_token=" + sessionToken,
   });
 
   // A stale restore must not resurrect a later deletion generation.
@@ -150,4 +165,117 @@ test("database security transitions are single-winner and workspace-scoped", { s
   assert.equal(lateFinalize.count, 0, "a late provider response must not overwrite an opt-out cancellation");
   const optedOutFollowUp = await prisma.followUp.findUnique({ where: { id: followUp.id } });
   assert.equal(optedOutFollowUp?.status, "CANCELLED");
+  // Exercise the actual authenticated branch and file route handlers with a
+  // database-backed Better Auth session, not only the underlying updateMany calls.
+  const routeBranch = await prisma.branch.create({ data: { workspaceId: workspace.id, name: "Route branch " + suffix } });
+  const archivedResponse = await archiveBranch(
+    new Request("http://localhost/api/branches/" + routeBranch.id + "?workspaceId=" + workspace.id, { method: "DELETE", headers: sessionHeaders }),
+    { params: Promise.resolve({ id: routeBranch.id }) },
+  );
+  assert.equal(archivedResponse.status, 204);
+  const restoredBranchResponse = await restoreBranch(
+    new Request("http://localhost/api/branches/" + routeBranch.id + "/restore", {
+      method: "POST", headers: { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: workspace.id }),
+    }),
+    { params: Promise.resolve({ id: routeBranch.id }) },
+  );
+  assert.equal(restoredBranchResponse.status, 200);
+
+  const routeFile = await prisma.fileAsset.create({
+    data: {
+      workspaceId: workspace.id, uploadedById: user.id, originalName: "route-proof.pdf",
+      pathname: "security-test/" + suffix + "/route-proof.pdf", contentType: "application/pdf", sizeBytes: 32,
+    },
+  });
+  const softDeletedResponse = await softDeleteFile(
+    new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: sessionHeaders }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(softDeletedResponse.status, 204);
+  const restoredFileResponse = await restoreFile(
+    new Request("http://localhost/api/files/" + routeFile.id + "/restore", {
+      method: "POST", headers: sessionHeaders,
+    }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(restoredFileResponse.status, 200);
+
+  // Invitation acceptance route: the invitee must be signed in as the invited
+  // address, and a successful token cannot be replayed.
+  const invitee = await prisma.user.create({
+    data: { id: "invitee-" + suffix, name: "Invitee", email: "invitee-" + suffix + "@example.invalid" },
+  });
+  inviteeId = invitee.id;
+  const inviteeToken = "invitee-session-" + suffix;
+  await prisma.session.create({
+    data: { id: "invitee-session-" + suffix, token: inviteeToken, userId: invitee.id, expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+  });
+  const inviteeHeaders = new Headers({
+    cookie: "better-auth.session_token=" + inviteeToken + "; __Secure-better-auth.session_token=" + inviteeToken,
+    "content-type": "application/json",
+  });
+  const rawInvitationToken = "invitation-" + suffix;
+  await prisma.invitation.create({
+    data: {
+      workspaceId: workspace.id, email: invitee.email, role: "VIEWER",
+      tokenHash: createHash("sha256").update(rawInvitationToken).digest("hex"),
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000), invitedByUserId: user.id,
+    },
+  });
+  const acceptedResponse = await acceptInvitation(
+    new Request("http://localhost/api/invitations/accept", {
+      method: "POST", headers: inviteeHeaders, body: JSON.stringify({ token: rawInvitationToken }),
+    }),
+  );
+  assert.equal(acceptedResponse.status, 200);
+  const replayResponse = await acceptInvitation(
+    new Request("http://localhost/api/invitations/accept", {
+      method: "POST", headers: inviteeHeaders, body: JSON.stringify({ token: rawInvitationToken }),
+    }),
+  );
+  assert.equal(replayResponse.status, 400);
+
+  // Exercise webhook idempotency and archived-branch rejection through the
+  // actual public route, including endpoint-secret hashing and payload checks.
+  const webhookBranch = await prisma.branch.create({ data: { workspaceId: workspace.id, name: "Webhook branch " + suffix } });
+  const webhookSecret = "webhook-secret-" + suffix;
+  await prisma.webhookEndpoint.create({
+    data: {
+      workspaceId: workspace.id, branchId: webhookBranch.id, label: "CI webhook",
+      secretHash: createHash("sha256").update(webhookSecret).digest("hex"),
+    },
+  });
+  const webhookEvent = {
+    eventId: "webhook-event-" + suffix,
+    workspaceId: workspace.id,
+    branchId: webhookBranch.id,
+    occurredAt: new Date().toISOString(),
+    customer: { externalId: "webhook-customer-" + suffix, email: "webhook@example.invalid" },
+    service: { completedAt: new Date().toISOString(), type: "CI test" },
+    consent: { feedbackContact: false, recordedAt: new Date().toISOString() },
+  };
+  const webhookRequest = () => new Request("http://localhost/api/webhooks/service-completed", {
+    method: "POST",
+    headers: { "x-merit-webhook-secret": webhookSecret, "content-type": "application/json" },
+    body: JSON.stringify(webhookEvent),
+  });
+  const firstWebhook = await serviceCompletedWebhook(webhookRequest());
+  assert.equal(firstWebhook.status, 202);
+  const replayWebhook = await serviceCompletedWebhook(webhookRequest());
+  assert.equal(replayWebhook.status, 202);
+  assert.equal((await replayWebhook.json()).duplicate, true);
+
+  const archivedWebhookBranch = await archiveBranch(
+    new Request("http://localhost/api/branches/" + webhookBranch.id + "?workspaceId=" + workspace.id, { method: "DELETE", headers: sessionHeaders }),
+    { params: Promise.resolve({ id: webhookBranch.id }) },
+  );
+  assert.equal(archivedWebhookBranch.status, 204);
+  const rejectedArchivedWebhook = await serviceCompletedWebhook(new Request("http://localhost/api/webhooks/service-completed", {
+    method: "POST",
+    headers: { "x-merit-webhook-secret": webhookSecret, "content-type": "application/json" },
+    body: JSON.stringify({ ...webhookEvent, eventId: "archived-event-" + suffix }),
+  }));
+  assert.equal(rejectedArchivedWebhook.status, 404);
+
 });
