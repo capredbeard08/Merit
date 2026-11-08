@@ -25,9 +25,6 @@ function redactPersonalData(value: string): string {
 export async function analyzeGuestFeedbackThemes(
   entries: Array<{ rating: number; message: string }>,
 ): Promise<GuestFeedbackThemeAnalysis> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("AI provider is not configured");
-
   const safeEntries = entries
     .filter((entry) => Number.isInteger(entry.rating) && entry.rating >= 1 && entry.rating <= 5)
     .map((entry) => ({ rating: entry.rating, message: redactPersonalData(entry.message.trim()) }))
@@ -41,6 +38,9 @@ export async function analyzeGuestFeedbackThemes(
       priority: "Collect more written feedback before drawing conclusions.",
     };
   }
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("AI provider is not configured");
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
