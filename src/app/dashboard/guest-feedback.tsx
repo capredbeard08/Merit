@@ -10,7 +10,7 @@ type QrCode = {
   branch: { name: string; archivedAt: string | null; googleReviewUrl: string | null };
 };
 type GuestFeedback = { id: string; rating: string; message: string | null; submittedAt: string; branch: { name: string } };
-type Props = { workspaceId: string; branches: Branch[]; canManage: boolean };
+type Props = { workspaceId: string; branches: Branch[]; canManage: boolean; canUseAi: boolean };
 const ratingNumber: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
 
 function qrImageUrl(value: string, size = 360) {
@@ -18,7 +18,7 @@ function qrImageUrl(value: string, size = 360) {
   return "https://api.qrserver.com/v1/create-qr-code/?size=" + size + "x" + size + "&format=png&margin=12&data=" + encodeURIComponent(value);
 }
 
-export default function GuestFeedbackManager({ workspaceId, branches, canManage }: Props) {
+export default function GuestFeedbackManager({ workspaceId, branches, canManage, canUseAi }: Props) {
   const [codes, setCodes] = useState<QrCode[]>([]);
   const [feedback, setFeedback] = useState<GuestFeedback[]>([]);
   const [summary, setSummary] = useState({ count: 0, averageRating: null as number | null });
@@ -216,7 +216,7 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
       <div className="mt-8 border-t border-[#dfe5dc] pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="font-semibold text-[#183d2f]">Latest guest submissions</h3><span className="text-xs text-[#718178]">Latest 50</span></div>
-          <button type="button" disabled={aiBusy || loading || feedback.length === 0} onClick={() => void runAiAnalysis()} className="rounded-xl border border-[#cfd9cf] px-4 py-2 text-sm font-semibold text-[#315b49] disabled:opacity-50">{aiBusy ? "Analyzing…" : "Analyze feedback themes"}</button>
+          {canUseAi ? <button type="button" disabled={aiBusy || loading || feedback.length === 0} onClick={() => void runAiAnalysis()} className="rounded-xl border border-[#cfd9cf] px-4 py-2 text-sm font-semibold text-[#315b49] disabled:opacity-50">{aiBusy ? "Analyzing…" : "Analyze feedback themes"}</button> : <span className="text-xs text-[#718178]">AI analysis is not enabled for your workspace role.</span>}
         </div>
         {aiAnalysis && <div className="mt-4 rounded-2xl border border-[#dfe5dc] bg-[#f7f8f3] p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#557565]">AI-assisted summary</p>
