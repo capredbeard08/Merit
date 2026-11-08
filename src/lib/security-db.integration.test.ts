@@ -111,14 +111,29 @@ test("database security transitions are single-winner and workspace-scoped", { s
     data: { workspaceId: workspace.id, branchId: branch.id, externalId: "customer-" + suffix, email: "customer@example.invalid" },
   });
   const event = await prisma.serviceEvent.create({
-    data: { workspaceId: workspace.id, branchId: branch.id, customerId: customer.id, completedAt: new Date() },
+    data: { workspaceId: workspace.id, branchId: branch.id, customerId: customer.id, externalId: "event-" + suffix, completedAt: new Date() },
   });
+  await assert.rejects(
+    prisma.serviceEvent.create({
+      data: { workspaceId: workspace.id, branchId: branch.id, customerId: customer.id, externalId: "event-" + suffix, completedAt: new Date() },
+    }),
+    (error: unknown) => (error as { code?: string })?.code === "P2002",
+    "a repeated external event id must be rejected by the database uniqueness constraint",
+  );
+
   const feedback = await prisma.feedback.create({
     data: { workspaceId: workspace.id, branchId: branch.id, customerId: customer.id, serviceEventId: event.id },
   });
   const followUp = await prisma.followUp.create({
-    data: { workspaceId: workspace.id, feedbackId: feedback.id, status: "PROCESSING", scheduledAt: new Date() },
+    data: { workspaceId: workspace.id, feedbackId: feedback.id, status: "QUEUED", scheduledAt: new Date() },
   });
+  const claimFollowUp = () => prisma.followUp.updateMany({
+    where: { id: followUp.id, status: "QUEUED" },
+    data: { status: "PROCESSING", processingAt: new Date() },
+  });
+  const claims = await Promise.all([claimFollowUp(), claimFollowUp()]);
+  assert.equal(claims.filter((claim) => claim.count === 1).length, 1);
+
   await prisma.$transaction([
     prisma.customer.update({ where: { id: customer.id }, data: { optedOutAt: new Date() } }),
     prisma.feedback.update({ where: { id: feedback.id }, data: { status: "OPTED_OUT" } }),
@@ -127,6 +142,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
       data: { status: "CANCELLED", processingAt: null },
     }),
   ]);
+  assert.equal(await prisma.branch.count({ where: { id: branch.id, workspaceId: workspace.id, archivedAt: null } }), 0);
   const optedOutFollowUp = await prisma.followUp.findUnique({ where: { id: followUp.id } });
   assert.equal(optedOutFollowUp?.status, "CANCELLED");
 });
