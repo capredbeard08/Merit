@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
-import { isSameOriginRequest, matchesFounderBootstrapSecret } from "@/lib/founder-bootstrap";
+import { isSameOriginRequest, matchesFounderBootstrapEmail, matchesFounderBootstrapSecret } from "@/lib/founder-bootstrap";
 import { consumePlatformRateLimit } from "@/lib/platform-rate-limit";
 
 const bodySchema = z.object({
@@ -19,9 +19,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!session?.user) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
-  const configuredFounderEmail = process.env.FOUNDER_BOOTSTRAP_EMAIL?.trim().toLowerCase();
-  const signedInEmail = session.user.email.trim().toLowerCase();
-  if (!configuredFounderEmail || signedInEmail !== configuredFounderEmail) {
+  if (!matchesFounderBootstrapEmail(session.user.email, process.env.FOUNDER_BOOTSTRAP_EMAIL)) {
     return NextResponse.json({ error: "This account is not designated for Founder bootstrap" }, { status: 403 });
   }
   const authenticatedAt = new Date(session.session.createdAt).getTime();
