@@ -17,7 +17,7 @@ The first Groq-backed workflow summarizes themes in anonymous Guest Feedback com
 
 ## Configuration
 
-Required: `GROQ_API_KEY`. Optional: `GROQ_MODEL` (defaults to `llama-3.3-70b-versatile`).
+Required: `GROQ_API_KEY`. Optional: `GROQ_MODEL` (defaults to `openai/gpt-oss-120b`).
 
 The key is already present in Vercel environment metadata for Preview and Production. This change does not read its value, change environment settings, or trigger a deployment. A real provider call must be verified in an authorized staging environment.
 
