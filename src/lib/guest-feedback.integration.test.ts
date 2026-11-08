@@ -85,7 +85,7 @@ test("guest feedback composite foreign keys reject cross-workspace and cross-bra
       "guest feedback must not reference a QR code from another workspace or branch",
     );
 
-    await prisma.guestFeedback.create({
+    const validFeedback = await prisma.guestFeedback.create({
       data: {
         workspaceId: workspaceA.id,
         branchId: branchA.id,
@@ -93,6 +93,21 @@ test("guest feedback composite foreign keys reject cross-workspace and cross-bra
         rating: "FIVE",
       },
     });
+
+    await assert.rejects(
+      prisma.guestQrCode.update({
+        where: { id: qrA.id },
+        data: { workspaceId: workspaceB.id, branchId: branchB.id },
+      }),
+      "guest QR workspace ownership must be immutable even when the destination branch is valid",
+    );
+    await assert.rejects(
+      prisma.guestFeedback.update({
+        where: { id: validFeedback.id },
+        data: { workspaceId: workspaceB.id, branchId: branchB.id, qrCodeId: qrB.id },
+      }),
+      "guest feedback workspace ownership must be immutable even when destination relations are valid",
+    );
   } finally {
     await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
   }
