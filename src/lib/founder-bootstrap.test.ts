@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSameOriginRequest, matchesFounderBootstrapSecret } from "./founder-bootstrap";
+import { isSameOriginRequest, matchesFounderBootstrapEmail, matchesFounderBootstrapSecret } from "./founder-bootstrap";
 
 const configured = "a-long-random-deployment-secret-with-at-least-32-bytes";
 
@@ -22,4 +22,11 @@ test("accepts only an exact same-origin request", () => {
   assert.equal(isSameOriginRequest("https://evil.example", "https://merit-olive.vercel.app/api/platform/bootstrap"), false);
   assert.equal(isSameOriginRequest(null, "https://merit-olive.vercel.app/api/platform/bootstrap"), false);
   assert.equal(isSameOriginRequest("not a url", "https://merit-olive.vercel.app/api/platform/bootstrap"), false);
+});
+
+test("only the configured founder email is eligible for bootstrap", () => {
+  assert.equal(matchesFounderBootstrapEmail("OsagieUduebor6@gmail.com", "osagieuduebor6@gmail.com"), true);
+  assert.equal(matchesFounderBootstrapEmail(" crystallae9@gmail.com ", "osagieuduebor6@gmail.com"), false);
+  assert.equal(matchesFounderBootstrapEmail("osagieuduebor6@gmail.com", undefined), false);
+  assert.equal(matchesFounderBootstrapEmail("other@example.com", "osagieuduebor6@gmail.com"), false);
 });
