@@ -56,3 +56,52 @@ test("rejects malformed model output and provider errors without leaking provide
     (error: unknown) => error instanceof Error && error.message === "AI analysis is temporarily unavailable",
   );
 });
+
+
+test("redacts URLs, caps each message, and sends no more than 100 entries", async () => {
+  process.env.GROQ_API_KEY = "test-groq-key";
+  let requestBody: any;
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      themes: [{ name: "Service", sentiment: "mixed", mentions: 100, summary: "Guests gave mixed comments about service.", suggestedAction: "Review the service process with the team." }],
+      overallSummary: "Feedback contains a mixture of service experiences.",
+      priority: "Review recurring service concerns.",
+    }) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  await analyzeGuestFeedbackThemes(Array.from({ length: 105 }, (_, index) => ({
+    rating: 5,
+    message: index === 0
+      ? "Visit https://example.com/private?token=secret " + "x".repeat(1400)
+      : "Useful feedback " + index,
+  })));
+
+  const sent = JSON.parse(requestBody.messages[1].content).feedback;
+  assert.equal(sent.length, 100);
+  assert.equal(sent[0].message.includes("https://example.com"), false);
+  assert.equal(sent[0].message.includes("secret"), false);
+  assert.ok(sent[0].message.length <= 1200);
+});
+
+test("filters invalid ratings before sending feedback to the provider", async () => {
+  process.env.GROQ_API_KEY = "test-groq-key";
+  let requestBody: any;
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      themes: [{ name: "Cleanliness", sentiment: "positive", mentions: 1, summary: "One guest praised cleanliness.", suggestedAction: "Maintain current standards." }],
+      overallSummary: "The valid feedback is positive about cleanliness.",
+      priority: "Continue monitoring cleanliness.",
+    }) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  await analyzeGuestFeedbackThemes([
+    { rating: 0, message: "Invalid rating should not be sent" },
+    { rating: 6, message: "Invalid rating should not be sent either" },
+    { rating: 5, message: "Clean and welcoming" },
+  ]);
+
+  const sent = JSON.parse(requestBody.messages[1].content).feedback;
+  assert.deepEqual(sent, [{ rating: 5, message: "Clean and welcoming" }]);
+});
