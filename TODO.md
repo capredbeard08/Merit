@@ -95,8 +95,9 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Re-check customer consent immediately before follow-up dispatch; cancel queued and processing jobs when opt-out is recorded.
 - [x] Add isolated PostgreSQL CI service and apply the full migration chain to a fresh CI database.
 - [x] Add database integration coverage for file deletion/recovery generations, concurrent invitation acceptance, concurrent branch archive, webhook external-event uniqueness, concurrent follow-up claims and opt-out cancellation.
-- [x] Latest-head CI run [42493680495](https://github.com/capredbeard08/Merit/actions/runs/42493680495) on commit `3fc113d657ef04d85762f2eccdb5bdb83fa83052` passed: isolated PostgreSQL migrations, security/database integration tests, TypeScript and production build.
+- [x] Latest-head CI run [42493872507](https://github.com/capredbeard08/Merit/actions/runs/42493872507) on commit `4bf16c12a59944b3e6d1e3b72d9f6167696b847e` passed: isolated PostgreSQL migrations, security/database integration tests, TypeScript and production build.
 - [x] Authenticated route tests use signed Better Auth sessions and cover cross-workspace file denial, file soft-delete/restore, branch archive/restore, invitation acceptance/replay, webhook duplicate handling and archived-branch rejection.
+- [x] Follow-up cron route test verifies stale PROCESSING claim recovery and safe FAILED state when the email provider is not configured.
 - [ ] Complete CI on the latest head after adding webhook replay and follow-up concurrency assertions.
 - [ ] Add endpoint-level tests for authenticated file soft-delete/restore/erasure, branch archive/restore, invitation acceptance/replay, follow-up crash recovery and webhook archived-branch rejection. Current database tests validate persistence/concurrency primitives, not the HTTP route handlers themselves.
 - [ ] Verify GitHub `production` environment required reviewers; a workflow environment declaration alone does not prove approval protection.
