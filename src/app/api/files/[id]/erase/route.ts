@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { getPermanentErasureEligibleAt, isPermanentErasureEligible, parseFileRecoveryPolicy } from "@/lib/file-recovery";
 
 const CONFIRMATION = "PERMANENTLY ERASE";
 
@@ -32,13 +33,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!file.deletedAt || (file.status !== "DELETED" && file.status !== "ERASURE_PENDING")) {
     return NextResponse.json({ error: "Only soft-deleted files can be permanently erased" }, { status: 409 });
   }
-  const retentionSetting = process.env.FILE_RECOVERY_RETENTION_DAYS;
-  const retentionDays = retentionSetting ? Number(retentionSetting) : NaN;
-  if (!Number.isSafeInteger(retentionDays) || retentionDays < 1 || retentionDays > 3650) {
+  const policy = parseFileRecoveryPolicy(process.env.FILE_RECOVERY_RETENTION_DAYS);
+  if (!policy) {
     return NextResponse.json({ error: "Permanent erasure is disabled until the file-recovery retention policy is configured." }, { status: 503 });
   }
-  const eligibleAt = new Date(file.deletedAt.getTime() + retentionDays * 24 * 60 * 60 * 1000);
-  if (Date.now() < eligibleAt.getTime()) {
+  const eligibleAt = getPermanentErasureEligibleAt(file.deletedAt, policy);
+  if (!isPermanentErasureEligible(file.deletedAt, new Date(), policy)) {
     return NextResponse.json({ error: "The file is still within its recovery period.", eligibleAt: eligibleAt.toISOString() }, { status: 409 });
   }
 
