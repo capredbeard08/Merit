@@ -190,7 +190,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <Intelligence workspaceId={workspaceId} initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))} initialReplies={replies.map((item) => ({ ...item, createdAt: item.createdAt.toISOString(), feedback: { ...item.feedback, customer: { ...item.feedback.customer, optedOutAt: item.feedback.customer.optedOutAt ? item.feedback.customer.optedOutAt.toISOString() : null } } }))} />
             </section>
 
-            {can(role, "feedback:read") ? <GuestFeedbackManager workspaceId={workspaceId} branches={branches} canManage={canManageBranches} /> : null}
+            {can(role, "feedback:read") ? <GuestFeedbackManager workspaceId={workspaceId} branches={branches} canManage={canManageBranches} canUseAi={can(role, "ai:use")} /> : null}
 
             <section id="workspace-settings" className="mt-10 border-t border-[#dce2d8] pt-8">
               <p className="text-xs font-semibold uppercase tracking-[0.17em] text-[#557565]">Workspace management</p><h2 className="mt-1 text-2xl font-semibold text-[#123c2d]">Your workspace, organised</h2><p className="mt-1 text-sm text-[#718178]">Manage locations, authorised team members, and supporting files.</p>
