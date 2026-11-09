@@ -11,7 +11,6 @@ export const permissionNames = [
   "integrations:manage",
   "files:manage",
   "files:recover",
-  "files:erase",
   "security:read",
   "ai:use",
 ] as const;
@@ -19,7 +18,7 @@ export const permissionNames = [
 export type Permission = (typeof permissionNames)[number];
 
 const permissions: Record<Role, readonly Permission[]> = {
-  owner: ["workspace:manage", "members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "files:recover", "files:erase", "security:read", "ai:use"],
+  owner: ["workspace:manage", "members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "files:recover", "security:read", "ai:use"],
   admin: ["members:manage", "branches:manage", "branches:read", "feedback:read", "feedback:write", "integrations:manage", "files:manage", "files:recover", "security:read", "ai:use"],
   manager: ["branches:read", "feedback:read", "feedback:write", "ai:use"],
   agent: ["feedback:read", "feedback:write"],
