@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
     where: { workspaceId, ...(includeDeleted ? { deletedAt: { not: null } } : { deletedAt: null, status: { not: "DELETED" } }) },
     orderBy: { createdAt: "desc" },
     take: 100,
-    select: { id: true, workspaceId: true, originalName: true, contentType: true, sizeBytes: true, status: true, createdAt: true, uploadedById: true, deletedAt: true, deletedById: true, legalHoldAt: true, priorStatus: true, workspaceNameAtDeletion: true, workspace: { select: { name: true } } },
+    select: { id: true, workspaceId: true, originalName: true, contentType: true, sizeBytes: true, status: true, createdAt: true, uploadedById: true, deletedAt: true, deletedById: true, deletedByNameAtDeletion: true, legalHoldAt: true, priorStatus: true, workspaceNameAtDeletion: true, workspace: { select: { name: true } } },
   });
-  return NextResponse.json({ files: files.map(file => ({ ...file, workspaceName: file.workspaceNameAtDeletion ?? file.workspace.name })) });
+  return NextResponse.json({ files: files.map(file => ({ ...file, workspaceName: file.workspaceNameAtDeletion ?? file.workspace.name, deletedByName: file.deletedByNameAtDeletion })) });
 }
