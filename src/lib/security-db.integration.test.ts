@@ -8,6 +8,7 @@ import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
 import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
 import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
 import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
+import { createPermanentErasureHandler } from "../app/api/files/[id]/erase/route";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
 import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
@@ -233,7 +234,59 @@ test("database security transitions are single-winner and workspace-scoped", { s
     }),
     { params: Promise.resolve({ id: routeFile.id }) },
   );
+
   assert.equal(restoredFileResponse.status, 200);
+
+  // Exercise permanent erasure with a controlled storage adapter. The first
+  // attempt simulates provider failure; the retry simulates confirmed deletion.
+  const erasureFile = await prisma.fileAsset.create({
+    data: {
+      workspaceId: workspace.id, uploadedById: user.id, originalName: "erase-proof.pdf",
+      pathname: "security-test/" + suffix + "/erase-proof.pdf", contentType: "application/pdf", sizeBytes: 64,
+      status: "DELETED", deletedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), deletedById: user.id,
+    },
+  });
+  const oldRetentionDays = process.env.FILE_RECOVERY_RETENTION_DAYS;
+  process.env.FILE_RECOVERY_RETENTION_DAYS = "1";
+  try {
+    const failingErasure = createPermanentErasureHandler(async () => {
+      throw new Error("simulated Blob provider failure");
+    });
+    const failedErasureResponse = await failingErasure(
+      new Request("http://localhost/api/files/" + erasureFile.id + "/erase", {
+        method: "POST", headers: { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: "PERMANENTLY ERASE" }),
+      }),
+      { params: Promise.resolve({ id: erasureFile.id }) },
+    );
+    assert.equal(failedErasureResponse.status, 503);
+    const pendingErasure = await prisma.fileAsset.findUnique({ where: { id: erasureFile.id } });
+    assert.equal(pendingErasure?.status, "ERASURE_PENDING", "failed storage deletion must retain a blocked retryable tombstone");
+
+    let deletedPath: string | null = null;
+    const successfulErasure = createPermanentErasureHandler(async (pathname) => {
+      deletedPath = pathname;
+    });
+    const erasedResponse = await successfulErasure(
+      new Request("http://localhost/api/files/" + erasureFile.id + "/erase", {
+        method: "POST", headers: { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: "PERMANENTLY ERASE" }),
+      }),
+      { params: Promise.resolve({ id: erasureFile.id }) },
+    );
+    assert.equal(erasedResponse.status, 200);
+    assert.deepEqual(await erasedResponse.json(), { erased: true });
+    assert.equal(deletedPath, erasureFile.pathname, "the storage adapter must receive the exact stored pathname");
+    assert.equal(await prisma.fileAsset.findUnique({ where: { id: erasureFile.id } }), null);
+    assert.equal(
+      await prisma.auditLog.count({ where: { targetId: erasureFile.id, action: "FILE_PERMANENTLY_ERASED" } }),
+      1,
+      "successful erasure must leave an audit record",
+    );
+  } finally {
+    if (oldRetentionDays === undefined) delete process.env.FILE_RECOVERY_RETENTION_DAYS;
+    else process.env.FILE_RECOVERY_RETENTION_DAYS = oldRetentionDays;
+  }
 
   // Invitation acceptance route: the invitee must be signed in as the invited
   // address, and a successful token cannot be replayed.
