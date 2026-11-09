@@ -4,6 +4,13 @@ ALTER TABLE "FileAsset"
   ADD COLUMN "legalHoldById" TEXT,
   ADD COLUMN "legalHoldReason" TEXT;
 
+UPDATE "FileAsset" AS file
+SET "workspaceNameAtDeletion" = workspace."name"
+FROM "Workspace" AS workspace
+WHERE file."workspaceId" = workspace."id"
+  AND file."deletedAt" IS NOT NULL
+  AND file."workspaceNameAtDeletion" IS NULL;
+
 CREATE INDEX "FileAsset_workspaceId_legalHoldAt_idx"
   ON "FileAsset"("workspaceId", "legalHoldAt");
 
