@@ -32,7 +32,8 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Verify the Resend sender domain, then enable and enforce email verification on signup; the current callback is configured but sending and enforcement remain disabled. Test verification expiry, resend, callback, and protected-route behavior end to end.
 - [ ] Separate the Vercel Preview database from Production before write-capable preview testing; the current Preview-versus-Production `DATABASE_URL` assignment is not yet reconciled against the PR description; verify the actual Vercel target assignments before write-capable preview testing.
 - [ ] Design and implement PostgreSQL RLS for every tenant-owned table only after defining a non-owner runtime DB role and transaction-scoped tenant context; add cross-workspace isolation tests before claiming database-enforced isolation.
-- [ ] Complete authenticated route-level tests for file soft deletion, restoration, evidence retrieval and legal-hold placement/release.
+- [x] Add authenticated route assertions that deleted-file listings expose the immutable workspace name, workspace ID and deleting-user name.
+- [ ] Complete authenticated route-level tests for file restoration and successful evidence retrieval with controlled private Blob streams.
 - [ ] Add tests for branch archival/restoration and webhook rejection for archived branches.
 - [ ] Add durable Warden incident acknowledgement, assignment, investigation, resolution and escalation delivery.
 - [ ] Add a platform-level role model for founder Super Admin, platform administrators and engineers.
