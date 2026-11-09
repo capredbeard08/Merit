@@ -29,7 +29,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   const { id } = await context.params;
-  const file = await prisma.fileAsset.findUnique({ where: { id }, select: { id: true, workspaceId: true, status: true, deletedAt: true } });
+  const file = await prisma.fileAsset.findUnique({ where: { id }, select: { id: true, workspaceId: true, status: true, deletedAt: true, workspace: { select: { name: true } } } });
   if (!file) return NextResponse.json({ error: "File not found" }, { status: 404 });
   const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } } });
   if (!member || !can(member.role.toLowerCase() as Role, "files:manage")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -39,7 +39,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   // concurrent restore or quarantine transition.
   const claim = await prisma.fileAsset.updateMany({
     where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
-    data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED" },
+    data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED", workspaceNameAtDeletion: file.workspace.name },
   });
   if (claim.count !== 1) {
     return NextResponse.json({ error: "File state changed; refresh and try again." }, { status: 409 });
@@ -51,7 +51,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     action: "FILE_SOFT_DELETED",
     targetType: "FILE_ASSET",
     targetId: file.id,
-    metadata: { priorStatus: file.status, recoveryAvailable: true },
+    metadata: { priorStatus: file.status, recoveryAvailable: true, workspaceName: file.workspace.name, workspaceId: file.workspaceId, deletedById: session.user.id },
     request,
   });
   return new NextResponse(null, { status: 204 });
