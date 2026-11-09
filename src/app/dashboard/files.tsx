@@ -9,7 +9,7 @@ const MAX = 50 * 1024 * 1024;
 const EXTENSIONS = ["pdf","docx","jpg","jpeg","png","gif","txt","mp3","mp4","zip","csv"];
 function prettySize(size: number) { return size < 1024 * 1024 ? Math.max(1, Math.round(size / 1024)) + " KB" : (size / (1024 * 1024)).toFixed(1) + " MB"; }
 
-export default function FileLibrary({ workspaceId, canManage, canRecover, canErase }: { workspaceId: string; canManage: boolean; canRecover: boolean; canErase: boolean }) {
+export default function FileLibrary({ workspaceId, canManage, canRecover }: { workspaceId: string; canManage: boolean; canRecover: boolean }) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [deletedFiles, setDeletedFiles] = useState<FileItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -64,10 +64,6 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canEra
     } finally { setBusy(false); }
   }
 
-  async function erase(file: FileItem) {
-    if (!window.confirm("Permanently erase " + file.originalName + "? This cannot be undone.")) return;
-    await fileAction("/api/files/" + encodeURIComponent(file.id) + "/erase", "POST", { confirmation: "PERMANENTLY ERASE" });
-  }
 
   return (
     <section className="mt-8 rounded-3xl border border-[#dfe5dc] bg-white/80 p-6 shadow-sm sm:p-7">
@@ -108,13 +104,12 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canEra
             <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div className="min-w-0"><p className="truncate font-medium text-[#173b2f]">{file.originalName}</p><p className="mt-1 text-xs text-[#718178]">Deleted {file.deletedAt ? new Date(file.deletedAt).toLocaleString() : "date unavailable"} · {prettySize(file.sizeBytes)}</p></div>
               <div className="flex items-center gap-3">
-                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}{file.status === "ERASURE_PENDING" && <span className="text-xs font-semibold text-[#8a3e2e]">Erasure pending</span>}
-                {canErase && <button type="button" disabled={busy} onClick={() => void erase(file)} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Erase permanently</button>}
+                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}<a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>
               </div>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs leading-5 text-[#718178]">Permanent erasure is separate from ordinary deletion and is available only to the workspace owner. Recovery availability remains subject to the platform's retention and lawful-erasure policy.</p>
+        <p className="mt-3 text-xs leading-5 text-[#718178]">Deleted files remain stored. Evidence downloads are restricted to authorised workspace owners and administrators and are recorded in the audit log. Restore returns a file to the active library.</p>
       </div>}
     </section>
   );
