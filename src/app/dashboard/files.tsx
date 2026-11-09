@@ -65,6 +65,15 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canPla
   }
 
 
+  async function manageLegalHold(file: FileItem, action: "place" | "release") {
+    const prompt = action === "place"
+      ? "Why should this file be preserved under legal hold? (10–1000 characters)"
+      : "Why is this legal hold being released? (10–1000 characters)";
+    const reason = window.prompt(prompt);
+    if (!reason || reason.trim().length < 10 || reason.trim().length > 1000) return;
+    await fileAction("/api/files/" + encodeURIComponent(file.id) + "/legal-hold", "POST", { action, reason: reason.trim() });
+  }
+
   return (
     <section className="mt-8 rounded-3xl border border-[#dfe5dc] bg-white/80 p-6 shadow-sm sm:p-7">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -104,7 +113,11 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canPla
             <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div className="min-w-0"><p className="truncate font-medium text-[#173b2f]">{file.originalName}</p><p className="mt-1 text-xs text-[#718178]">Deleted {file.deletedAt ? new Date(file.deletedAt).toLocaleString() : "date unavailable"} · {prettySize(file.sizeBytes)}</p></div>
               <div className="flex items-center gap-3">
-                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}<a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>\n                {file.legalHoldAt && <span className="text-xs font-semibold text-[#8a3e2e]">Legal hold</span>}\n                {!file.legalHoldAt && canPlaceHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "place")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Place hold</button>}\n                {file.legalHoldAt && canReleaseHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "release")} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Release hold</button>}\n                {file.legalHoldAt && !canReleaseHold && <span className="text-xs text-[#718178]">Owner release required</span>}
+                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}<a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>
+                {file.legalHoldAt && <span className="text-xs font-semibold text-[#8a3e2e]">Legal hold</span>}
+                {!file.legalHoldAt && canPlaceHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "place")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Place hold</button>}
+                {file.legalHoldAt && canReleaseHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "release")} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Release hold</button>}
+                {file.legalHoldAt && !canReleaseHold && <span className="text-xs text-[#718178]">Owner release required</span>}
               </div>
             </div>
           ))}
