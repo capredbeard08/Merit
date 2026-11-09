@@ -7,6 +7,8 @@ import { auth } from "./better-auth";
 import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
 import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
 import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
+import { GET as accessDeletedFile } from "../app/api/files/[id]/evidence/route";
+import { POST as manageFileLegalHold } from "../app/api/files/[id]/legal-hold/route";
 import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
@@ -227,6 +229,54 @@ test("database security transitions are single-winner and workspace-scoped", { s
     { params: Promise.resolve({ id: routeFile.id }) },
   );
   assert.equal(softDeletedResponse.status, 204);
+
+  const deniedEvidenceResponse = await accessDeletedFile(
+    new Request("http://localhost/api/files/" + routeFile.id + "/evidence", { headers: outsiderHeaders }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(deniedEvidenceResponse.status, 403, "evidence downloads must remain workspace-scoped");
+
+  const holdHeaders = { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" };
+  const placedHold = await manageFileLegalHold(
+    new Request("http://localhost/api/files/" + routeFile.id + "/legal-hold", {
+      method: "POST", headers: holdHeaders,
+      body: JSON.stringify({ action: "place", reason: "Preserve potential investigation evidence." }),
+    }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(placedHold.status, 200);
+  const heldFile = await prisma.fileAsset.findUnique({ where: { id: routeFile.id } });
+  assert.ok(heldFile?.legalHoldAt);
+  assert.equal(heldFile?.legalHoldReason, "Preserve potential investigation evidence.");
+
+  await prisma.member.update({
+    where: { workspaceId_userId: { workspaceId: workspace.id, userId: user.id } },
+    data: { role: "ADMIN" },
+  });
+  const adminRelease = await manageFileLegalHold(
+    new Request("http://localhost/api/files/" + routeFile.id + "/legal-hold", {
+      method: "POST", headers: holdHeaders,
+      body: JSON.stringify({ action: "release", reason: "Attempted release by administrator." }),
+    }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(adminRelease.status, 403, "only the workspace owner may release a legal hold");
+  await prisma.member.update({
+    where: { workspaceId_userId: { workspaceId: workspace.id, userId: user.id } },
+    data: { role: "OWNER" },
+  });
+  const releasedHold = await manageFileLegalHold(
+    new Request("http://localhost/api/files/" + routeFile.id + "/legal-hold", {
+      method: "POST", headers: holdHeaders,
+      body: JSON.stringify({ action: "release", reason: "Investigation preservation request concluded." }),
+    }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(releasedHold.status, 200);
+  assert.equal(await prisma.auditLog.count({
+    where: { targetId: routeFile.id, action: { in: ["FILE_LEGAL_HOLD_PLACED", "FILE_LEGAL_HOLD_RELEASED"] } },
+  }), 2);
+
   const restoredFileResponse = await restoreFile(
     new Request("http://localhost/api/files/" + routeFile.id + "/restore", {
       method: "POST", headers: sessionHeaders,
