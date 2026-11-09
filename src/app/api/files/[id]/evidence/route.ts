@@ -14,7 +14,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const file = await prisma.fileAsset.findUnique({
     where: { id },
     select: {
-      id: true, workspaceId: true, workspaceNameAtDeletion: true, deletedById: true, uploadedById: true, originalName: true, pathname: true,
+      id: true, workspaceId: true, workspaceNameAtDeletion: true, deletedById: true, deletedByNameAtDeletion: true, uploadedById: true, originalName: true, pathname: true,
       contentType: true, sizeBytes: true, status: true, deletedAt: true, priorStatus: true,
     },
   });
