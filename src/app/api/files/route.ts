@@ -17,7 +17,7 @@ export async function GET(request: Request): Promise<Response> {
     where: { workspaceId, ...(includeDeleted ? { deletedAt: { not: null } } : { deletedAt: null, status: { not: "DELETED" } }) },
     orderBy: { createdAt: "desc" },
     take: 100,
-    select: { id: true, originalName: true, contentType: true, sizeBytes: true, status: true, createdAt: true, uploadedById: true, deletedAt: true, legalHoldAt: true },
+    select: { id: true, originalName: true, contentType: true, sizeBytes: true, status: true, createdAt: true, uploadedById: true, deletedAt: true, legalHoldAt: true, priorStatus: true },
   });
   return NextResponse.json({ files });
 }
