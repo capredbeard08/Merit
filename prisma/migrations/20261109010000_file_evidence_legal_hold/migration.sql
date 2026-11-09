@@ -7,18 +7,18 @@ ALTER TABLE "FileAsset"
 
 UPDATE "FileAsset" AS file
 SET
-  "workspaceNameAtDeletion" = (
+  "workspaceNameAtDeletion" = COALESCE(file."workspaceNameAtDeletion", (
     SELECT workspace."name"
     FROM "Workspace" AS workspace
     WHERE workspace."id" = file."workspaceId"
-  ),
-  "deletedByNameAtDeletion" = (
+  )),
+  "deletedByNameAtDeletion" = COALESCE(file."deletedByNameAtDeletion", (
     SELECT actor."name"
     FROM "User" AS actor
     WHERE actor."id" = file."deletedById"
-  )
+  ))
 WHERE file."deletedAt" IS NOT NULL
-  AND file."workspaceNameAtDeletion" IS NULL;
+  AND (file."workspaceNameAtDeletion" IS NULL OR file."deletedByNameAtDeletion" IS NULL);
 
 CREATE INDEX "FileAsset_workspaceId_legalHoldAt_idx"
   ON "FileAsset"("workspaceId", "legalHoldAt");
