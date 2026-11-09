@@ -8,7 +8,7 @@ import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
 import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
 import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
 import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
-import { createPermanentErasureHandler } from "../app/api/files/[id]/erase/route";
+import { createPermanentErasureHandler } from "./permanent-erasure-handler";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
 import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
