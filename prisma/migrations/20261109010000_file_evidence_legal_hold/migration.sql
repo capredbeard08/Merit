@@ -1,18 +1,24 @@
 ALTER TABLE "FileAsset"
-  ADD COLUMN "workspaceNameAtDeletion" TEXT,\n  ADD COLUMN "deletedByNameAtDeletion" TEXT,
+  ADD COLUMN "workspaceNameAtDeletion" TEXT,
+  ADD COLUMN "deletedByNameAtDeletion" TEXT,
   ADD COLUMN "legalHoldAt" TIMESTAMP(3),
   ADD COLUMN "legalHoldById" TEXT,
   ADD COLUMN "legalHoldReason" TEXT;
 
 UPDATE "FileAsset" AS file
 SET
-  "workspaceNameAtDeletion" = workspace."name",
-  "deletedByNameAtDeletion" = actor."name"
-FROM "Workspace" AS workspace
-LEFT JOIN "User" AS actor ON actor."id" = file."deletedById"
-WHERE file."workspaceId" = workspace."id"
-  AND file."deletedAt" IS NOT NULL
-  AND (file."workspaceNameAtDeletion" IS NULL OR file."deletedByNameAtDeletion" IS NULL);
+  "workspaceNameAtDeletion" = (
+    SELECT workspace."name"
+    FROM "Workspace" AS workspace
+    WHERE workspace."id" = file."workspaceId"
+  ),
+  "deletedByNameAtDeletion" = (
+    SELECT actor."name"
+    FROM "User" AS actor
+    WHERE actor."id" = file."deletedById"
+  )
+WHERE file."deletedAt" IS NOT NULL
+  AND file."workspaceNameAtDeletion" IS NULL;
 
 CREATE INDEX "FileAsset_workspaceId_legalHoldAt_idx"
   ON "FileAsset"("workspaceId", "legalHoldAt");
