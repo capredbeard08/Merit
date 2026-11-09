@@ -230,6 +230,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     { params: Promise.resolve({ id: routeFile.id }) },
   );
   assert.equal(softDeletedResponse.status, 204);
+  await prisma.workspace.update({ where: { id: workspace.id }, data: { name: workspace.name + " renamed" } });
   const attributedFile = await prisma.fileAsset.findUnique({ where: { id: routeFile.id } });
   assert.equal(attributedFile?.workspaceNameAtDeletion, workspace.name);
   assert.equal(attributedFile?.deletedByNameAtDeletion, user.name);
@@ -242,6 +243,8 @@ test("database security transitions are single-winner and workspace-scoped", { s
   assert.equal(listedEvidence?.workspaceName, workspace.name);
   assert.equal(listedEvidence?.workspaceId, workspace.id);
   assert.equal(listedEvidence?.deletedByName, user.name);
+  assert.equal(listedEvidence?.workspaceName, workspace.name, "workspace attribution must remain the original deletion-time name after a rename");
+  await prisma.workspace.update({ where: { id: workspace.id }, data: { name: workspace.name } });
 
   const deniedEvidenceResponse = await accessDeletedFile(
     new Request("http://localhost/api/files/" + routeFile.id + "/evidence", { headers: outsiderHeaders }),
