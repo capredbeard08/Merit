@@ -8,7 +8,8 @@ import { getPermanentErasureEligibleAt, isPermanentErasureEligible, parseFileRec
 
 const CONFIRMATION = "PERMANENTLY ERASE";
 
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
+export function createPermanentErasureHandler(deleteBlob: (pathname: string) => Promise<unknown>) {
+  return async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
@@ -66,7 +67,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   // Keep the database tombstone if storage deletion fails so the operation can be retried.
   try {
-    await del(file.pathname);
+    await deleteBlob(file.pathname);
   } catch {
     return NextResponse.json({ error: "Storage erasure could not be confirmed; the file remains blocked for retry." }, { status: 503 });
   }
@@ -82,4 +83,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     request,
   });
   return NextResponse.json({ erased: true });
+  };
 }
+
+export const POST = createPermanentErasureHandler(del);
