@@ -7,6 +7,7 @@ import { auth } from "./better-auth";
 import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
 import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
 import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
+import { GET as listWorkspaceFiles } from "../app/api/files/route";
 import { GET as accessDeletedFile } from "../app/api/files/[id]/evidence/route";
 import { POST as manageFileLegalHold } from "../app/api/files/[id]/legal-hold/route";
 import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
@@ -229,6 +230,18 @@ test("database security transitions are single-winner and workspace-scoped", { s
     { params: Promise.resolve({ id: routeFile.id }) },
   );
   assert.equal(softDeletedResponse.status, 204);
+  const attributedFile = await prisma.fileAsset.findUnique({ where: { id: routeFile.id } });
+  assert.equal(attributedFile?.workspaceNameAtDeletion, workspace.name);
+  assert.equal(attributedFile?.deletedByNameAtDeletion, user.name);
+  const deletedListingResponse = await listWorkspaceFiles(
+    new Request("http://localhost/api/files?workspaceId=" + workspace.id + "&includeDeleted=true", { headers: sessionHeaders }),
+  );
+  assert.equal(deletedListingResponse.status, 200);
+  const deletedListing = await deletedListingResponse.json() as { files: Array<{ id: string; workspaceName: string; workspaceId: string; deletedByName: string | null }> };
+  const listedEvidence = deletedListing.files.find(item => item.id === routeFile.id);
+  assert.equal(listedEvidence?.workspaceName, workspace.name);
+  assert.equal(listedEvidence?.workspaceId, workspace.id);
+  assert.equal(listedEvidence?.deletedByName, user.name);
 
   const deniedEvidenceResponse = await accessDeletedFile(
     new Request("http://localhost/api/files/" + routeFile.id + "/evidence", { headers: outsiderHeaders }),
