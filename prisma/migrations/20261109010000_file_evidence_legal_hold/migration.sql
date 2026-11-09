@@ -1,4 +1,5 @@
 ALTER TABLE "FileAsset"
+  ADD COLUMN "workspaceNameAtDeletion" TEXT,
   ADD COLUMN "legalHoldAt" TIMESTAMP(3),
   ADD COLUMN "legalHoldById" TEXT,
   ADD COLUMN "legalHoldReason" TEXT;
