@@ -41,7 +41,12 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       targetType: "FILE_ASSET",
       targetId: file.id,
       metadata: {
-        deletedAt: file.deletedAt?.toISOString() ?? "unknown",\n        workspaceName: file.workspaceNameAtDeletion ?? "Historical workspace name unavailable",\n        workspaceId: file.workspaceId,\n        deletedById: file.deletedById ?? "unknown",\n        uploadedById: file.uploadedById,
+        deletedAt: file.deletedAt?.toISOString() ?? "unknown",
+        workspaceName: file.workspaceNameAtDeletion ?? "Historical workspace name unavailable",
+        workspaceId: file.workspaceId,
+        deletedById: file.deletedById ?? "unknown",
+        deletedByName: file.deletedByNameAtDeletion ?? "unknown",
+        uploadedById: file.uploadedById,
         sizeBytes: file.sizeBytes,
         priorStatus: file.priorStatus ?? "unknown",
       },
