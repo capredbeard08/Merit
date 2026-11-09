@@ -94,7 +94,7 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Keep ordinary file deletion reversible and retain the underlying private Blob and database record.
 - [x] CI run [#824](https://github.com/capredbeard08/Merit/actions/runs/42680971113) passed on the prior head `fd1e5b6d8749777133d079adf3e45a45810f7915`; it does not validate the newer evidence/legal-hold commits.
 - [ ] Run fresh CI on the current head after evidence and legal-hold implementation.
-- [ ] Add authenticated route-level tests for evidence authorization and legal-hold placement/release.
+- [x] Add authenticated route-level tests for cross-workspace evidence denial and legal-hold placement/release; current CI run is validating these tests.
 - [ ] Complete route-by-route authorization and tenant-boundary review. PostgreSQL RLS remains unimplemented; do not claim database-enforced tenant isolation.
 - [ ] Verify GitHub `production` environment required reviewers; a workflow environment declaration alone does not prove approval protection.
 - [ ] Configure encrypted-backup recipient and separately held private identity, then prove decryption and complete a restore drill before production use.
