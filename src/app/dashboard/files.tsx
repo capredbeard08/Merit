@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { upload } from "@vercel/blob/client";
 
-type FileItem = { id: string; originalName: string; contentType: string; sizeBytes: number; status: string; createdAt: string; deletedAt?: string | null; legalHoldAt?: string | null };
+type FileItem = { id: string; originalName: string; contentType: string; sizeBytes: number; status: string; createdAt: string; deletedAt?: string | null; legalHoldAt?: string | null; priorStatus?: string | null };
 const ACCEPT = ".pdf,.docx,.jpg,.jpeg,.png,.gif,.txt,.mp3,.mp4,.zip,.csv";
 const MAX = 50 * 1024 * 1024;
 const EXTENSIONS = ["pdf","docx","jpg","jpeg","png","gif","txt","mp3","mp4","zip","csv"];
@@ -97,7 +97,7 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canPla
               <p className="mt-1 text-xs text-[#718178]">{prettySize(file.sizeBytes)} · {new Date(file.createdAt).toLocaleDateString()} · {file.status === "QUARANTINED" ? "Quarantined" : file.status}</p>
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              {file.status === "AVAILABLE" && <a href={"/api/files/" + encodeURIComponent(file.id)} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Download</a>}
+              {file.status === "AVAILABLE" && <a href={"/api/files/" + encodeURIComponent(file.id)} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Download</a>}\n              {file.legalHoldAt && <span className="text-xs font-semibold text-[#8a3e2e]">Legal hold</span>}\n              {!file.legalHoldAt && canPlaceHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "place")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Place hold</button>}\n              {file.legalHoldAt && canReleaseHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "release")} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Release hold</button>}\n              {file.legalHoldAt && !canReleaseHold && <span className="text-xs text-[#718178]">Owner release required</span>}
               {canManage && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id), "DELETE")} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Delete</button>}
             </div>
           </div>
@@ -113,7 +113,7 @@ export default function FileLibrary({ workspaceId, canManage, canRecover, canPla
             <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div className="min-w-0"><p className="truncate font-medium text-[#173b2f]">{file.originalName}</p><p className="mt-1 text-xs text-[#718178]">Deleted {file.deletedAt ? new Date(file.deletedAt).toLocaleString() : "date unavailable"} · {prettySize(file.sizeBytes)}</p></div>
               <div className="flex items-center gap-3">
-                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}<a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>
+                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}{file.priorStatus !== "QUARANTINED" && <a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>}
                 {file.legalHoldAt && <span className="text-xs font-semibold text-[#8a3e2e]">Legal hold</span>}
                 {!file.legalHoldAt && canPlaceHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "place")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Place hold</button>}
                 {file.legalHoldAt && canReleaseHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "release")} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Release hold</button>}
