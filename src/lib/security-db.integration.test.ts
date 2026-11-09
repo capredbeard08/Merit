@@ -248,6 +248,11 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const heldFile = await prisma.fileAsset.findUnique({ where: { id: routeFile.id } });
   assert.ok(heldFile?.legalHoldAt);
   assert.equal(heldFile?.legalHoldReason, "Preserve potential investigation evidence.");
+  await assert.rejects(
+    prisma.fileAsset.delete({ where: { id: routeFile.id } }),
+    (error: unknown) => String(error).includes("FILE_LEGAL_HOLD_ACTIVE"),
+    "the database must block physical deletion while a legal hold is active",
+  );
 
   await prisma.member.update({
     where: { workspaceId_userId: { workspaceId: workspace.id, userId: user.id } },
