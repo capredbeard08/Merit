@@ -31,7 +31,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     file,
     async (pathname) => {
       const blob = await get(pathname, { access: "private" });
-      return blob ? { statusCode: blob.statusCode, stream: blob.stream } : null;
+      if (!blob?.stream) return null;
+      return { statusCode: blob.statusCode, stream: blob.stream };
     },
     () => writeAuditLog({
       workspaceId: file.workspaceId,
