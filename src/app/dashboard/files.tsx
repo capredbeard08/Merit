@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { upload } from "@vercel/blob/client";
 
-type FileItem = { id: string; originalName: string; contentType: string; sizeBytes: number; status: string; createdAt: string; deletedAt?: string | null };
+type FileItem = { id: string; originalName: string; contentType: string; sizeBytes: number; status: string; createdAt: string; deletedAt?: string | null; legalHoldAt?: string | null };
 const ACCEPT = ".pdf,.docx,.jpg,.jpeg,.png,.gif,.txt,.mp3,.mp4,.zip,.csv";
 const MAX = 50 * 1024 * 1024;
 const EXTENSIONS = ["pdf","docx","jpg","jpeg","png","gif","txt","mp3","mp4","zip","csv"];
 function prettySize(size: number) { return size < 1024 * 1024 ? Math.max(1, Math.round(size / 1024)) + " KB" : (size / (1024 * 1024)).toFixed(1) + " MB"; }
 
-export default function FileLibrary({ workspaceId, canManage, canRecover }: { workspaceId: string; canManage: boolean; canRecover: boolean }) {
+export default function FileLibrary({ workspaceId, canManage, canRecover, canPlaceHold, canReleaseHold }: { workspaceId: string; canManage: boolean; canRecover: boolean; canPlaceHold: boolean; canReleaseHold: boolean }) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [deletedFiles, setDeletedFiles] = useState<FileItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -104,12 +104,12 @@ export default function FileLibrary({ workspaceId, canManage, canRecover }: { wo
             <div key={file.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div className="min-w-0"><p className="truncate font-medium text-[#173b2f]">{file.originalName}</p><p className="mt-1 text-xs text-[#718178]">Deleted {file.deletedAt ? new Date(file.deletedAt).toLocaleString() : "date unavailable"} · {prettySize(file.sizeBytes)}</p></div>
               <div className="flex items-center gap-3">
-                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}<a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>
+                {file.status === "DELETED" && <button type="button" disabled={busy} onClick={() => void fileAction("/api/files/" + encodeURIComponent(file.id) + "/restore", "POST")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Restore</button>}<a href={"/api/files/" + encodeURIComponent(file.id) + "/evidence"} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4">Access evidence</a>\n                {file.legalHoldAt && <span className="text-xs font-semibold text-[#8a3e2e]">Legal hold</span>}\n                {!file.legalHoldAt && canPlaceHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "place")} className="text-sm font-semibold text-[#173b2f] underline underline-offset-4 disabled:opacity-50">Place hold</button>}\n                {file.legalHoldAt && canReleaseHold && <button type="button" disabled={busy} onClick={() => void manageLegalHold(file, "release")} className="text-sm font-semibold text-[#8a3e2e] underline underline-offset-4 disabled:opacity-50">Release hold</button>}\n                {file.legalHoldAt && !canReleaseHold && <span className="text-xs text-[#718178]">Owner release required</span>}
               </div>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-xs leading-5 text-[#718178]">Deleted files remain stored. Evidence downloads are restricted to authorised workspace owners and administrators and are recorded in the audit log. Restore returns a file to the active library.</p>
+        <p className="mt-3 text-xs leading-5 text-[#718178]">Deleted files remain stored. Evidence downloads are restricted to authorised workspace owners and administrators and are recorded in the audit log. A legal hold records a preservation reason; only the workspace owner can release it. Restore returns a file to the active library.</p>
       </div>}
     </section>
   );
