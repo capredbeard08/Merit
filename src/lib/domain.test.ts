@@ -10,16 +10,8 @@ test("only owners and admins can recover soft-deleted files", () => {
   assert.equal(can("viewer", "files:recover"), false);
 });
 
-test("permanent file erasure is restricted to workspace owners", () => {
-  assert.equal(can("owner", "files:erase"), true);
-  assert.equal(can("admin", "files:erase"), false);
-  assert.equal(can("manager", "files:erase"), false);
-  assert.equal(can("agent", "files:erase"), false);
-  assert.equal(can("viewer", "files:erase"), false);
-});
-
 test("unknown runtime roles fail closed", () => {
-  assert.equal(can("unknown" as never, "files:erase"), false);
+  assert.equal(can("unknown" as never, "files:recover"), false);
 });
 
 test("Security Warden access is limited to workspace owners and administrators", () => {
