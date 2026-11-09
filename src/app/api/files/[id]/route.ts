@@ -39,7 +39,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   // concurrent restore or quarantine transition.
   const claim = await prisma.fileAsset.updateMany({
     where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
-    data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED", workspaceNameAtDeletion: file.workspace.name },
+    data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED", workspaceNameAtDeletion: file.workspace.name, deletedByNameAtDeletion: session.user.name },
   });
   if (claim.count !== 1) {
     return NextResponse.json({ error: "File state changed; refresh and try again." }, { status: 409 });
@@ -51,7 +51,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     action: "FILE_SOFT_DELETED",
     targetType: "FILE_ASSET",
     targetId: file.id,
-    metadata: { priorStatus: file.status, recoveryAvailable: true, workspaceName: file.workspace.name, workspaceId: file.workspaceId, deletedById: session.user.id },
+    metadata: { priorStatus: file.status, recoveryAvailable: true, workspaceName: file.workspace.name, workspaceId: file.workspaceId, deletedById: session.user.id, deletedByName: session.user.name },
     request,
   });
   return new NextResponse(null, { status: 204 });
