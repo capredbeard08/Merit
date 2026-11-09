@@ -175,7 +175,7 @@ export default async function DashboardPage() {
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">Your workspace, organised</h2>
           <p className="mt-1 text-sm text-[#69756e]">Manage locations, authorised team members, and supporting files.</p>
           <div id="branches" className="mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
-          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(membership.role.toLowerCase() as Role, "files:manage")} canRecover={can(membership.role.toLowerCase() as Role, "files:recover")} /></div>
+          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} canManage={can(membership.role.toLowerCase() as Role, "files:manage")} canRecover={can(membership.role.toLowerCase() as Role, "files:recover")} canPlaceHold={["OWNER", "ADMIN"].includes(membership.role)} canReleaseHold={membership.role === "OWNER"} /></div>
           <div id="team" className="mt-5">
             <MemberManager
               workspaceId={workspaceId}
