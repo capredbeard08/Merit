@@ -317,6 +317,9 @@ model FileAsset {
   deletedAt    DateTime?
   deletedById  String?
   priorStatus  String?
+  legalHoldAt  DateTime?
+  legalHoldById String?
+  legalHoldReason String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
