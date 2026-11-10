@@ -75,11 +75,10 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage,
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "AI analysis is temporarily unavailable.");
       setAiAnalysis(data.analysis);
-      setAiConsentConfirmed(false);
       setNotice("AI feedback themes generated. Review them as suggestions, not verified facts.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "AI analysis is temporarily unavailable.");
-    } finally { setAiBusy(false); }
+    } finally { setAiBusy(false); setAiConsentConfirmed(false); }
   }
 
   async function createCode() {
