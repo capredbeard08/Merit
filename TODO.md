@@ -103,3 +103,21 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Verify real email sender domain and run signup/verification/invitation delivery E2E before enabling email verification.
 - [ ] Add malware scanning, file-signature verification and server-verified file-size checks; keep unverified uploads quarantined.
 - [ ] Complete real email-provider delivery/idempotency tests and the remaining follow-up dispatch review.
+
+
+## PR #3 security review — 10 November 2026
+
+- [x] Make feedback-link GET requests read-only so email scanners cannot mutate feedback status or click analytics.
+- [x] Make the opt-out link display a no-store confirmation page; only an explicit POST changes consent.
+- [x] Scope public opt-out writes to the feedback workspace, cancel queued/processing follow-ups for that customer, and commit the audit event in the same transaction.
+- [x] Replace permanent feedback HMACs with versioned 30-day capabilities; support verification-only key rotation and bounded legacy-link grace using the persisted successful-send timestamp.
+- [x] Add tests for token expiry, future timestamps, legacy grace, signing-key rotation, read-only click prefetch and explicit opt-out confirmation.
+- [x] Add a membership-row lock helper and use it for file soft-delete, file recovery and legal-hold changes, so concurrent membership revocation/role downgrade cannot race those protected mutations.
+- [x] Commit file soft-delete/recovery state changes and their audit records atomically.
+- [ ] Confirm latest CI on the current head, including migration, integration, type-check and production-build results.
+- [ ] Extend membership-row locking and atomic audit behavior to the remaining protected mutations, including branch, feedback, invitation and integration management routes.
+- [ ] Lock webhook credentials and active branches during event processing to close revoke/archive races.
+- [ ] Reconcile the stronger tenant-route work in PR #7 without merging its branch wholesale. PR #7 currently includes a permanent-erasure endpoint and files:erase permission, which conflict with the current evidence-preservation requirement; do not port or merge those parts.
+- [ ] Keep RLS deferred: the current database provider does not offer a separate restricted runtime role. Do not wire an unrestricted connection into the tenant helper or claim RLS enforcement.
+- [ ] Complete cross-workspace negative tests for every route, relation traversal and bulk operation.
+- [ ] Finish backup/restore, Preview-vs-Production database, production-environment reviewer, email-provider and upload-scanning release gates before any production rollout.
