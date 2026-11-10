@@ -33,6 +33,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const workspaceId = membership.workspaceId;
   const canManageBranches = can(membership.role.toLowerCase() as Role, "branches:manage");
+  const canUseAi = can(membership.role.toLowerCase() as Role, "ai:use");
   const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
   const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, archivedBranches, members, insights, replies, recentClicks] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
@@ -266,7 +267,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           />
         </section>
 
-        {can(membership.role.toLowerCase() as Role, "feedback:read") ? <section id="guest-feedback" className="mt-9 scroll-mt-6"><GuestFeedbackManager workspaceId={workspaceId} branches={branches} canManage={canManageBranches} /></section> : null}
+        {can(membership.role.toLowerCase() as Role, "feedback:read") ? <section id="guest-feedback" className="mt-9 scroll-mt-6"><GuestFeedbackManager workspaceId={workspaceId} branches={branches} canManage={canManageBranches} canUseAi={canUseAi} /></section> : null}
 
         <section id="workspace-settings" className="mt-10 border-t border-[#dfe4df] pt-8">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Workspace management</p>
