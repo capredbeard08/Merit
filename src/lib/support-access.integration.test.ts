@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
-import { PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStatus, Role } from "@prisma/client";
+import { Prisma, PrismaClient, PlatformAccessRole, SupportAccessScope, SupportAccessStatus, Role } from "@prisma/client";
 import { canAccessPlatform } from "./platform-access";
 import { isSupportAuthorizationActive } from "./support-access-policy";
 import { executeApprovedSupportReadInTransaction, withApprovedSupportRead } from "./support-access";
