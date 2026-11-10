@@ -41,6 +41,7 @@ model Workspace {
   insights Insight[]
   auditLogs AuditLog[]
   files FileAsset[]
+  feedbackNotes FeedbackNote[]
 }
 
 model Member {
