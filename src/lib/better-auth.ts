@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
+import { after } from "next/server";
 import { captcha, twoFactor } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email";
+import { passwordResetEmailHtml, sendEmail, verificationEmailHtml } from "@/lib/email";
 
 const secret = process.env.AUTH_SECRET;
 if (!secret || secret.length < 32) {
@@ -11,12 +12,14 @@ if (!secret || secret.length < 32) {
 }
 
 const captchaSecret = process.env.RECAPTCHA_SECRET_KEY;
+const emailVerificationEnabled = process.env.MERIT_EMAIL_VERIFICATION_ENABLED === "true";
 if (!captchaSecret) {
   throw new Error("RECAPTCHA_SECRET_KEY must be configured");
 }
 
 export const auth = betterAuth({
   secret,
+  appName: "MERIT",
   // Resolve each request against a strict MERIT-owned hostname allowlist.
   // Better Auth 1.7.x adds allowedHosts to trustedOrigins automatically.
   // Vercel rewrites the public host, so trustedProxyHeaders is not required.
@@ -38,31 +41,45 @@ export const auth = betterAuth({
     enabled: true,
     // Keep the pilot behavior explicit until the verified sender domain and
     // complete verification journey have been confirmed end to end.
-    requireEmailVerification: false,
+    requireEmailVerification: emailVerificationEnabled,
     minPasswordLength: 12,
     maxPasswordLength: 128,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url, token }) => {
+      after(async () => {
+        await sendEmail({
+          to: user.email,
+          subject: "Reset your MERIT password",
+          html: passwordResetEmailHtml(url),
+          idempotencyKey: "merit-password-reset-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+        });
+      });
+    },
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url, token }) => {
-      const safeUrl = url.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-      await sendEmail({
-        to: user.email,
-        subject: "Verify your MERIT email address",
-        html: `<div style="font-family:Arial,sans-serif;color:#173b2f;line-height:1.6"><h2>Verify your email</h2><p>Confirm your email address to finish setting up your MERIT account.</p><p><a href="${safeUrl}" style="display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px">Verify email address</a></p><p>If you did not create this account, you can ignore this message.</p></div>`,
-        idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+      after(async () => {
+        await sendEmail({
+          to: user.email,
+          subject: "Verify your MERIT email address",
+          html: verificationEmailHtml(url),
+          idempotencyKey: "merit-email-verification-" + createHash("sha256").update(token).digest("hex").slice(0, 24),
+        });
       });
     },
-    // Deliberately dormant until EMAIL_FROM is a verified sender and delivery
-    // plus callback behavior are tested. Do not claim email verification is enforced.
-    sendOnSignUp: false,
+    // Enable only after the Resend sender is verified and the full delivery
+    // and callback journey has passed in staging. Keep false by default.
+    sendOnSignUp: emailVerificationEnabled,
     sendOnSignIn: false,
     autoSignInAfterVerification: true,
   },
-  // The isolated route-integration suite uses real Better Auth sessions but
-  // skips Google's external CAPTCHA verification. Production/development keep
-  // the CAPTCHA plugin enabled.
+  // The CI integration suite exercises real Better Auth sign-up/session
+  // issuance without making external reCAPTCHA network calls. This explicit
+  // test-only switch is set only on that CI step and must never be configured
+  // in a deployed environment.
   plugins: [
-    ...(process.env.NODE_ENV === "test" ? [] : [
+    ...(process.env.MERIT_CI_AUTH_TESTS === "true" ? [] : [
       captcha({
         provider: "google-recaptcha",
         secretKey: captchaSecret,
@@ -74,13 +91,11 @@ export const auth = betterAuth({
       backupCodeOptions: { storeBackupCodes: "encrypted" },
     }),
   ],
-  // Better Auth disables origin checks by default in NODE_ENV=test.
-  // Keep both protections explicitly enabled so the isolated integration
-  // suite exercises the same CSRF/origin policy as production.
   advanced: {
     disableOriginCheck: false,
     disableCSRFCheck: false,
   },
+
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
