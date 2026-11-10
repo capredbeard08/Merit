@@ -66,7 +66,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const sessionHeaders = await createCredentialAccount(user.id, user.email, "owner-" + suffix);
 
   const authOriginRequest = (host: string, origin: string) => auth.handler(new Request(
-    "https://" + host + "/api/auth/sign-in/email",
+    "https://" + host + "/api/auth/update-user",
     {
       method: "POST",
       headers: {
@@ -74,7 +74,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
         cookie: sessionHeaders.get("cookie")!,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ email: "origin-probe@example.invalid", password: "NotThePassword!123" }),
+      body: JSON.stringify({ name: "Origin check " + suffix }),
     },
   ));
   const canonicalOriginResponse = await authOriginRequest("merit-olive.vercel.app", "https://merit-olive.vercel.app");
