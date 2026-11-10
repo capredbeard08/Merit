@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
-import { writeAuditLog } from "@/lib/audit";
 import { withWorkspacePermission } from "@/lib/workspace-access";
+import { sanitizeSecurityMetadata } from "@/lib/security-warden";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -44,10 +44,44 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       file.workspaceId,
       session.user.id,
       "files:manage",
-      (tx) => tx.fileAsset.updateMany({
-        where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
-        data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED", workspaceNameAtDeletion: file.workspace.name, deletedByNameAtDeletion: session.user.name },
-      }),
+      async (tx) => {
+        const deletedAt = new Date();
+        const result = await tx.fileAsset.updateMany({
+          where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
+          data: {
+            deletedAt,
+            deletedById: session.user.id,
+            priorStatus: file.status,
+            status: "DELETED",
+            workspaceNameAtDeletion: file.workspace.name,
+            deletedByNameAtDeletion: session.user.name,
+          },
+        });
+        if (result.count !== 1) return 0;
+
+        // Commit the evidence-preserving state transition and its audit event
+        // together so a logging failure cannot leave an unlogged deletion.
+        await tx.auditLog.create({
+          data: {
+            workspaceId: file.workspaceId,
+            actorUserId: session.user.id,
+            action: "FILE_SOFT_DELETED",
+            targetType: "FILE_ASSET",
+            targetId: file.id,
+            metadata: sanitizeSecurityMetadata({
+              priorStatus: file.status,
+              recoveryAvailable: true,
+              workspaceName: file.workspace.name,
+              workspaceId: file.workspaceId,
+              deletedById: session.user.id,
+              deletedByName: session.user.name,
+            }),
+            ipAddress: request.headers.get("x-real-ip")?.slice(0, 64) ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
+            userAgent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
+          },
+        });
+        return 1;
+      },
     );
   } catch (error) {
     if (error instanceof Error && error.message === "FORBIDDEN") {
@@ -55,18 +89,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     }
     throw error;
   }
-  if (claim.count !== 1) {
+  if (claim !== 1) {
     return NextResponse.json({ error: "File state changed; refresh and try again." }, { status: 409 });
   }
 
-  await writeAuditLog({
-    workspaceId: file.workspaceId,
-    actorUserId: session.user.id,
-    action: "FILE_SOFT_DELETED",
-    targetType: "FILE_ASSET",
-    targetId: file.id,
-    metadata: { priorStatus: file.status, recoveryAvailable: true, workspaceName: file.workspace.name, workspaceId: file.workspaceId, deletedById: session.user.id, deletedByName: session.user.name },
-    request,
-  });
   return new NextResponse(null, { status: 204 });
 }
