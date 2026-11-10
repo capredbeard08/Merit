@@ -12,17 +12,23 @@ import SecurityCenter from "./security-center";
 import ClickTrend from "./click-trend";
 import SignOutButton from "@/components/SignOutButton";
 import { can, type Role } from "@/lib/domain";
+import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ workspaceId?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
-  const membership = await prisma.member.findFirst({
+  const { workspaceId: requestedWorkspaceId } = await searchParams;
+  const memberships = await prisma.member.findMany({
     where: { userId: session.user.id },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
-  if (!membership) redirect("/auth");
+  if (memberships.length === 0) redirect("/auth");
+
+  // A requested workspace is usable only when the signed-in user is a member.
+  const membership = resolveWorkspaceMembership(memberships, requestedWorkspaceId);
+  if (!membership) redirect("/dashboard");
 
   const workspaceId = membership.workspaceId;
   const canManageBranches = can(membership.role.toLowerCase() as Role, "branches:manage");
@@ -115,12 +121,30 @@ export default async function DashboardPage() {
             ))}
           </nav>
           <div className="mt-auto rounded-2xl border border-[#dfe4df] bg-white/70 p-4">
+            {memberships.length > 1 ? (
+              <form action="/dashboard" method="get" className="mb-4 space-y-2">
+                <label htmlFor="workspace-switcher" className="block text-xs font-semibold text-[#52665a]">Switch workspace</label>
+                <select id="workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="w-full rounded-lg border border-[#dfe4df] bg-white px-2 py-2 text-sm text-[#173b2f]">
+                  {memberships.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspace.name}</option>)}
+                </select>
+                <button type="submit" className="w-full rounded-lg bg-[#123c2d] px-3 py-2 text-xs font-semibold text-[#f7f4ec] hover:bg-[#1b513b]">Switch workspace</button>
+              </form>
+            ) : null}
             <p className="text-xs font-semibold text-[#173b2f]">Your workspace</p>
             <p className="mt-1 truncate text-sm text-[#718178]">{membership.workspace.name}</p>
             <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-[#87938a]">{membership.role.toLowerCase()}</p>
           </div>
         </aside>
         <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
+          {memberships.length > 1 ? (
+            <form action="/dashboard" method="get" className="mb-4 flex items-center gap-2 lg:hidden">
+              <label htmlFor="mobile-workspace-switcher" className="shrink-0 text-xs font-semibold text-[#52665a]">Workspace</label>
+              <select id="mobile-workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="min-w-0 flex-1 rounded-lg border border-[#dfe4df] bg-white px-3 py-2 text-sm text-[#173b2f]">
+                {memberships.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspace.name}</option>)}
+              </select>
+              <button type="submit" className="rounded-lg bg-[#123c2d] px-3 py-2 text-xs font-semibold text-[#f7f4ec]">Go</button>
+            </form>
+          ) : null}
           <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden" aria-label="Dashboard navigation">
             {[
               ["overview", "Overview"], ["action-inbox", "Inbox"], ["intelligence", "Insights"],
