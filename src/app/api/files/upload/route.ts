@@ -44,15 +44,10 @@ export async function POST(request: Request): Promise<Response> {
         // Revalidate and lock the permission at completion, not only when the
         // upload token was issued. A role may have been revoked while it ran.
         const originalName = safeOriginalName(payload.originalName);
-        // Recheck permission at completion; a role may have been revoked while
-        // the client was uploading the private Blob.
-        await withWorkspacePermission(
-          payload.workspaceId,
-          payload.userId,
-          "files:manage",
-          async () => true,
-        );
         // Verify the real Blob size; never trust browser-reported size.
+        // The authoritative permission recheck happens in the transaction below,
+        // where the FileAsset is recorded. Keeping it inside the cleanup-protected
+        // block ensures a revoked upload is handled as an orphan, not abandoned.
         const metadata = await head(blob.pathname);
         if (!Number.isSafeInteger(metadata.size) || metadata.size < 1) {
           throw new Error("Uploaded file size could not be verified");
