@@ -63,7 +63,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const parsed = requestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    const workspaceOnly = z.object({ workspaceId: z.string().trim().min(1).max(128) }).strict().safeParse(rawBody);
+    const workspaceOnly = z.object({ workspaceId: z.string().trim().min(1).max(128) }).passthrough().safeParse(rawBody);
     if (workspaceOnly.success) {
       return NextResponse.json({
         error: "Explicit confirmation is required before guest comments are sent to Groq.",
