@@ -68,6 +68,13 @@ export const auth = betterAuth({
       minScore: 0.5,
     }),
   ],
+  // Better Auth disables origin checks by default in NODE_ENV=test.
+  // Keep both protections explicitly enabled so the isolated integration
+  // suite exercises the same CSRF/origin policy as production.
+  advanced: {
+    disableOriginCheck: false,
+    disableCSRFCheck: false,
+  },
   session: {
     expiresIn: 60 * 60 * 24 * 30,
     updateAge: 60 * 60 * 24,
