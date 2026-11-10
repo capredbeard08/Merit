@@ -253,7 +253,7 @@ model PlatformAccess {
   revokedAt       DateTime?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
-  user            User              @relation("PlatformAccessSubject", fields: [userId], references: [id], onDelete: Cascade)
+  user            User              @relation("PlatformAccessSubject", fields: [userId], references: [id], onDelete: Restrict)
   grantedBy       User?             @relation("PlatformAccessGrantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
   @@index([role, revokedAt])
 }
