@@ -154,3 +154,15 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Run the full CI workflow on code head `fe615e341f569ff5d0c808dfa7ee549a594d4948`; migration, security integration tests, TypeScript and production build all passed in run #42804586335.
 - [ ] Complete the remaining public/system route review, including cron dispatch idempotency and provider delivery/consent races.
 - [ ] Complete full cross-workspace negative tests for all remaining endpoints and relation traversals.
+
+
+## Follow-up provider idempotency hardening — 10 November 2026
+
+- [x] Persist the first provider-attempt timestamp on each follow-up job.
+- [x] Reuse the same expiring feedback token and provider idempotency key across safe retries.
+- [x] Retry ambiguous attempts only inside a 23-hour window; mark older/legacy ambiguous attempts FAILED for manual reconciliation rather than risking duplicate email.
+- [x] Do not dispatch feedback links whose 30-day capability lifetime has already elapsed.
+- [x] Avoid overwriting a reply, resolution or opt-out when a provider request finishes late.
+- [x] Test stale-claim recovery, expired provider idempotency cutoff and stable token generation.
+- [x] Full CI passed on code head `2d58447557c667f21c8cbcf1072d62678f2c2f8c` in [run #42805205778](https://github.com/capredbeard08/Merit/actions/runs/42805205778): migrations, integration tests, TypeScript and production build all passed.
+- [ ] Real Resend delivery/idempotency E2E remains untested because no verified sender/domain and provider credentials are configured. Do not claim real delivery works.
