@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getSecuritySeverity, sanitizeSecurityMetadata } from "./security-warden";
 
+test("classifies rejected oversized uploads as high severity", () => {
+  assert.equal(getSecuritySeverity("UPLOAD_REJECTED_OVERSIZE"), "HIGH");
+});
+
 test("classifies cross-workspace access as high severity", () => {
   assert.equal(getSecuritySeverity("CROSS_WORKSPACE_ACCESS"), "HIGH");
 });
@@ -30,4 +34,9 @@ test("bounds metadata key count and string length", () => {
   });
   assert.equal((result.longValue as string).length, 240);
   assert.equal(Object.keys(result).length, 20);
+});
+
+
+test("records failed orphan-upload cleanup as high severity", () => {
+  assert.equal(getSecuritySeverity("UPLOAD_ORPHAN_CLEANUP_FAILED"), "HIGH");
 });
