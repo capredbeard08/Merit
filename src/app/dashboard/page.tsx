@@ -131,7 +131,6 @@ export default async function DashboardPage() {
           <div className="mx-auto max-w-[1200px]">
         <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
             <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
             <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
