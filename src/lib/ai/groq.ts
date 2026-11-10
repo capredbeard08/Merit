@@ -18,7 +18,8 @@ function redactPersonalData(value: string): string {
   return value
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
     .replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, "[phone]")
-    .replace(/https?:\/\/\S+/gi, "[link]")
+    .replace(/(?:https?:\/\/|www\.)\S+/gi, "[link]")
+    .replace(/mailto:\S+/gi, "[link]")
     .slice(0, 1200);
 }
 
