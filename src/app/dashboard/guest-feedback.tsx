@@ -61,6 +61,7 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage,
 
   const activeBranches = useMemo(() => branches, [branches]);
   const activeCodes = codes.filter((code) => code.status === "ACTIVE");
+  const hasWrittenFeedback = feedback.some((item) => Boolean(item.message?.trim()));
   const average = summary.averageRating == null ? "—" : (summary.averageRating).toFixed(1) + "/5";
 
   async function runAiAnalysis() {
@@ -231,7 +232,7 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage,
             <input type="checkbox" checked={aiConsentConfirmed} onChange={event => setAiConsentConfirmed(event.target.checked)} disabled={aiBusy} className="mt-1"/>
             <span>I understand that the selected workspace's recent written guest feedback will be sent to Groq for this analysis.</span>
           </label>
-          <button type="button" disabled={!aiConsentConfirmed || aiBusy || loading || feedback.length === 0} onClick={() => void runAiAnalysis()} className="mt-3 rounded-xl border border-[#cfd9cf] px-4 py-2 text-sm font-semibold text-[#315b49] disabled:opacity-50">{aiBusy ? "Analyzing…" : "Analyze feedback themes"}</button>
+          <button type="button" disabled={!aiConsentConfirmed || aiBusy || loading || !hasWrittenFeedback} onClick={() => void runAiAnalysis()} className="mt-3 rounded-xl border border-[#cfd9cf] px-4 py-2 text-sm font-semibold text-[#315b49] disabled:opacity-50">{aiBusy ? "Analyzing…" : "Analyze feedback themes"}</button>
         </div>}
         {aiAnalysis && <div className="mt-4 rounded-2xl border border-[#dfe5dc] bg-[#f7f8f3] p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#557565]">AI-assisted summary</p>
