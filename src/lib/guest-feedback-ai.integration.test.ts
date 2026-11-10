@@ -119,6 +119,7 @@ test("Groq feedback analysis requires explicit consent, workspace permission, an
     assert.equal(auditText.includes(rawComment), false);
     assert.equal(auditText.includes("guest@example.com"), false);
     assert.match(auditText, /PATTERN_REDACTION_NOT_ANONYMIZATION/);
+    assert.equal((audit.metadata as Record<string, unknown>).externalProcessingConfirmed, true);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY;
