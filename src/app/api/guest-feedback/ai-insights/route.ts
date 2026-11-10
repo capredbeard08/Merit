@@ -111,6 +111,7 @@ export async function POST(request: Request): Promise<Response> {
       metadata: {
         provider: "GROQ",
         operation: "THEME_ANALYSIS",
+        externalProcessingConfirmed: true,
         submittedCount: writtenFeedback.length,
         personalDataHandling: "PATTERN_REDACTION_NOT_ANONYMIZATION",
       },
