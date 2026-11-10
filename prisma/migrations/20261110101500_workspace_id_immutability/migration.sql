@@ -61,3 +61,7 @@ FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
 CREATE TRIGGER file_asset_workspace_immutable
 BEFORE UPDATE OF "workspaceId" ON "FileAsset"
 FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
+
+CREATE TRIGGER security_event_workspace_immutable
+BEFORE UPDATE OF "workspaceId" ON "SecurityEvent"
+FOR EACH ROW EXECUTE FUNCTION merit_prevent_workspace_reassignment();
