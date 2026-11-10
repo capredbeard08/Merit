@@ -20,6 +20,7 @@ import { GET as openFeedbackClick } from "../app/api/feedback/[id]/click/route";
 import { PATCH as updateFeedbackStatus } from "../app/api/feedback/[id]/route";
 import { createFeedbackToken } from "./feedback-token";
 import { POST as provisionWorkspace } from "../app/api/workspaces/route";
+import { GET as getFeedbackNotes, POST as createFeedbackNote } from "../app/api/feedback/[id]/notes/route";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 const prisma = new PrismaClient();
@@ -283,6 +284,28 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const routeFeedback = await prisma.feedback.create({
     data: { workspaceId: workspace.id, branchId: routeBranch.id, customerId: routeFeedbackCustomer.id, serviceEventId: routeFeedbackEvent.id },
   });
+  const createNoteResponse = await createFeedbackNote(
+    new Request("http://localhost/api/feedback/" + routeFeedback.id + "/notes", {
+      method: "POST",
+      headers: { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: workspace.id, note: "Internal follow-up context" }),
+    }),
+    { params: Promise.resolve({ id: routeFeedback.id }) },
+  );
+  assert.equal(createNoteResponse.status, 201, "workspace writers can add an internal feedback note");
+  const notesResponse = await getFeedbackNotes(
+    new Request("http://localhost/api/feedback/" + routeFeedback.id + "/notes?workspaceId=" + workspace.id, { headers: sessionHeaders }),
+    { params: Promise.resolve({ id: routeFeedback.id }) },
+  );
+  assert.equal(notesResponse.status, 200);
+  const notesBody = await notesResponse.json() as { notes: Array<{ note: string }> };
+  assert.equal(notesBody.notes.length, 1);
+  assert.equal(notesBody.notes[0].note, "Internal follow-up context");
+  const foreignNotesResponse = await getFeedbackNotes(
+    new Request("http://localhost/api/feedback/" + routeFeedback.id + "/notes?workspaceId=" + workspace.id, { headers: outsiderHeaders }),
+    { params: Promise.resolve({ id: routeFeedback.id }) },
+  );
+  assert.equal(foreignNotesResponse.status, 403, "non-members cannot read internal feedback notes");
   const routeFeedbackFollowUp = await prisma.followUp.create({
     data: { workspaceId: workspace.id, feedbackId: routeFeedback.id, status: "QUEUED", scheduledAt: new Date() },
   });
