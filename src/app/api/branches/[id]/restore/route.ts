@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
-import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -19,24 +18,41 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const branch = await prisma.branch.findFirst({ where: { id, workspaceId, archivedAt: { not: null } } });
   if (!branch) return NextResponse.json({ error: "Archived branch not found" }, { status: 404 });
 
-  let changed;
   try {
-    changed = await prisma.$transaction(async (tx) => tx.branch.updateMany({
-      where: { id, workspaceId, archivedAt: { not: null } },
-      data: { archivedAt: null, archivedById: null },
-    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    const changed = await withWorkspacePermission(
+      workspaceId,
+      session.user.id,
+      "branches:manage",
+      async (tx) => {
+        const result = await tx.branch.updateMany({
+          where: { id, workspaceId, archivedAt: { not: null } },
+          data: { archivedAt: null, archivedById: null },
+        });
+        if (result.count !== 1) return false;
+        await tx.auditLog.create({
+          data: {
+            workspaceId,
+            actorUserId: session.user.id,
+            action: "BRANCH_RESTORED",
+            targetType: "BRANCH",
+            targetId: id,
+            ipAddress: request.headers.get("x-real-ip")?.slice(0, 64) ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
+            userAgent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
+          },
+        });
+        return true;
+      },
+    );
+    if (!changed) return NextResponse.json({ error: "Branch recovery state changed; refresh and try again." }, { status: 409 });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
-      return NextResponse.json({ error: "Branch state changed concurrently; refresh and try again." }, { status: 409 });
-    }
+    if (error instanceof Error && error.message === "FORBIDDEN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     throw error;
   }
-  if (changed.count !== 1) return NextResponse.json({ error: "Branch recovery state changed; refresh and try again." }, { status: 409 });
+
   const restored = await prisma.branch.findFirst({
     where: { id, workspaceId, archivedAt: null },
     select: { id: true, name: true, externalId: true, updatedAt: true },
   });
   if (!restored) return NextResponse.json({ error: "Branch could not be restored." }, { status: 409 });
-  await writeAuditLog({ workspaceId, actorUserId: session.user.id, action: "BRANCH_RESTORED", targetType: "BRANCH", targetId: id, request });
   return NextResponse.json({ branch: restored });
 }
