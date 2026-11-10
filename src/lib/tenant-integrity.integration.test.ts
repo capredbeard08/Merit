@@ -39,6 +39,20 @@ test("database guards reject cross-workspace relations and tenant reassignment",
     const feedbackB = await prisma.feedback.create({
       data: { workspaceId: workspaceB.id, branchId: branchB.id, customerId: customerB.id, serviceEventId: eventB.id },
     });
+    const fileAsset = await prisma.fileAsset.create({
+      data: {
+        workspaceId: workspaceA.id,
+        uploadedById: "tenant-test-user",
+        originalName: "evidence.pdf",
+        pathname: "tenant-guard-" + suffix + ".pdf",
+        contentType: "application/pdf",
+        sizeBytes: 0,
+        status: "QUARANTINED",
+      },
+    });
+    const securityEvent = await prisma.securityEvent.create({
+      data: { workspaceId: workspaceA.id, type: "AUTHZ_DENIED", severity: "HIGH", metadata: { test: true } },
+    });
 
     await expectTenantGuardFailure(() => prisma.customer.create({
       data: { workspaceId: workspaceA.id, branchId: branchB.id, externalId: "bad-customer-" + suffix },
@@ -81,6 +95,12 @@ test("database guards reject cross-workspace relations and tenant reassignment",
     }));
     await expectTenantGuardFailure(() => prisma.feedback.update({
       where: { id: feedbackA.id }, data: { workspaceId: workspaceB.id },
+    }));
+    await expectTenantGuardFailure(() => prisma.fileAsset.update({
+      where: { id: fileAsset.id }, data: { workspaceId: workspaceB.id },
+    }));
+    await expectTenantGuardFailure(() => prisma.securityEvent.update({
+      where: { id: securityEvent.id }, data: { workspaceId: workspaceB.id },
     }));
   } finally {
     await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
