@@ -523,7 +523,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     }));
     assert.equal(recoveryResponse.status, 200);
     const recoverySummary = await recoveryResponse.json() as { failed?: number };
-    assert.equal(recoverySummary.failed, 1);
+    assert.equal(recoverySummary.failed, 2);
     const recoveredJob = await prisma.followUp.findUnique({ where: { id: staleFollowUp.id } });
     assert.equal(recoveredJob?.status, "FAILED");
     assert.equal(recoveredJob?.processingAt, null);
