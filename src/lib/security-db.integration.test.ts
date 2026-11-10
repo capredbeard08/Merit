@@ -265,7 +265,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: outsiderHeaders }),
     { params: Promise.resolve({ id: routeFile.id }) },
   );
-  assert.equal(crossWorkspaceDelete.status, 403);
+  assert.equal(crossWorkspaceDelete.status, 404, "cross-workspace file existence must be masked");
 
   const softDeletedResponse = await softDeleteFile(
     new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: sessionHeaders }),
@@ -295,7 +295,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     new Request("http://localhost/api/files/" + routeFile.id + "/evidence", { headers: outsiderHeaders }),
     { params: Promise.resolve({ id: routeFile.id }) },
   );
-  assert.equal(deniedEvidenceResponse.status, 403, "evidence downloads must remain workspace-scoped");
+  assert.equal(deniedEvidenceResponse.status, 404, "cross-workspace evidence existence must be masked");
 
   const holdHeaders = { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" };
   const placedHold = await manageFileLegalHold(
