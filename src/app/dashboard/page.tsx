@@ -155,13 +155,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <button type="submit" className="rounded-lg bg-[#123c2d] px-3 py-2 text-xs font-semibold text-[#f7f4ec]">Go</button>
             </form>
           ) : null}
-          <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden" aria-label="Dashboard navigation">
+          <nav className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden" aria-label="Dashboard navigation">
             {[
               ["overview", "Overview"], ["action-inbox", "Inbox"], ["intelligence", "Insights"],
               ["branches", "Branches"], ["guest-feedback", "Guest feedback"], ["files", "Files"], ["team", "Team"],
               ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security"]] : []),
             ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dfe4df] bg-white/75 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
-          </div>
+          </nav>
           <div className="mx-auto max-w-[1260px]">
         <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
