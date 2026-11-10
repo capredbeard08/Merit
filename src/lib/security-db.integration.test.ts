@@ -71,6 +71,9 @@ test("database security transitions are single-winner and workspace-scoped", { s
       method: "POST",
       headers: {
         origin,
+        "sec-fetch-site": origin === "https://" + host ? "same-origin" : "cross-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
         cookie: sessionHeaders.get("cookie")!,
         "content-type": "application/json",
       },
