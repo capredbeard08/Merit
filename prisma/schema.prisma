@@ -439,7 +439,7 @@ model SupportAccessRequest {
   revokedAt                DateTime?
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
-  workspace                Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace                Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   requestedBy              User                @relation("SupportAccessRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
   decidedBy                User?               @relation("SupportAccessDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
   revokedBy                User?               @relation("SupportAccessRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
