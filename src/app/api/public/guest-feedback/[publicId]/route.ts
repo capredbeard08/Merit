@@ -46,7 +46,25 @@ export async function POST(
     return NextResponse.json({ error: "This feedback link is no longer available." }, { status: 404 });
   }
 
-  const parsed = submissionSchema.safeParse(await request.json().catch(() => null));
+  const contentType = request.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+  if (contentType !== "application/json") {
+    return NextResponse.json({ error: "Content-Type must be application/json." }, { status: 415 });
+  }
+
+  // Bound the raw request before JSON parsing; the schema's message limit alone
+  // does not prevent an attacker from sending an arbitrarily large body.
+  const rawBody = await request.text();
+  if (new TextEncoder().encode(rawBody).byteLength > 4096) {
+    return NextResponse.json({ error: "Feedback submission is too large." }, { status: 413 });
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json({ error: "Please provide a rating and try again." }, { status: 400 });
+  }
+  const parsed = submissionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Please provide a rating and try again." }, { status: 400 });
   }
