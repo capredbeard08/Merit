@@ -68,3 +68,12 @@ test("feedback token test restores its original authentication secret", () => {
   if (originalAuthSecret === undefined) delete process.env.AUTH_SECRET;
   else process.env.AUTH_SECRET = originalAuthSecret;
 });
+
+
+test("the persisted first-attempt timestamp produces a stable token across retries", () => {
+  const feedbackId = "feedback-stable-retry-test";
+  const firstAttemptAt = 1_700_000_000;
+  const firstAttemptToken = createFeedbackToken(feedbackId, firstAttemptAt);
+  const retryToken = createFeedbackToken(feedbackId, firstAttemptAt);
+  assert.equal(retryToken, firstAttemptToken);
+});
