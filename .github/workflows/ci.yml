@@ -68,5 +68,8 @@ jobs:
       - name: Type-check TypeScript
         run: npx tsc --noEmit
 
+      - name: Type-check isolated security worker
+        run: npm run test:security-worker
+
       - name: Build production application
         run: npm run build
