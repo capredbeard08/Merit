@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { betterAuth } from "better-auth";
-import { captcha } from "better-auth/plugins";
+import { captcha, twoFactor } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
@@ -61,11 +61,17 @@ export const auth = betterAuth({
   // The isolated route-integration suite uses real Better Auth sessions but
   // skips Google's external CAPTCHA verification. Production/development keep
   // the CAPTCHA plugin enabled.
-  plugins: process.env.NODE_ENV === "test" ? [] : [
-    captcha({
-      provider: "google-recaptcha",
-      secretKey: captchaSecret,
-      minScore: 0.5,
+  plugins: [
+    ...(process.env.NODE_ENV === "test" ? [] : [
+      captcha({
+        provider: "google-recaptcha",
+        secretKey: captchaSecret,
+        minScore: 0.5,
+      }),
+    ]),
+    twoFactor({
+      issuer: "MERIT",
+      backupCodeOptions: { storeBackupCodes: "encrypted" },
     }),
   ],
   // Better Auth disables origin checks by default in NODE_ENV=test.
