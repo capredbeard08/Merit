@@ -422,8 +422,13 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       where: { workspaceId, targetId: pending.id, action: "SUPPORT_ACCESS_APPROVED" },
     }), 1);
     assert.equal(await prisma.securityEvent.count({
-      where: { workspaceId: null, targetId: workspaceId, type: "SUPPORT_ACCESS_APPROVED" },
-    }), 1);
+      where: {
+        workspaceId: null,
+        targetId: workspaceId,
+        type: "SUPPORT_ACCESS_APPROVED",
+        metadata: { path: ["supportAccessRequestId"], equals: pending.id },
+      },
+    }), 1, "the approved request must produce exactly one matching platform security event");
 
     const requesterCancel = await createRequest({
       workspaceId,
