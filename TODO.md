@@ -94,7 +94,7 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Remove the permanent-erasure permission, dashboard controls, obsolete environment setting and erasure-only route state.
 - [x] Keep ordinary file deletion reversible and retain the underlying private Blob and database record.
 - [x] CI run [#824](https://github.com/capredbeard08/Merit/actions/runs/42680971113) passed on the prior head `fd1e5b6d8749777133d079adf3e45a45810f7915`; it does not validate the newer evidence/legal-hold commits.
-- [ ] Run fresh CI on the current head after evidence and legal-hold implementation.
+- [x] Run fresh CI after evidence/legal-hold implementation; see the newer 10 November validation below.
 - [x] Add authenticated route-level tests for cross-workspace evidence denial and legal-hold placement/release; current CI run is validating these tests.
 - [ ] Complete route-by-route authorization and tenant-boundary review. PostgreSQL RLS remains unimplemented; do not claim database-enforced tenant isolation.
 - [ ] Verify GitHub `production` environment required reviewers; a workflow environment declaration alone does not prove approval protection.
@@ -114,11 +114,11 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Add tests for token expiry, future timestamps, legacy grace, signing-key rotation, read-only click prefetch and explicit opt-out confirmation.
 - [x] Add a membership-row lock helper and use it for file soft-delete, file recovery and legal-hold changes, so concurrent membership revocation/role downgrade cannot race those protected mutations.
 - [x] Commit file soft-delete/recovery state changes and their audit records atomically.
-- [ ] Confirm latest CI on the current head, including migration, integration, type-check and production-build results.
-- [ ] Extend membership-row locking and atomic audit behavior to the remaining protected mutations, including branch, feedback, invitation and integration management routes.
-- [ ] Lock webhook credentials and active branches during event processing to close revoke/archive races.
-- [ ] Reconcile the stronger tenant-route work in PR #7 without merging its branch wholesale. PR #7 currently includes a permanent-erasure endpoint and files:erase permission, which conflict with the current evidence-preservation requirement; do not port or merge those parts.
-- [ ] Keep RLS deferred: the current database provider does not offer a separate restricted runtime role. Do not wire an unrestricted connection into the tenant helper or claim RLS enforcement.
+- [x] Confirm latest CI on current code head `c19240589b25a2448e667e64782ef7caed53013a`: migrations, integration tests, TypeScript and production build passed in [run #42803993908](https://github.com/capredbeard08/Merit/actions/runs/42803993908).
+- [x] Extend membership-row locking to branch, feedback, invitation, integration endpoint and insight mutations; branch/integration lifecycle audits are transactional. Continue reviewing remaining public and system routes.
+- [x] Lock webhook credentials and active branches during event processing to close revoke/archive races.
+- [x] Review PR #7 for reconciliation. Its current branch includes a permanent-erasure endpoint and files:erase permission, which conflict with the current evidence-preservation requirement; do not port or merge those parts.
+- [x] Keep RLS deferred: the current database provider does not offer a separate restricted runtime role. Do not wire an unrestricted connection into the tenant helper or claim RLS enforcement.
 - [ ] Complete cross-workspace negative tests for every route, relation traversal and bulk operation.
 - [ ] Finish backup/restore, Preview-vs-Production database, production-environment reviewer, email-provider and upload-scanning release gates before any production rollout.
 
@@ -131,4 +131,16 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Lock workspace membership during branch creation/update/archive/restore, feedback status changes, invitation creation, integration endpoint creation/revocation and insight generation.
 - [x] Commit branch and integration endpoint lifecycle audit events with their corresponding mutations.
 - [x] Add route-level regression coverage for webhook opt-out precedence, integration creation/revocation, feedback workspace isolation and customer-wide follow-up cancellation.
-- [ ] Confirm full CI on the latest code head after these additional route changes.
+- [x] Confirm full CI on latest code head `c19240589b25a2448e667e64782ef7caed53013a`; [run #42803993908](https://github.com/capredbeard08/Merit/actions/runs/42803993908) passed.
+
+
+## Database tenant-integrity and upload authorization — 10 November 2026
+
+- [x] Add PostgreSQL triggers that reject cross-workspace links between customers, branches, service events, feedback, follow-ups, replies and webhook endpoints.
+- [x] Add PostgreSQL triggers that prevent tenant-owned records, including files and security events, from being reassigned to a different workspace.
+- [x] Validate existing cross-workspace relationships before installing guards; fail the migration rather than silently accepting inconsistent historical data.
+- [x] Add database integration tests for cross-workspace inserts/updates, workspace reassignment, membership deletion/role-downgrade locking and fail-closed authorization.
+- [x] Include feedback-token and tenant-integrity tests in the security CI command.
+- [x] Recheck files:manage under a membership lock when a private Blob upload completes; record denial if permission was revoked after token generation.
+- [x] Mask cross-workspace file read/delete/recovery/evidence existence with not-found responses.
+- [ ] Complete negative tests for every remaining route and relation traversal. These database guards protect data integrity; they are not PostgreSQL RLS and do not replace authorization checks.
