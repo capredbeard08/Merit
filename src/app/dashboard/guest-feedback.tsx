@@ -10,7 +10,7 @@ type QrCode = {
   branch: { name: string; archivedAt: string | null; googleReviewUrl: string | null };
 };
 type GuestFeedback = { id: string; rating: string; message: string | null; submittedAt: string; branch: { name: string } };
-type Props = { workspaceId: string; branches: Branch[]; canManage: boolean };
+type Props = { workspaceId: string; branches: Branch[]; canManage: boolean; canUseAi: boolean };
 const ratingNumber: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
 
 function qrImageUrl(value: string, size = 360) {
@@ -18,7 +18,7 @@ function qrImageUrl(value: string, size = 360) {
   return "https://api.qrserver.com/v1/create-qr-code/?size=" + size + "x" + size + "&format=png&margin=12&data=" + encodeURIComponent(value);
 }
 
-export default function GuestFeedbackManager({ workspaceId, branches, canManage }: Props) {
+export default function GuestFeedbackManager({ workspaceId, branches, canManage, canUseAi }: Props) {
   const [codes, setCodes] = useState<QrCode[]>([]);
   const [feedback, setFeedback] = useState<GuestFeedback[]>([]);
   const [summary, setSummary] = useState({ count: 0, averageRating: null as number | null });
@@ -30,6 +30,9 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<QrCode | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiConsentConfirmed, setAiConsentConfirmed] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<{ themes: Array<{ name: string; sentiment: "positive" | "mixed" | "negative"; mentions: number; summary: string; suggestedAction: string }>; overallSummary: string; priority: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -50,11 +53,33 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
     }
   }
 
-  useEffect(() => { void load(); }, [workspaceId]);
+  useEffect(() => {
+    setAiAnalysis(null);
+    setAiConsentConfirmed(false);
+    void load();
+  }, [workspaceId]);
 
   const activeBranches = useMemo(() => branches, [branches]);
   const activeCodes = codes.filter((code) => code.status === "ACTIVE");
   const average = summary.averageRating == null ? "—" : (summary.averageRating).toFixed(1) + "/5";
+
+  async function runAiAnalysis() {
+    if (aiBusy) return;
+    setAiBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/guest-feedback/ai-insights", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspaceId, confirmExternalProcessing: aiConsentConfirmed }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "AI analysis is temporarily unavailable.");
+      setAiAnalysis(data.analysis);
+      setAiConsentConfirmed(false);
+      setNotice("AI feedback themes generated. Review them as suggestions, not verified facts.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI analysis is temporarily unavailable.");
+    } finally { setAiBusy(false); }
+  }
 
   async function createCode() {
     if (!branchId || !canManage || busy) return;
@@ -195,7 +220,31 @@ export default function GuestFeedbackManager({ workspaceId, branches, canManage 
       </div>
 
       <div className="mt-8 border-t border-[#dfe5dc] pt-6">
-        <div className="flex items-center justify-between"><h3 className="font-semibold text-[#183d2f]">Latest guest submissions</h3><span className="text-xs text-[#718178]">Latest 50</span></div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-semibold text-[#183d2f]">Latest guest submissions</h3><span className="text-xs text-[#718178]">Latest 50</span></div>
+          {canUseAi ? <span className="text-xs text-[#718178]">AI analysis is available to your workspace role.</span> : <span className="text-xs text-[#718178]">AI analysis is not enabled for your workspace role.</span>}
+        </div>
+        {canUseAi && <div className="mt-4 rounded-2xl border border-[#dfe5dc] bg-[#f7f8f3] p-4">
+          <p className="text-sm font-semibold text-[#183d2f]">External AI processing</p>
+          <p className="mt-1 text-xs leading-5 text-[#59685f]">When you run this analysis, MERIT sends up to 100 recent written guest comments and their ratings to Groq. Email addresses, phone-like strings and URLs are pattern-redacted first. This is not guaranteed anonymisation: comments may still contain identifying or sensitive details. Review your feedback and do not submit sensitive information for external analysis.</p>
+          <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-[#315b49]">
+            <input type="checkbox" checked={aiConsentConfirmed} onChange={event => setAiConsentConfirmed(event.target.checked)} disabled={aiBusy} className="mt-1"/>
+            <span>I understand that the selected workspace's recent written guest feedback will be sent to Groq for this analysis.</span>
+          </label>
+          <button type="button" disabled={!aiConsentConfirmed || aiBusy || loading || feedback.length === 0} onClick={() => void runAiAnalysis()} className="mt-3 rounded-xl border border-[#cfd9cf] px-4 py-2 text-sm font-semibold text-[#315b49] disabled:opacity-50">{aiBusy ? "Analyzing…" : "Analyze feedback themes"}</button>
+        </div>}
+        {aiAnalysis && <div className="mt-4 rounded-2xl border border-[#dfe5dc] bg-[#f7f8f3] p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#557565]">AI-assisted summary</p>
+          <p className="mt-2 text-sm leading-6 text-[#315b49]">{aiAnalysis.overallSummary}</p>
+          <p className="mt-3 text-sm font-semibold text-[#183d2f]">Suggested priority</p>
+          <p className="mt-1 text-sm leading-6 text-[#59685f]">{aiAnalysis.priority}</p>
+          {aiAnalysis.themes.length > 0 && <div className="mt-4 grid gap-3 sm:grid-cols-2">{aiAnalysis.themes.map((theme, index) => <article key={theme.name + index} className="rounded-xl border border-[#e2e8df] bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-sm font-semibold text-[#183d2f]">{theme.name}</h4><span className="text-[10px] font-semibold uppercase tracking-wide text-[#718178]">{theme.sentiment} · {theme.mentions} mention{theme.mentions === 1 ? "" : "s"}</span></div>
+            <p className="mt-2 text-sm leading-5 text-[#59685f]">{theme.summary}</p>
+            <p className="mt-2 text-xs leading-5 text-[#315b49]">Next step: {theme.suggestedAction}</p>
+          </article>)}</div>}
+          <p className="mt-4 text-[11px] leading-5 text-[#879189]">AI-generated suggestions based on up to 100 recent written comments. Some common personal details are pattern-redacted before analysis; this does not guarantee anonymisation. Verify themes against the original feedback before acting.</p>
+        </div>}
         {feedback.length ? <div className="mt-3 divide-y divide-[#e4e9e3]">{feedback.map(item => <article key={item.id} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-[#315b49]">{item.branch.name} · {"★".repeat(ratingNumber[item.rating] || 0)}{"☆".repeat(5-(ratingNumber[item.rating] || 0))}</p><time className="text-xs text-[#879189]">{new Date(item.submittedAt).toLocaleString()}</time></div>{item.message && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#59685f]">{item.message}</p>}</article>)}</div> : <p className="mt-3 rounded-xl bg-[#f5f6f1] p-5 text-sm text-[#718178]">Guest feedback will appear here once customers start submitting.</p>}
       </div>
     </section>
