@@ -142,7 +142,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#4f8067] bg-[#174a36] font-semibold text-white">{(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}</span>
               <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{session.user.name || "MERIT"}</p><p className="text-xs text-[#b9cabe]">Workspace member</p></div>
             </div>
-            <div className="mt-5"><SignOutButton /></div>
+            <div className="mt-5"><SignOutButton variant="dark" /></div>
           </div>
         </aside>
         <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
