@@ -131,7 +131,7 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Lock workspace membership during branch creation/update/archive/restore, feedback status changes, invitation creation, integration endpoint creation/revocation and insight generation.
 - [x] Commit branch and integration endpoint lifecycle audit events with their corresponding mutations.
 - [x] Add route-level regression coverage for webhook opt-out precedence, integration creation/revocation, feedback workspace isolation and customer-wide follow-up cancellation.
-- [x] Confirm full CI on latest code head `c19240589b25a2448e667e64782ef7caed53013a`; [run #42803993908](https://github.com/capredbeard08/Merit/actions/runs/42803993908) passed.
+- [x] Confirm full CI on latest code head `fe615e341f569ff5d0c808dfa7ee549a594d4948`; [run #42804586335](https://github.com/capredbeard08/Merit/actions/runs/42804586335) passed.
 
 
 ## Database tenant-integrity and upload authorization — 10 November 2026
@@ -144,3 +144,13 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Recheck files:manage under a membership lock when a private Blob upload completes; record denial if permission was revoked after token generation.
 - [x] Mask cross-workspace file read/delete/recovery/evidence existence with not-found responses.
 - [ ] Complete negative tests for every remaining route and relation traversal. These database guards protect data integrity; they are not PostgreSQL RLS and do not replace authorization checks.
+
+
+## Final route review updates — 10 November 2026
+
+- [x] Lock member creation and workspace rename permissions against concurrent membership revocation/role downgrade; commit their audit records in the same transaction.
+- [x] Lock the workspace and deleting-user rows while capturing immutable file deletion name snapshots, so concurrent renames cannot race the provenance labels.
+- [x] Recheck upload permission at Blob completion under the membership lock; keep unverified uploads quarantined.
+- [x] Run the full CI workflow on code head `fe615e341f569ff5d0c808dfa7ee549a594d4948`; migration, security integration tests, TypeScript and production build all passed in run #42804586335.
+- [ ] Complete the remaining public/system route review, including cron dispatch idempotency and provider delivery/consent races.
+- [ ] Complete full cross-workspace negative tests for all remaining endpoints and relation traversals.
