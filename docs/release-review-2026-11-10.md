@@ -9,7 +9,7 @@ This review supersedes the 31 October 2026 release review. It records the select
 - Repository: `capredbeard08/Merit`.
 - PR #3 (`security/remediation-phase-1`) remains the security-remediation trunk.
 - PR #12 (`integration/platform-access-pr3`) is the consolidated candidate, based directly on PR #3. It remains open and draft.
-- PR #12 head reviewed: `476f027970c11fb0809afa2c8e7718adfc596a91`.
+- PR #12 application-code head validated: `476f027970c11fb0809afa2c8e7718adfc596a91`. The release-review document was added in subsequent documentation-only commit(s); application code is unchanged from that validated head, and fresh CI for the documentation follow-up remains required.
 - PR #3 and PR #12 have not been merged. No production deployment, production migration, Vercel Preview deployment, account bootstrap or production data operation has occurred.
 - PRs #1, #2, #4 and #7 are closed as superseded, not merged; their branches remain available.
 - PRs #6, #8, #9, #10 and #11 have been selectively integrated into PR #12. They are source branches, not direct merge candidates. Close them only after the consolidated candidate's current-head checks remain green.
