@@ -16,6 +16,7 @@ import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-com
 import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
 import { GET as openOptOutLink, POST as confirmOptOut } from "../app/api/feedback/[id]/optout/route";
 import { GET as openFeedbackClick } from "../app/api/feedback/[id]/click/route";
+import { PATCH as updateFeedbackStatus } from "../app/api/feedback/[id]/route";
 import { createFeedbackToken } from "./feedback-token";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
@@ -222,6 +223,43 @@ test("database security transitions are single-winner and workspace-scoped", { s
   });
   outsiderId = outsider.id;
   const outsiderHeaders = await createCredentialAccount(outsider.id, outsider.email, "outsider-" + suffix);
+  const routeFeedbackCustomer = await prisma.customer.create({
+    data: { workspaceId: workspace.id, branchId: routeBranch.id, externalId: "route-feedback-customer-" + suffix, email: "route-feedback@example.invalid" },
+  });
+  const routeFeedbackEvent = await prisma.serviceEvent.create({
+    data: { workspaceId: workspace.id, branchId: routeBranch.id, customerId: routeFeedbackCustomer.id, externalId: "route-feedback-event-" + suffix, completedAt: new Date() },
+  });
+  const routeFeedback = await prisma.feedback.create({
+    data: { workspaceId: workspace.id, branchId: routeBranch.id, customerId: routeFeedbackCustomer.id, serviceEventId: routeFeedbackEvent.id },
+  });
+  const routeFeedbackFollowUp = await prisma.followUp.create({
+    data: { workspaceId: workspace.id, feedbackId: routeFeedback.id, status: "QUEUED", scheduledAt: new Date() },
+  });
+  const foreignFeedbackUpdate = await updateFeedbackStatus(
+    new Request("http://localhost/api/feedback/" + routeFeedback.id, {
+      method: "PATCH",
+      headers: { cookie: outsiderHeaders.get("cookie")!, "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: workspace.id, status: "RESOLVED" }),
+    }),
+    { params: Promise.resolve({ id: routeFeedback.id }) },
+  );
+  assert.equal(foreignFeedbackUpdate.status, 403, "a non-member cannot update another workspace's feedback");
+  const optedOutFeedbackUpdate = await updateFeedbackStatus(
+    new Request("http://localhost/api/feedback/" + routeFeedback.id, {
+      method: "PATCH",
+      headers: { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: workspace.id, status: "OPTED_OUT" }),
+    }),
+    { params: Promise.resolve({ id: routeFeedback.id }) },
+  );
+  assert.equal(optedOutFeedbackUpdate.status, 200);
+  const routeCustomerAfterOptOut = await prisma.customer.findUnique({ where: { id: routeFeedbackCustomer.id } });
+  const routeFollowUpAfterOptOut = await prisma.followUp.findUnique({ where: { id: routeFeedbackFollowUp.id } });
+  assert.ok(routeCustomerAfterOptOut?.optedOutAt);
+  assert.equal(routeFollowUpAfterOptOut?.status, "CANCELLED");
+  assert.equal(await prisma.auditLog.count({
+    where: { targetId: routeFeedback.id, action: "FEEDBACK_STATUS_CHANGED" },
+  }), 1, "feedback state, customer opt-out and audit must commit together");
   const crossWorkspaceDelete = await softDeleteFile(
     new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: outsiderHeaders }),
     { params: Promise.resolve({ id: routeFile.id }) },
