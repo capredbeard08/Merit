@@ -77,8 +77,12 @@ test("database security transitions are single-winner and workspace-scoped", { s
   assert.notEqual(canonicalOriginResponse.status, 403, "the canonical MERIT host must be accepted by Better Auth");
   const previewOriginResponse = await authOriginRequest("merit-preview-check-capredbeard08.vercel.app", "https://merit-preview-check-capredbeard08.vercel.app");
   assert.notEqual(previewOriginResponse.status, 403, "MERIT-owned generated preview hosts must be accepted by Better Auth");
-  const untrustedOriginResponse = await authOriginRequest("attacker.example", "https://attacker.example");
-  assert.equal(untrustedOriginResponse.status, 403, "untrusted hosts must be rejected by Better Auth");
+  // Keep the request addressed to MERIT's canonical host while simulating
+  // a browser page hosted by an unrelated origin. A request addressed to
+  // attacker.example only proves that the auth handler returns an auth error
+  // for that host; it does not test the trusted-origin boundary.
+  const untrustedOriginResponse = await authOriginRequest("merit-olive.vercel.app", "https://attacker.example");
+  assert.equal(untrustedOriginResponse.status, 403, "untrusted browser origins must be rejected by Better Auth");
 
   const sessionHeaders = await createCredentialAccount(user.id, user.email, "owner-" + suffix);
   // Concurrent first-time workspace setup must serialize on the user row:
