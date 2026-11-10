@@ -13,6 +13,7 @@ import { POST as manageFileLegalHold } from "../app/api/files/[id]/legal-hold/ro
 import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
+import { POST as createWebhookEndpoint, DELETE as revokeWebhookEndpoint } from "../app/api/integrations/webhook/route";
 import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
 import { GET as openOptOutLink, POST as confirmOptOut } from "../app/api/feedback/[id]/optout/route";
 import { GET as openFeedbackClick } from "../app/api/feedback/[id]/click/route";
@@ -400,13 +401,16 @@ test("database security transitions are single-winner and workspace-scoped", { s
       optedOutAt: new Date(),
     },
   });
-  const webhookSecret = "webhook-secret-" + suffix;
-  await prisma.webhookEndpoint.create({
-    data: {
-      workspaceId: workspace.id, branchId: webhookBranch.id, label: "CI webhook",
-      secretHash: createHash("sha256").update(webhookSecret).digest("hex"),
-    },
-  });
+  const createdWebhookResponse = await createWebhookEndpoint(
+    new Request("http://localhost/api/integrations/webhook", {
+      method: "POST",
+      headers: { cookie: sessionHeaders.get("cookie")!, "content-type": "application/json" },
+      body: JSON.stringify({ workspaceId: workspace.id, branchId: webhookBranch.id, label: "CI webhook" }),
+    }),
+  );
+  assert.equal(createdWebhookResponse.status, 201);
+  const createdWebhookBody = await createdWebhookResponse.json() as { endpoint: { id: string }; secret: string };
+  const webhookSecret = createdWebhookBody.secret;
   const webhookEvent = {
     eventId: "webhook-event-" + suffix,
     workspaceId: workspace.id,
@@ -442,6 +446,19 @@ test("database security transitions are single-winner and workspace-scoped", { s
     body: JSON.stringify({ ...webhookEvent, eventId: "archived-event-" + suffix }),
   }));
   assert.equal(rejectedArchivedWebhook.status, 404);
+  const revokedWebhookResponse = await revokeWebhookEndpoint(
+    new Request("http://localhost/api/integrations/webhook?id=" + createdWebhookBody.endpoint.id, {
+      method: "DELETE",
+      headers: sessionHeaders,
+    }),
+  );
+  assert.equal(revokedWebhookResponse.status, 200);
+  const rejectedRevokedWebhook = await serviceCompletedWebhook(new Request("http://localhost/api/webhooks/service-completed", {
+    method: "POST",
+    headers: { "x-merit-webhook-secret": webhookSecret, "content-type": "application/json" },
+    body: JSON.stringify({ ...webhookEvent, eventId: "revoked-event-" + suffix }),
+  }));
+  assert.equal(rejectedRevokedWebhook.status, 401, "revoked integration credentials must not authorize new events");
 
   // Exercise stale-claim recovery through the real cron handler. With no
   // provider API key in CI, the recovered job must fail safely rather than
