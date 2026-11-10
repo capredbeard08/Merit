@@ -138,6 +138,24 @@ model Feedback {
   @@index([workspaceId, status, createdAt])
   @@index([branchId, createdAt])
   @@index([customerId, createdAt])
+  @@unique([workspaceId, id])
+  notes FeedbackNote[]
+}
+
+
+model FeedbackNote {
+  id          String   @id @default(cuid())
+  workspaceId String
+  feedbackId  String
+  authorUserId String?
+  content     String
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  feedback    Feedback @relation(fields: [workspaceId, feedbackId], references: [workspaceId, id], onDelete: Cascade)
+  author      User? @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, feedbackId, createdAt])
+  @@index([authorUserId, createdAt])
 }
 
 model Invitation {
@@ -197,6 +215,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   members       Member[]
+  authoredFeedbackNotes FeedbackNote[]
 }
 
 model Session {
