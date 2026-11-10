@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyFeedbackToken } from "@/lib/feedback-token";
 import FeedbackForm from "./form";
 
+export const metadata = { referrer: "no-referrer" as const };
+
 export default async function FeedbackPage({
   params,
   searchParams,
@@ -12,13 +14,13 @@ export default async function FeedbackPage({
 }) {
   const { id } = await params;
   const { t } = await searchParams;
-  if (!t || !verifyFeedbackToken(id, t)) notFound();
+  if (!t || t.length > 512) notFound();
 
   const feedback = await prisma.feedback.findUnique({
     where: { id },
     include: { workspace: true, branch: true, customer: true },
   });
-  if (!feedback || feedback.customer.optedOutAt) notFound();
+  if (!feedback || !verifyFeedbackToken(id, t, feedback.sentAt) || feedback.customer.optedOutAt) notFound();
 
   return (
     <main className="min-h-screen bg-[#f7f3ea] px-6 py-12 text-[#173b2f]">
