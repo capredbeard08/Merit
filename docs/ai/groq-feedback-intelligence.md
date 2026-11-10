@@ -26,7 +26,7 @@ The first Groq-backed workflow summarizes recurring themes in written Guest Feed
 
 Required: `GROQ_API_KEY`. Optional: `GROQ_MODEL` (defaults to `openai/gpt-oss-120b`).
 
-The key is present in Vercel environment metadata for Preview and Production. This change does not read its value, change environment settings, or trigger a deployment. A real provider call must be verified in an authorised staging environment after reviewing the applicable Groq data-processing and retention terms.
+A `GROQ_API_KEY` must be configured in the target environment. This change does not inspect, create, or modify secret values or environment settings, and does not trigger a deployment. A real provider call must be verified in an authorised staging environment after reviewing the applicable Groq data-processing and retention terms.
 
 ## Email delivery status and activation gate
 
