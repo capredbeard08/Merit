@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
             // Remove the orphan where possible; if cleanup fails, leave a security
             // event so an operator can reconcile the private object.
             try {
-              await del(blob.url);
+              await del(blob.pathname);
             } catch {
               try {
                 await recordSecurityEvent({
@@ -101,14 +101,25 @@ export async function POST(request: Request): Promise<Response> {
                   workspaceId: payload.workspaceId,
                   actorUserId: payload.userId,
                   targetId: blob.pathname,
-                  metadata: { reason: "permission_revoked_before_upload_completion" },
+                  metadata: { reason: "permission_revoked_before_upload_completion", cleanupStatus: "failed" },
                   request,
                 });
               } catch {
                 // Preserve the original authorization failure; do not mask it
                 // with a secondary logging failure.
               }
+              throw new Error("Upload authorization expired; orphan cleanup requires investigation");
             }
+            // Record the object path and successful removal in the durable
+            // security/audit history so every Blob cleanup is traceable.
+            await recordSecurityEvent({
+              type: "AUTHZ_DENIED",
+              workspaceId: payload.workspaceId,
+              actorUserId: payload.userId,
+              targetId: blob.pathname,
+              metadata: { reason: "upload_permission_revoked_before_completion", cleanupStatus: "removed" },
+              request,
+            });
             throw new Error("Upload authorization expired");
           }
           throw error;
