@@ -54,6 +54,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
         `;
         if (workspaceRows.length !== 1) return 0;
         const workspaceNameAtDeletion = workspaceRows[0].name;
+        const actorRows = await tx.$queryRaw<Array<{ name: string | null }>>`
+          SELECT "name" FROM "User" WHERE "id" = ${session.user.id} FOR SHARE
+        `;
+        const deletedByNameAtDeletion = actorRows[0]?.name ?? session.user.name;
         const deletedAt = new Date();
         const result = await tx.fileAsset.updateMany({
           where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
@@ -63,7 +67,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
             priorStatus: file.status,
             status: "DELETED",
             workspaceNameAtDeletion,
-            deletedByNameAtDeletion: session.user.name,
+            deletedByNameAtDeletion,
           },
         });
         if (result.count !== 1) return 0;
@@ -83,7 +87,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
               workspaceName: workspaceNameAtDeletion,
               workspaceId: file.workspaceId,
               deletedById: session.user.id,
-              deletedByName: session.user.name,
+              deletedByName: deletedByNameAtDeletion,
             }),
             ipAddress: request.headers.get("x-real-ip")?.slice(0, 64) ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
             userAgent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
