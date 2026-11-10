@@ -69,7 +69,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   } catch {
     return NextResponse.json({ error: "A valid opt-out confirmation is required" }, { status: 400 });
   }
-  if (!validToken(id, token)) {
+  if (typeof token !== "string" || token.length > 512) {
     return NextResponse.json({ error: "Invalid opt-out link" }, { status: 400 });
   }
 
