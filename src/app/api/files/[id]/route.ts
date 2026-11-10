@@ -4,6 +4,7 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -37,10 +38,23 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
 
   // Compare-and-set prevents a stale delete request from overwriting a
   // concurrent restore or quarantine transition.
-  const claim = await prisma.fileAsset.updateMany({
-    where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
-    data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED", workspaceNameAtDeletion: file.workspace.name, deletedByNameAtDeletion: session.user.name },
-  });
+  let claim;
+  try {
+    claim = await withWorkspacePermission(
+      file.workspaceId,
+      session.user.id,
+      "files:manage",
+      (tx) => tx.fileAsset.updateMany({
+        where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
+        data: { deletedAt: new Date(), deletedById: session.user.id, priorStatus: file.status, status: "DELETED", workspaceNameAtDeletion: file.workspace.name, deletedByNameAtDeletion: session.user.name },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
   if (claim.count !== 1) {
     return NextResponse.json({ error: "File state changed; refresh and try again." }, { status: 409 });
   }
