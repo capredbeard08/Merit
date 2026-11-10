@@ -19,6 +19,7 @@ import { GET as openOptOutLink, POST as confirmOptOut } from "../app/api/feedbac
 import { GET as openFeedbackClick } from "../app/api/feedback/[id]/click/route";
 import { PATCH as updateFeedbackStatus } from "../app/api/feedback/[id]/route";
 import { createFeedbackToken } from "./feedback-token";
+import { POST as provisionWorkspace } from "../app/api/workspaces/route";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 const prisma = new PrismaClient();
@@ -51,14 +52,36 @@ test("database security transitions are single-winner and workspace-scoped", { s
   });
   let inviteeId: string | null = null;
   let outsiderId: string | null = null;
+  let provisioningUserId: string | null = null;
+  let provisionedWorkspaceId: string | null = null;
 
   t.after(async () => {
-    await prisma.workspace.deleteMany({ where: { id: workspace.id } });
-    await prisma.user.deleteMany({ where: { id: { in: [user.id, ...(inviteeId ? [inviteeId] : []), ...(outsiderId ? [outsiderId] : [])] } } });
+    await prisma.workspace.deleteMany({ where: { id: { in: [workspace.id, ...(provisionedWorkspaceId ? [provisionedWorkspaceId] : [])] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [user.id, ...(inviteeId ? [inviteeId] : []), ...(outsiderId ? [outsiderId] : []), ...(provisioningUserId ? [provisioningUserId] : [])] } } });
     await prisma.$disconnect();
   });
 
   const sessionHeaders = await createCredentialAccount(user.id, user.email, "owner-" + suffix);
+  // Concurrent first-time workspace setup must serialize on the user row:
+  // one request creates the workspace, and the other returns that same workspace.
+  const provisioningUser = await prisma.user.create({
+    data: { id: "workspace-provision-" + suffix, name: "Provisioning Test", email: "workspace-provision-" + suffix + "@example.invalid" },
+  });
+  provisioningUserId = provisioningUser.id;
+  const provisioningHeaders = await createCredentialAccount(provisioningUser.id, provisioningUser.email, "provision-" + suffix);
+  const provisionRequest = (name: string) => provisionWorkspace(new Request("http://localhost/api/workspaces", {
+    method: "POST",
+    headers: { cookie: provisioningHeaders.get("cookie")!, "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+  }));
+  const provisioned = await Promise.all([provisionRequest("Workspace A " + suffix), provisionRequest("Workspace B " + suffix)]);
+  const provisionBodies = await Promise.all(provisioned.map((response) => response.json() as Promise<{ workspace: { id: string } }>));
+  assert.deepEqual(provisioned.map((response) => response.status).sort(), [200, 201]);
+  assert.equal(provisionBodies[0].workspace.id, provisionBodies[1].workspace.id);
+  provisionedWorkspaceId = provisionBodies[0].workspace.id;
+  assert.equal(await prisma.member.count({ where: { userId: provisioningUser.id } }), 1);
+  assert.equal(await prisma.auditLog.count({ where: { workspaceId: provisionedWorkspaceId, action: "WORKSPACE_CREATED" } }), 1);
+
 
   // A stale restore must not resurrect a later deletion generation.
   const file = await prisma.fileAsset.create({
