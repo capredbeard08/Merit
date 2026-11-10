@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/better-auth";
-import { prisma } from "@/lib/prisma";
 import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const noteSchema = z.object({
@@ -37,28 +36,23 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
       });
       if (!feedback) return null;
 
-      const records = await tx.auditLog.findMany({
-        where: { workspaceId, targetType: "FeedbackNote", targetId: id, action: "FEEDBACK_NOTE_CREATED" },
+      const records = await tx.feedbackNote.findMany({
+        where: { workspaceId, feedbackId: id },
         orderBy: { createdAt: "asc" },
         take: 100,
-        select: { id: true, actorUserId: true, metadata: true, createdAt: true },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          author: { select: { name: true } },
+        },
       });
-      const authorIds = [...new Set(records.map((record) => record.actorUserId).filter((value): value is string => Boolean(value)))];
-      const authors = authorIds.length
-        ? await tx.user.findMany({ where: { id: { in: authorIds } }, select: { id: true, name: true } })
-        : [];
-      const authorById = new Map(authors.map((author) => [author.id, author.name]));
-      return records.map((record) => {
-        const metadata = record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
-          ? record.metadata as Record<string, unknown>
-          : {};
-        return {
-          id: record.id,
-          note: typeof metadata.note === "string" ? metadata.note : "",
-          createdAt: record.createdAt.toISOString(),
-          author: record.actorUserId ? authorById.get(record.actorUserId) || "Former team member" : "Former team member",
-        };
-      }).filter((record) => record.note);
+      return records.map((record) => ({
+        id: record.id,
+        note: record.content,
+        createdAt: record.createdAt.toISOString(),
+        author: record.author?.name || "Former team member",
+      }));
     });
 
     if (!notes) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
@@ -79,7 +73,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   }
 
   try {
-    const record = await withWorkspacePermission(
+    const note = await withWorkspacePermission(
       parsed.data.workspaceId,
       session.user.id,
       "feedback:write",
@@ -90,27 +84,36 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
         });
         if (!feedback) return null;
 
-        return tx.auditLog.create({
+        const record = await tx.feedbackNote.create({
+          data: {
+            workspaceId: parsed.data.workspaceId,
+            feedbackId: id,
+            authorUserId: session.user.id,
+            content: parsed.data.note,
+          },
+          select: { id: true, content: true, createdAt: true, author: { select: { name: true } } },
+        });
+        await tx.auditLog.create({
           data: {
             workspaceId: parsed.data.workspaceId,
             actorUserId: session.user.id,
             action: "FEEDBACK_NOTE_CREATED",
             targetType: "FeedbackNote",
-            targetId: id,
-            metadata: { note: parsed.data.note },
+            targetId: record.id,
+            metadata: { contentLength: record.content.length },
           },
-          select: { id: true, createdAt: true },
         });
+        return record;
       },
     );
 
-    if (!record) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
+    if (!note) return NextResponse.json({ error: "Feedback not found" }, { status: 404 });
     return NextResponse.json({
       note: {
-        id: record.id,
-        note: parsed.data.note,
-        createdAt: record.createdAt.toISOString(),
-        author: session.user.name || session.user.email,
+        id: note.id,
+        note: note.content,
+        createdAt: note.createdAt.toISOString(),
+        author: note.author?.name || session.user.name || session.user.email,
       },
     }, { status: 201 });
   } catch (error) {
