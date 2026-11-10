@@ -485,13 +485,31 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const recoveryFeedback = await prisma.feedback.create({
     data: { workspaceId: workspace.id, branchId: recoveryBranch.id, customerId: recoveryCustomer.id, serviceEventId: recoveryEvent.id },
   });
+  const staleFirstAttemptAt = new Date(Date.now() - 20 * 60 * 1000);
   const staleFollowUp = await prisma.followUp.create({
     data: {
       workspaceId: workspace.id,
       feedbackId: recoveryFeedback.id,
       status: "PROCESSING",
-      processingAt: new Date(Date.now() - 20 * 60 * 1000),
-      scheduledAt: new Date(Date.now() - 20 * 60 * 1000),
+      processingAt: staleFirstAttemptAt,
+      firstAttemptAt: staleFirstAttemptAt,
+      scheduledAt: staleFirstAttemptAt,
+    },
+  });
+  const expiredEvent = await prisma.serviceEvent.create({
+    data: { workspaceId: workspace.id, branchId: recoveryBranch.id, customerId: recoveryCustomer.id, externalId: "expired-event-" + suffix, completedAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+  });
+  const expiredFeedback = await prisma.feedback.create({
+    data: { workspaceId: workspace.id, branchId: recoveryBranch.id, customerId: recoveryCustomer.id, serviceEventId: expiredEvent.id },
+  });
+  const expiredFollowUp = await prisma.followUp.create({
+    data: {
+      workspaceId: workspace.id,
+      feedbackId: expiredFeedback.id,
+      status: "PROCESSING",
+      processingAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+      firstAttemptAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+      scheduledAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
     },
   });
   const oldResendKey = process.env.RESEND_API_KEY;
@@ -509,6 +527,9 @@ test("database security transitions are single-winner and workspace-scoped", { s
     const recoveredJob = await prisma.followUp.findUnique({ where: { id: staleFollowUp.id } });
     assert.equal(recoveredJob?.status, "FAILED");
     assert.equal(recoveredJob?.processingAt, null);
+    const expiredJob = await prisma.followUp.findUnique({ where: { id: expiredFollowUp.id } });
+    assert.equal(expiredJob?.status, "FAILED", "ambiguous provider requests older than the idempotency window must not be resent");
+    assert.match(expiredJob?.error ?? "", /manual reconciliation/i);
   } finally {
     if (oldResendKey === undefined) delete process.env.RESEND_API_KEY;
     else process.env.RESEND_API_KEY = oldResendKey;
