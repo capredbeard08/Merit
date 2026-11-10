@@ -90,6 +90,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     };
   });
 
+  const greetingName = (session.user.name || membership.workspace.name || "there").split(" ")[0];
+
   const metrics = [
     { label: "Feedback requests", value: feedbackCount, note: "Created in this workspace", mark: "01" },
     { label: "Follow-ups sent", value: sentCount, note: "Successfully recorded as sent", mark: "02" },
@@ -99,13 +101,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <main className="min-h-screen bg-[#f7f4ec] text-[#17211c]">
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="hidden w-[260px] shrink-0 border-r border-[#dfe4df] bg-[#f2efe6] px-5 py-7 lg:flex lg:flex-col">
-          <a href="#overview" aria-label="MERIT dashboard home" className="merit-brand mb-9">
-            <MeritMark size={40} />
-            <span className="merit-brand-name">MERIT</span>
+      <div className="mx-auto flex min-h-screen max-w-[1680px]">
+        <aside className="merit-sidebar hidden w-[252px] shrink-0 px-5 py-7 lg:flex lg:flex-col">
+          <a href="#overview" aria-label="MERIT dashboard home" className="mb-8 flex items-center gap-3 text-[#f8f5eb]">
+            <MeritMark size={42} />
+            <span className="text-xl font-bold tracking-[0.13em]">MERIT</span>
           </a>
-          <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#87938a]">Workspace</p>
+          <p className="mb-7 px-2 text-xs leading-5 text-[#c4d4c9]">Customer feedback, quietly automated.</p>
+          <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#c4d4c9]">Workspace</p>
           <nav aria-label="Dashboard navigation" className="space-y-1">
             {[
               ["overview", "Overview", "⌂"],
@@ -116,26 +119,30 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               ["files", "Files & documents", "▤"],
               ["team", "Team access", "♙"],
               ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security Warden", "◇"]] : []),
-            ].map(([id, label, mark]) => (
-              <a key={id} href={`#${id}`} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-[#52665a] transition hover:bg-white hover:text-[#123c2d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#315b49]">
+            ].map(([id, label, mark], index) => (
+              <a key={id} href={`#${id}`} className={`merit-nav-link ${index === 0 ? "merit-nav-active" : ""}`}>
                 <span aria-hidden="true" className="w-5 text-center text-base text-[#718178]">{mark}</span>
                 {label}
               </a>
             ))}
           </nav>
-          <div className="mt-auto rounded-2xl border border-[#dfe4df] bg-white/70 p-4">
+          <div className="mt-auto border-t border-white/15 pt-5">
             {memberships.length > 1 ? (
               <form action="/dashboard" method="get" className="mb-4 space-y-2">
-                <label htmlFor="workspace-switcher" className="block text-xs font-semibold text-[#52665a]">Switch workspace</label>
-                <select id="workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="w-full rounded-lg border border-[#dfe4df] bg-white px-2 py-2 text-sm text-[#173b2f]">
+                <label htmlFor="workspace-switcher" className="block text-xs font-semibold text-[#dce8df]">Switch workspace</label>
+                <select id="workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="w-full rounded-lg border border-white/20 bg-[#174a36] px-2 py-2 text-sm text-white">
                   {memberships.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspace.name}</option>)}
                 </select>
-                <button type="submit" className="w-full rounded-lg bg-[#123c2d] px-3 py-2 text-xs font-semibold text-[#f7f4ec] hover:bg-[#1b513b]">Switch workspace</button>
+                <button type="submit" className="w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-[#e3ece5] hover:bg-white/10">Switch workspace</button>
               </form>
             ) : null}
-            <p className="text-xs font-semibold text-[#173b2f]">Your workspace</p>
-            <p className="mt-1 truncate text-sm text-[#718178]">{membership.workspace.name}</p>
-            <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-[#87938a]">{membership.role.toLowerCase()}</p>
+            <p className="text-xs font-semibold text-[#dce8df]">{membership.workspace.name}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-[#b9cabe]">{membership.role.toLowerCase()}</p>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-[#4f8067] bg-[#174a36] font-semibold text-white">{(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}</span>
+              <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{session.user.name || "MERIT"}</p><p className="text-xs text-[#b9cabe]">Workspace member</p></div>
+            </div>
+            <div className="mt-5"><SignOutButton /></div>
           </div>
         </aside>
         <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
@@ -155,15 +162,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security"]] : []),
             ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dfe4df] bg-white/75 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
           </div>
-          <div className="mx-auto max-w-[1200px]">
+          <div className="mx-auto max-w-[1260px]">
         <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
-            <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
+            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace · {membership.workspace.name}</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-[#123c2d] sm:text-[2.65rem]">Welcome back, {greetingName}</h1>
+            <p className="mt-2 text-sm text-[#69756e]">Here’s what’s happening with your customer feedback.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <a href="#guest-feedback" className="merit-action-primary">Get feedback</a>
+            <a href="#action-inbox" className="merit-action-secondary">View inbox</a>
+            <div className="hidden items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3 lg:flex">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
                 {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
               </span>
@@ -172,16 +181,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
               </div>
             </div>
-            <SignOutButton />
+            <div className="lg:hidden"><SignOutButton /></div>
           </div>
         </header>
 
         <section id="overview" aria-label="Workspace metrics" className="grid scroll-mt-6 gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
-            <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
+            <article key={metric.label} className="merit-metric-card">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-medium text-[#557565]">{metric.label}</p>
-                <span className="text-[10px] font-semibold tracking-[0.16em] text-[#9aa69e]">{metric.mark}</span>
+                <span className="merit-metric-trend">{metric.mark}</span>
               </div>
               <p className="mt-5 text-4xl font-semibold tracking-tight tabular-nums text-[#123c2d]">{metric.value.toLocaleString()}</p>
               <p className="mt-2 text-xs leading-5 text-[#718178]">{metric.note}</p>
@@ -190,7 +199,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </section>
 
         <section className="mb-7 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
-          <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
+          <div className="merit-panel p-5 sm:p-7">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">Review-link clicks</h2>
@@ -200,7 +209,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </div>
             <ClickTrend points={clickTrend} />
           </div>
-          <div className="rounded-3xl border border-[#dfe4df] bg-[#eff7f3] p-5 sm:p-7">
+          <div className="merit-info-panel p-5 sm:p-7">
             <h2 className="text-lg font-semibold">What this measures</h2>
             <p className="mt-2 text-sm leading-6 text-[#53645d]">MERIT records clicks on feedback review links within this workspace. These are operational engagement metrics, not independently verified public reviews.</p>
           </div>
