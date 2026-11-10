@@ -121,7 +121,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security Warden", "◇"]] : []),
             ].map(([id, label, mark], index) => (
               <a key={id} href={`#${id}`} className={`merit-nav-link ${index === 0 ? "merit-nav-active" : ""}`}>
-                <span aria-hidden="true" className="w-5 text-center text-base text-[#718178]">{mark}</span>
+                <span aria-hidden="true" className="w-5 text-center text-base text-[#c4d4c9]">{mark}</span>
                 {label}
               </a>
             ))}
@@ -172,16 +172,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div className="flex flex-wrap items-center gap-2">
             <a href="#guest-feedback" className="merit-action-primary">Get feedback</a>
             <a href="#action-inbox" className="merit-action-secondary">View inbox</a>
-            <div className="hidden items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3 lg:flex">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
-                {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs text-[#718178]">Signed in as</p>
-                <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
-              </div>
-            </div>
-            <div className="lg:hidden"><SignOutButton /></div>
+             <div className="lg:hidden"><SignOutButton /></div>
           </div>
         </header>
 
@@ -216,7 +207,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </section>
 
         <section id="action-inbox" className="scroll-mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
-          <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
+          <div className="merit-panel p-5 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Action inbox</p>
