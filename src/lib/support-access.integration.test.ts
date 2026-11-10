@@ -526,7 +526,7 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       executeApprovedSupportReadInTransaction(tx, {
         actorUserId: operatorId,
         workspaceId,
-        scope: SupportAccessScope.FILE_ASSETS_READ,
+        scope: SupportAccessScope.CUSTOMER_RECORDS_READ,
         targetType: "INTEGRATION_TEST",
         read: async () => { wrongScopeQueryExecuted = true; return "should-not-run"; },
       }),
@@ -538,7 +538,7 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
       workspaceId: otherWorkspaceId, userId: operatorId, scope: SupportAccessScope.FEEDBACK_READ,
     }), false);
     assert.equal(isSupportAuthorizationActive(activeGrant, {
-      workspaceId, userId: operatorId, scope: SupportAccessScope.FILE_ASSETS_READ,
+      workspaceId, userId: operatorId, scope: SupportAccessScope.CUSTOMER_RECORDS_READ,
     }), false);
 
     const matchingGrant = await prisma.supportAccessRequest.findFirst({
