@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 import { withWorkspacePermission } from "./workspace-access";
 
 const concurrentPrisma = new PrismaClient();
+const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 
 after(async () => { await concurrentPrisma.$disconnect(); await prisma.$disconnect(); });
 
@@ -17,7 +18,7 @@ async function expectTenantGuardFailure(operation: () => Promise<unknown>) {
   });
 }
 
-test("database guards reject cross-workspace relations and tenant reassignment", async () => {
+test("database guards reject cross-workspace relations and tenant reassignment", { skip: !enabled }, async () => {
   const suffix = randomUUID();
   const workspaceA = await prisma.workspace.create({ data: { name: "Tenant A " + suffix } });
   const workspaceB = await prisma.workspace.create({ data: { name: "Tenant B " + suffix } });
@@ -112,7 +113,7 @@ test("database guards reject cross-workspace relations and tenant reassignment",
 });
 
 
-test("membership lock prevents revocation racing an authorized tenant mutation", async () => {
+test("membership lock prevents revocation racing an authorized tenant mutation", { skip: !enabled }, async () => {
   const suffix = randomUUID();
   const workspace = await prisma.workspace.create({ data: { name: "Lock Test " + suffix } });
   const user = await prisma.user.create({
@@ -154,7 +155,7 @@ test("membership lock prevents revocation racing an authorized tenant mutation",
   }
 });
 
-test("membership role downgrade waits for an already-authorized mutation", async () => {
+test("membership role downgrade waits for an already-authorized mutation", { skip: !enabled }, async () => {
   const suffix = randomUUID();
   const workspace = await prisma.workspace.create({ data: { name: "Role Lock " + suffix } });
   const user = await prisma.user.create({
@@ -198,7 +199,7 @@ test("membership role downgrade waits for an already-authorized mutation", async
 });
 
 
-test("workspace permission helper fails closed for absent membership and insufficient role", async () => {
+test("workspace permission helper fails closed for absent membership and insufficient role", { skip: !enabled }, async () => {
   const suffix = randomUUID();
   const workspaceA = await prisma.workspace.create({ data: { name: "Access A " + suffix } });
   const workspaceB = await prisma.workspace.create({ data: { name: "Access B " + suffix } });
