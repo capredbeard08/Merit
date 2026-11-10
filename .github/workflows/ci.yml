@@ -63,6 +63,7 @@ jobs:
       - name: Run Security Warden and database integration tests
         env:
           NODE_ENV: test
+          MERIT_CI_AUTH_TESTS: "true"
         run: npm run test:security
 
       - name: Type-check TypeScript
