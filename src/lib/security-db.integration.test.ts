@@ -6,7 +6,7 @@ import { hashPassword } from "better-auth/crypto";
 import { auth } from "./better-auth";
 import { DELETE as archiveBranch } from "../app/api/branches/[id]/route";
 import { POST as restoreBranch } from "../app/api/branches/[id]/restore/route";
-import { DELETE as softDeleteFile } from "../app/api/files/[id]/route";
+import { GET as getFile, DELETE as softDeleteFile } from "../app/api/files/[id]/route";
 import { GET as listWorkspaceFiles } from "../app/api/files/route";
 import { GET as accessDeletedFile } from "../app/api/files/[id]/evidence/route";
 import { POST as manageFileLegalHold } from "../app/api/files/[id]/legal-hold/route";
@@ -266,12 +266,24 @@ test("database security transitions are single-winner and workspace-scoped", { s
     { params: Promise.resolve({ id: routeFile.id }) },
   );
   assert.equal(crossWorkspaceDelete.status, 404, "cross-workspace file existence must be masked");
+  const crossWorkspaceRead = await getFile(
+    new Request("http://localhost/api/files/" + routeFile.id, { headers: outsiderHeaders }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(crossWorkspaceRead.status, 404, "cross-workspace file reads must mask resource existence");
 
   const softDeletedResponse = await softDeleteFile(
     new Request("http://localhost/api/files/" + routeFile.id, { method: "DELETE", headers: sessionHeaders }),
     { params: Promise.resolve({ id: routeFile.id }) },
   );
   assert.equal(softDeletedResponse.status, 204);
+  const crossWorkspaceRestore = await restoreFile(
+    new Request("http://localhost/api/files/" + routeFile.id + "/restore", {
+      method: "POST", headers: outsiderHeaders,
+    }),
+    { params: Promise.resolve({ id: routeFile.id }) },
+  );
+  assert.equal(crossWorkspaceRestore.status, 404, "cross-workspace recovery must mask resource existence");
   assert.equal(await prisma.auditLog.count({
     where: { targetId: routeFile.id, action: "FILE_SOFT_DELETED" },
   }), 1, "file deletion and its provenance audit must commit together");
