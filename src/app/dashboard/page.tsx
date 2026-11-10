@@ -11,6 +11,7 @@ import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
 import ClickTrend from "./click-trend";
 import SignOutButton from "@/components/SignOutButton";
+import GuestFeedbackManager from "./guest-feedback";
 import { can, type Role } from "@/lib/domain";
 import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
@@ -110,6 +111,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               ["action-inbox", "Action inbox", "↳"],
               ["intelligence", "Feedback intelligence", "⌁"],
               ["branches", "Branches", "▦"],
+              ["guest-feedback", "Guest feedback", "▣"],
               ["files", "Files & documents", "▤"],
               ["team", "Team access", "♙"],
               ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security Warden", "◇"]] : []),
@@ -148,7 +150,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden" aria-label="Dashboard navigation">
             {[
               ["overview", "Overview"], ["action-inbox", "Inbox"], ["intelligence", "Insights"],
-              ["branches", "Branches"], ["files", "Files"], ["team", "Team"],
+              ["branches", "Branches"], ["guest-feedback", "Guest feedback"], ["files", "Files"], ["team", "Team"],
               ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security"]] : []),
             ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dfe4df] bg-white/75 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
           </div>
@@ -263,6 +265,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             }))}
           />
         </section>
+
+        {can(membership.role.toLowerCase() as Role, "feedback:read") ? <section id="guest-feedback" className="mt-9 scroll-mt-6"><GuestFeedbackManager workspaceId={workspaceId} branches={branches} canManage={canManageBranches} /></section> : null}
 
         <section id="workspace-settings" className="mt-10 border-t border-[#dfe4df] pt-8">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Workspace management</p>
