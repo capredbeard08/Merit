@@ -39,49 +39,76 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Invalid workspace name" }, { status: 400 });
   }
 
-  const existingMembership = await prisma.member.findFirst({
-    where: { userId: session.user.id },
-    include: { workspace: { select: { id: true, name: true } } },
-    orderBy: { createdAt: "asc" },
-  });
-  if (existingMembership) {
-    return NextResponse.json({
-      workspace: {
-        id: existingMembership.workspace.id,
-        name: existingMembership.workspace.name,
-        role: existingMembership.role,
-      },
-    });
-  }
-
   try {
-    const workspace = await prisma.workspace.create({
-      data: {
-        name: parsed.data.name,
-        members: {
-          create: {
-            userId: session.user.id,
-            email: session.user.email.toLowerCase(),
-            role: "OWNER",
+    const result = await prisma.$transaction(async (tx) => {
+      // The endpoint intentionally provisions only one initial workspace per
+      // user. Lock the user row so concurrent first-time requests cannot both
+      // pass the membership check and create duplicate workspaces.
+      const lockedUser = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id" FROM "User" WHERE "id" = ${session.user.id} FOR UPDATE
+      `;
+      if (lockedUser.length !== 1) throw new Error("WORKSPACE_OWNER_NOT_FOUND");
+
+      const existingMembership = await tx.member.findFirst({
+        where: { userId: session.user.id },
+        include: { workspace: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+      });
+      if (existingMembership) {
+        return {
+          created: false,
+          workspace: {
+            id: existingMembership.workspace.id,
+            name: existingMembership.workspace.name,
+            role: existingMembership.role,
+          },
+        };
+      }
+
+      const workspace = await tx.workspace.create({
+        data: {
+          name: parsed.data.name,
+          members: {
+            create: {
+              userId: session.user.id,
+              email: session.user.email.toLowerCase(),
+              role: "OWNER",
+            },
           },
         },
-      },
-      select: {
-        id: true,
-        name: true,
-        members: { select: { role: true } },
-      },
-    });
+        select: {
+          id: true,
+          name: true,
+          members: { select: { role: true } },
+        },
+      });
 
-    return NextResponse.json(
-      {
+      await tx.auditLog.create({
+        data: {
+          workspaceId: workspace.id,
+          actorUserId: session.user.id,
+          action: "WORKSPACE_CREATED",
+          targetType: "WORKSPACE",
+          targetId: workspace.id,
+          metadata: { initialOwnerProvisioning: true },
+          ipAddress: request.headers.get("x-real-ip")?.slice(0, 64) ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
+          userAgent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
+        },
+      });
+
+      return {
+        created: true,
         workspace: {
           id: workspace.id,
           name: workspace.name,
           role: workspace.members[0]?.role ?? "OWNER",
         },
-      },
-      { status: 201 },
+      };
+    });
+
+    return NextResponse.json(
+      { workspace: result.workspace },
+      { status: result.created ? 201 : 200 },
     );
   } catch (error) {
     const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : "WORKSPACE_CREATE_FAILED";
