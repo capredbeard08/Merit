@@ -258,6 +258,7 @@ model FollowUp {
   status      FollowUpStatus @default(QUEUED)
   scheduledAt DateTime
   processingAt DateTime?
+  firstAttemptAt DateTime?
   sentAt      DateTime?
   failedAt    DateTime?
   providerId  String?
@@ -268,6 +269,7 @@ model FollowUp {
   feedback    Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
   @@index([workspaceId, status, scheduledAt])
   @@index([status, processingAt])
+  @@index([status, firstAttemptAt])
 }
 
 enum FeedbackRating {
