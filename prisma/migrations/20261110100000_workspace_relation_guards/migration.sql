@@ -2,7 +2,7 @@
 -- These guards complement application predicates; they do not replace authorization or RLS.
 
 -- Refuse to install guards over inconsistent historical tenant relations.
-DO $
+DO $guard$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM "Customer" c JOIN "Branch" b ON b."id" = c."branchId"
@@ -42,7 +42,7 @@ BEGIN
     WHERE w."branchId" IS NOT NULL AND w."workspaceId" IS DISTINCT FROM b."workspaceId"
   ) THEN RAISE EXCEPTION 'Existing WebhookEndpoint.branch cross-workspace relation detected'; END IF;
 END;
-$;
+$guard$;
 
 CREATE OR REPLACE FUNCTION merit_assert_workspace_parent(
   parent_table text,
