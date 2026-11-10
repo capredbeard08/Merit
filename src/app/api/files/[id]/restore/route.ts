@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
-import { writeAuditLog } from "@/lib/audit";
 import { withWorkspacePermission } from "@/lib/workspace-access";
+import { sanitizeSecurityMetadata } from "@/lib/security-warden";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -34,21 +34,39 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       file.workspaceId,
       session.user.id,
       "files:recover",
-      (tx) => tx.fileAsset.updateMany({
-        where: {
-          id: file.id,
-          workspaceId: file.workspaceId,
-          status: "DELETED",
-          deletedAt: file.deletedAt,
-          priorStatus: file.priorStatus,
-        },
-        data: {
-          status: file.priorStatus || "AVAILABLE",
-          deletedAt: null,
-          deletedById: null,
-          priorStatus: null,
-        },
-      }),
+      async (tx) => {
+        const restoredStatus = file.priorStatus || "AVAILABLE";
+        const result = await tx.fileAsset.updateMany({
+          where: {
+            id: file.id,
+            workspaceId: file.workspaceId,
+            status: "DELETED",
+            deletedAt: file.deletedAt,
+            priorStatus: file.priorStatus,
+          },
+          data: {
+            status: restoredStatus,
+            deletedAt: null,
+            deletedById: null,
+            priorStatus: null,
+          },
+        });
+        if (result.count !== 1) return 0;
+
+        await tx.auditLog.create({
+          data: {
+            workspaceId: file.workspaceId,
+            actorUserId: session.user.id,
+            action: "FILE_RESTORED",
+            targetType: "FILE_ASSET",
+            targetId: file.id,
+            metadata: sanitizeSecurityMetadata({ restoredStatus }),
+            ipAddress: request.headers.get("x-real-ip")?.slice(0, 64) ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
+            userAgent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
+          },
+        });
+        return 1;
+      },
     );
   } catch (error) {
     if (error instanceof Error && error.message === "FORBIDDEN") {
@@ -56,7 +74,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     throw error;
   }
-  if (claim.count !== 1) {
+  if (claim !== 1) {
     return NextResponse.json({ error: "File recovery state changed; refresh and try again." }, { status: 409 });
   }
   const restored = await prisma.fileAsset.findUnique({
@@ -65,14 +83,5 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
   if (!restored) return NextResponse.json({ error: "File could not be restored" }, { status: 409 });
 
-  await writeAuditLog({
-    workspaceId: file.workspaceId,
-    actorUserId: session.user.id,
-    action: "FILE_RESTORED",
-    targetType: "FILE_ASSET",
-    targetId: file.id,
-    metadata: { restoredStatus: restored.status },
-    request,
-  });
   return NextResponse.json({ file: restored });
 }
