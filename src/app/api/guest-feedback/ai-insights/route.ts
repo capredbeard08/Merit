@@ -98,6 +98,7 @@ export async function POST(request: Request): Promise<Response> {
     take: 100,
     select: { rating: true, message: true },
   });
+  const writtenFeedback = feedback.filter((entry) => Boolean(entry.message?.trim()));
 
   try {
     // Log the explicit external-processing decision before any comment leaves MERIT.
@@ -110,17 +111,17 @@ export async function POST(request: Request): Promise<Response> {
       metadata: {
         provider: "GROQ",
         operation: "THEME_ANALYSIS",
-        submittedCount: feedback.length,
+        submittedCount: writtenFeedback.length,
         personalDataHandling: "PATTERN_REDACTION_NOT_ANONYMIZATION",
       },
       request,
     });
 
-    const analysis = await analyzeGuestFeedbackThemes(feedback.map((entry) => ({
+    const analysis = await analyzeGuestFeedbackThemes(writtenFeedback.map((entry) => ({
       rating: ({ ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 } as const)[entry.rating],
       message: entry.message || "",
     })));
-    return NextResponse.json({ analysis, analyzedCount: feedback.length });
+    return NextResponse.json({ analysis, analyzedCount: writtenFeedback.length });
   } catch {
     return NextResponse.json({
       error: "AI analysis is temporarily unavailable. Your feedback has not been changed.",
