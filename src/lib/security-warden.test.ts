@@ -18,6 +18,11 @@ test("drops secret and customer-content fields from event metadata", () => {
   assert.deepEqual(result, { route: "/api/feedback", count: 3, active: true });
 });
 
+test("does not allow caller-supplied severity to survive metadata sanitization", () => {
+  const result = sanitizeSecurityMetadata({ severity: "LOW", route: "/api/admin" });
+  assert.deepEqual(result, { route: "/api/admin" });
+});
+
 test("bounds metadata key count and string length", () => {
   const result = sanitizeSecurityMetadata({
     longValue: "x".repeat(500),

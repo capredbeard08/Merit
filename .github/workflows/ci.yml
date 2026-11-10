@@ -18,14 +18,30 @@ jobs:
   verify:
     name: Security tests, TypeScript, and production build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: merit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d merit_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/merit_ci
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/merit_ci?schema=public
+      MERIT_SECURITY_DB_TESTS: "1"
       AUTH_SECRET: ci-only-secret-not-for-production-0000000000000000
       BETTER_AUTH_URL: http://localhost:3000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       EMAIL_FROM: ci@example.invalid
       CRON_SECRET: ci-only-cron-secret-not-for-production-0000000000000000
+      RECAPTCHA_SECRET_KEY: ci-only-recaptcha-secret-not-for-production-0000000000000000
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,7 +57,12 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Run Security Warden tests
+      - name: Apply database migrations to isolated CI database
+        run: npx prisma migrate deploy
+
+      - name: Run Security Warden and database integration tests
+        env:
+          NODE_ENV: test
         run: npm run test:security
 
       - name: Type-check TypeScript

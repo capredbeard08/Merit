@@ -29,9 +29,11 @@ const ratingValue: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4,
 export default function Intelligence({
   initialInsights,
   initialReplies,
+  workspaceId,
 }: {
   initialInsights: Insight[];
   initialReplies: Reply[];
+  workspaceId: string;
 }) {
   const router = useRouter();
   const [generating, setGenerating] = useState(false);
@@ -39,7 +41,7 @@ export default function Intelligence({
   async function generate() {
     setGenerating(true);
     try {
-      await fetch("/api/insights/generate", { method: "POST" });
+      await fetch("/api/insights/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspaceId }) });
       router.refresh();
     } finally {
       setGenerating(false);
