@@ -48,7 +48,8 @@ button, input, textarea, select { font: inherit; }
   padding: .78rem .8rem; color: #c5d5ca; font-size: .875rem; font-weight: 550;
   transition: background-color .18s ease, color .18s ease;
 }
-.merit-nav-link:hover, .merit-nav-link:focus-visible { background: rgba(255,255,255,.09); color: white; outline: none; }
+.merit-nav-link:hover { background: rgba(255,255,255,.09); color: white; }
+.merit-nav-link:focus-visible { background: rgba(255,255,255,.09); color: white; outline: 2px solid #d5e6d9; outline-offset: 2px; }
 .merit-nav-active { background: linear-gradient(110deg, #245d3d, #17452f); color: white; }
 .merit-action-primary, .merit-action-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
@@ -59,6 +60,7 @@ button, input, textarea, select { font: inherit; }
 .merit-action-primary:hover { background: #18563b; transform: translateY(-1px); }
 .merit-action-secondary { border: 1px solid #d7dfd3; background: rgba(255,255,255,.62); color: #244b37; }
 .merit-action-secondary:hover { background: white; transform: translateY(-1px); }
+.merit-action-primary:focus-visible, .merit-action-secondary:focus-visible { outline: 2px solid #315b49; outline-offset: 3px; }
 .merit-metric-card, .merit-panel {
   border: 1px solid #dce1d5; border-radius: 1.45rem; background: rgba(255,255,255,.72);
   box-shadow: 0 2px 5px rgba(24, 50, 34, .035), 0 12px 30px rgba(24, 50, 34, .025);
