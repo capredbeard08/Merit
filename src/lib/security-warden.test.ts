@@ -36,3 +36,7 @@ test("bounds metadata key count and string length", () => {
 test("records successful orphan-upload cleanup with a bounded severity", () => {
   assert.equal(getSecuritySeverity("UPLOAD_ORPHAN_CLEANUP_SUCCEEDED"), "MEDIUM");
 });
+
+test("classifies rejected oversized uploads as high severity", () => {
+  assert.equal(getSecuritySeverity("UPLOAD_REJECTED_OVERSIZE"), "HIGH");
+});
