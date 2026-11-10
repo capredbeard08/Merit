@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { sanitizeSecurityMetadata } from "@/lib/security-warden";
+import { can, type Role } from "@/lib/domain";
 import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
@@ -14,6 +15,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     select: { id: true, workspaceId: true },
   });
   if (!file) return NextResponse.json({ error: "File not found" }, { status: 404 });
+
+  const member = await prisma.member.findUnique({
+    where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } },
+  });
+  if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!can(member.role.toLowerCase() as Role, "files:recover")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   let body: { action?: unknown; reason?: unknown };
   try {
