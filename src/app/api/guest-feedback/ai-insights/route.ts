@@ -57,11 +57,19 @@ export async function POST(request: Request): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const parsed = requestSchema.safeParse(await readBoundedJson(request));
+  const rawBody = await readBoundedJson(request);
+  if (rawBody === null) {
+    return NextResponse.json({ error: "A valid, bounded JSON request is required." }, { status: 400 });
+  }
+  const parsed = requestSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({
-      error: "Explicit confirmation is required before guest comments are sent to Groq.",
-    }, { status: 428 });
+    const workspaceOnly = z.object({ workspaceId: z.string().trim().min(1).max(128) }).strict().safeParse(rawBody);
+    if (workspaceOnly.success) {
+      return NextResponse.json({
+        error: "Explicit confirmation is required before guest comments are sent to Groq.",
+      }, { status: 428 });
+    }
+    return NextResponse.json({ error: "Choose a valid workspace and confirm external processing." }, { status: 400 });
   }
 
   const membership = await prisma.member.findUnique({
