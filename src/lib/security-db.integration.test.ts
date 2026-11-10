@@ -15,6 +15,7 @@ import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
 import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
 import { GET as openOptOutLink, POST as confirmOptOut } from "../app/api/feedback/[id]/optout/route";
+import { GET as openFeedbackClick } from "../app/api/feedback/[id]/click/route";
 import { createFeedbackToken } from "./feedback-token";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
@@ -429,6 +430,17 @@ test("database security transitions are single-winner and workspace-scoped", { s
     else process.env.EMAIL_PROVIDER_API_KEY = oldEmailKey;
   }
 
+
+  // Opening the feedback CTA must not count as a click: email scanners prefetch GET links.
+  const feedbackToken = createFeedbackToken(recoveryFeedback.id);
+  const clickResponse = await openFeedbackClick(
+    new Request("http://localhost/api/feedback/" + recoveryFeedback.id + "/click?t=" + encodeURIComponent(feedbackToken)),
+    { params: Promise.resolve({ id: recoveryFeedback.id }) },
+  );
+  assert.equal(clickResponse.status, 307);
+  const afterPrefetch = await prisma.feedback.findUnique({ where: { id: recoveryFeedback.id } });
+  assert.equal(afterPrefetch?.clickedAt, null, "GET prefetch must not record a customer click");
+  assert.equal(afterPrefetch?.status, "PENDING", "GET prefetch must not change feedback state");
 
   // Opening an opt-out link must be safe against automated email link scanners.
   const optOutToken = createFeedbackToken(recoveryFeedback.id);
