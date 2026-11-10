@@ -61,6 +61,25 @@ test("database security transitions are single-winner and workspace-scoped", { s
     await prisma.$disconnect();
   });
 
+  // Exercise Better Auth's real request handler against the configured
+  // canonical host, a MERIT-owned Vercel preview host and an untrusted host.
+  // Invalid credentials are intentional: accepted origins proceed to normal
+  // authentication (401), while an untrusted Origin must be rejected (403).
+  const authOriginRequest = (host: string, origin: string) => auth.handler(new Request(
+    "https://" + host + "/api/auth/sign-in/email",
+    {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify({ email: "origin-probe@example.invalid", password: "NotThePassword!123" }),
+    },
+  ));
+  const canonicalOriginResponse = await authOriginRequest("merit-olive.vercel.app", "https://merit-olive.vercel.app");
+  assert.notEqual(canonicalOriginResponse.status, 403, "the canonical MERIT host must be accepted by Better Auth");
+  const previewOriginResponse = await authOriginRequest("merit-preview-check-capredbeard08.vercel.app", "https://merit-preview-check-capredbeard08.vercel.app");
+  assert.notEqual(previewOriginResponse.status, 403, "MERIT-owned generated preview hosts must be accepted by Better Auth");
+  const untrustedOriginResponse = await authOriginRequest("attacker.example", "https://attacker.example");
+  assert.equal(untrustedOriginResponse.status, 403, "untrusted hosts must be rejected by Better Auth");
+
   const sessionHeaders = await createCredentialAccount(user.id, user.email, "owner-" + suffix);
   // Concurrent first-time workspace setup must serialize on the user row:
   // one request creates the workspace, and the other returns that same workspace.
