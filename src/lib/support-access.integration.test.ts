@@ -675,6 +675,9 @@ test("database-backed support authorization is scoped, time-limited, revocable, 
   } finally {
     if (workspaceId) await prisma.workspace.delete({ where: { id: workspaceId } }).catch(() => undefined);
     if (otherWorkspaceId) await prisma.workspace.delete({ where: { id: otherWorkspaceId } }).catch(() => undefined);
+    // CI fixture teardown explicitly removes its platform grant before deleting
+    // the fixture user; production account deletion is blocked by the FK.
+    await prisma.platformAccess.deleteMany({ where: { userId: { in: [operatorId] } } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { id: { in: [operatorId, ownerId, otherOwnerId] } } }).catch(() => undefined);
   }
 });
@@ -753,6 +756,11 @@ test("Founder bootstrap and operator grant/revoke require real verified sessions
     const founderAccess = await prisma.platformAccess.findUniqueOrThrow({ where: { userId: founderId } });
     assert.equal(founderAccess.role, PlatformAccessRole.FOUNDER_SUPER_ADMIN);
     assert.equal(founderAccess.revokedAt, null);
+    await assert.rejects(
+      prisma.user.delete({ where: { id: founderId } }),
+      (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003",
+      "a Founder account cannot be deleted while its platform governance record exists",
+    );
     assert.equal(await prisma.securityEvent.count({
       where: { actorUserId: founderId, targetId: founderId, type: "FOUNDER_SUPER_ADMIN_BOOTSTRAPPED" },
     }), 1);
@@ -868,6 +876,8 @@ test("Founder bootstrap and operator grant/revoke require real verified sessions
 
     assert.equal((await revokePlatformOperator(revokeRequest({ userId: "missing-platform-user" }))).status, 404);
   } finally {
+    // Remove CI-only platform records explicitly before deleting test accounts.
+    await prisma.platformAccess.deleteMany({ where: { userId: { in: [founderId, targetId].filter(Boolean) } } }).catch(() => undefined);
     if (founderId) await prisma.user.delete({ where: { id: founderId } }).catch(() => undefined);
     if (targetId) await prisma.user.delete({ where: { id: targetId } }).catch(() => undefined);
     if (unverifiedId) await prisma.user.delete({ where: { id: unverifiedId } }).catch(() => undefined);
