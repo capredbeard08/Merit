@@ -1,7 +1,9 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { prisma } from "./prisma";
+
+after(async () => { await prisma.$disconnect(); });
 
 async function expectTenantGuardFailure(operation: () => Promise<unknown>) {
   await assert.rejects(operation, (error: unknown) => {
