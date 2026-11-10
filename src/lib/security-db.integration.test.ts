@@ -233,6 +233,9 @@ test("database security transitions are single-winner and workspace-scoped", { s
     { params: Promise.resolve({ id: routeFile.id }) },
   );
   assert.equal(softDeletedResponse.status, 204);
+  assert.equal(await prisma.auditLog.count({
+    where: { targetId: routeFile.id, action: "FILE_SOFT_DELETED" },
+  }), 1, "file deletion and its provenance audit must commit together");
   await prisma.workspace.update({ where: { id: workspace.id }, data: { name: workspace.name + " renamed" } });
   const attributedFile = await prisma.fileAsset.findUnique({ where: { id: routeFile.id } });
   assert.equal(attributedFile?.workspaceNameAtDeletion, workspace.name);
@@ -309,6 +312,9 @@ test("database security transitions are single-winner and workspace-scoped", { s
   );
 
   assert.equal(restoredFileResponse.status, 200);
+  assert.equal(await prisma.auditLog.count({
+    where: { targetId: routeFile.id, action: "FILE_RESTORED" },
+  }), 1, "file recovery and its audit event must commit together");
 
   // Invitation acceptance route: the invitee must be signed in as the invited
   // address, and a successful token cannot be replayed.
