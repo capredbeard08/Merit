@@ -75,7 +75,7 @@ export async function POST(request: Request): Promise<Response> {
     const token = createFeedbackToken(item.feedback.id);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const feedbackUrl = appUrl + "/api/feedback/" + item.feedback.id + "/click?t=" + token;
-    const optOutUrl = appUrl + "/feedback/" + item.feedback.id + "/optout?t=" + token;
+    const optOutUrl = appUrl + "/api/feedback/" + item.feedback.id + "/optout?t=" + token;
 
     try {
       const result = await sendEmail({
