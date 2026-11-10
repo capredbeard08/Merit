@@ -353,6 +353,15 @@ test("database security transitions are single-winner and workspace-scoped", { s
   // Exercise webhook idempotency and archived-branch rejection through the
   // actual public route, including endpoint-secret hashing and payload checks.
   const webhookBranch = await prisma.branch.create({ data: { workspaceId: workspace.id, name: "Webhook branch " + suffix } });
+  const optedOutWebhookCustomer = await prisma.customer.create({
+    data: {
+      workspaceId: workspace.id,
+      branchId: webhookBranch.id,
+      externalId: "webhook-customer-" + suffix,
+      email: "webhook@example.invalid",
+      optedOutAt: new Date(),
+    },
+  });
   const webhookSecret = "webhook-secret-" + suffix;
   await prisma.webhookEndpoint.create({
     data: {
@@ -367,7 +376,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
     occurredAt: new Date().toISOString(),
     customer: { externalId: "webhook-customer-" + suffix, email: "webhook@example.invalid" },
     service: { completedAt: new Date().toISOString(), type: "CI test" },
-    consent: { feedbackContact: false, recordedAt: new Date().toISOString() },
+    consent: { feedbackContact: true, recordedAt: new Date().toISOString() },
   };
   const webhookRequest = () => new Request("http://localhost/api/webhooks/service-completed", {
     method: "POST",
@@ -376,6 +385,10 @@ test("database security transitions are single-winner and workspace-scoped", { s
   });
   const firstWebhook = await serviceCompletedWebhook(webhookRequest());
   assert.equal(firstWebhook.status, 202);
+  const firstWebhookBody = await firstWebhook.json() as { feedbackId?: string | null };
+  assert.equal(firstWebhookBody.feedbackId, null, "a later integration consent flag must not reverse an explicit customer opt-out");
+  const customerAfterWebhook = await prisma.customer.findUnique({ where: { id: optedOutWebhookCustomer.id } });
+  assert.ok(customerAfterWebhook?.optedOutAt, "integration events must preserve the existing opt-out timestamp");
   const replayWebhook = await serviceCompletedWebhook(webhookRequest());
   assert.equal(replayWebhook.status, 202);
   assert.equal((await replayWebhook.json()).duplicate, true);
