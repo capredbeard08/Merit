@@ -17,7 +17,7 @@ export async function POST(request: Request): Promise<Response> {
   // Provider idempotency windows are finite. Never blindly retry an ambiguous
   // request after 23 hours; leave a one-hour safety margin before provider expiry.
   const safeRetryCutoff = new Date(now.getTime() - PROVIDER_IDEMPOTENCY_RETRY_WINDOW_MS);
-  await prisma.followUp.updateMany({
+  const expiredAttempts = await prisma.followUp.updateMany({
     where: {
       status: { in: ["PROCESSING", "QUEUED"] },
       firstAttemptAt: { lt: safeRetryCutoff },
@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
   });
   // Jobs already processing before this field was introduced have an unknown
   // provider outcome. Do not resend them automatically.
-  await prisma.followUp.updateMany({
+  const legacyAttempts = await prisma.followUp.updateMany({
     where: { status: "PROCESSING", processingAt: { lt: staleClaim }, firstAttemptAt: null },
     data: {
       status: "FAILED",
@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
   });
 
   let sent = 0;
-  let failed = 0;
+  let failed = expiredAttempts.count + legacyAttempts.count;
   let skipped = 0;
 
   for (const candidate of due) {
@@ -175,5 +175,5 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  return NextResponse.json({ processed: due.length, sent, failed, skipped });
+  return NextResponse.json({ processed: due.length + expiredAttempts.count + legacyAttempts.count, sent, failed, skipped });
 }
