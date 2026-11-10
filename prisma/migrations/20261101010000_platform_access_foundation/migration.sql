@@ -29,7 +29,7 @@ CREATE UNIQUE INDEX "PlatformAccess_single_active_founder_idx"
 ALTER TABLE "PlatformAccess"
   ADD CONSTRAINT "PlatformAccess_userId_fkey"
   FOREIGN KEY ("userId") REFERENCES "User"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+  ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "PlatformAccess"
   ADD CONSTRAINT "PlatformAccess_grantedByUserId_fkey"
   FOREIGN KEY ("grantedByUserId") REFERENCES "User"("id")
