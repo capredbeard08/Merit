@@ -105,3 +105,22 @@ test("filters invalid ratings before sending feedback to the provider", async ()
   const sent = JSON.parse(requestBody.messages[1].content).feedback;
   assert.deepEqual(sent, [{ rating: 5, message: "Clean and welcoming" }]);
 });
+
+test("redacts www and mailto links before sending comments externally", async () => {
+  process.env.GROQ_API_KEY = "test-groq-key";
+  let requestBody: any;
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      themes: [],
+      overallSummary: "There is not enough detail to identify a clear theme.",
+      priority: "Collect more feedback before taking action.",
+    }) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  await analyzeGuestFeedbackThemes([{ rating: 4, message: "See www.example.com or mailto:guest@example.com for details." }]);
+  const sent = JSON.parse(requestBody.messages[1].content).feedback[0].message;
+  assert.equal(sent.includes("www.example.com"), false);
+  assert.equal(sent.includes("mailto:"), false);
+  assert.equal(sent.includes("guest@example.com"), false);
+});
