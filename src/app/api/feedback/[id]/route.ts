@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
+import { can, type Role } from "@/lib/domain";
 import { withWorkspacePermission } from "@/lib/workspace-access";
 import { sanitizeSecurityMetadata } from "@/lib/security-warden";
 
@@ -17,6 +18,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const { id } = await context.params;
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid feedback update" }, { status: 400 });
+
+  const membership = await prisma.member.findUnique({
+    where: { workspaceId_userId: { workspaceId: parsed.data.workspaceId, userId: session.user.id } },
+  });
+  if (!membership || !can(membership.role.toLowerCase() as Role, "feedback:write")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const feedback = await prisma.feedback.findFirst({
     where: { id, workspaceId: parsed.data.workspaceId },
