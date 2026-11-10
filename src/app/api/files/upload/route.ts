@@ -52,14 +52,6 @@ export async function POST(request: Request): Promise<Response> {
         if (metadata.size > FILE_MAX_BYTES) {
           try {
             await del(blob.pathname);
-            await recordSecurityEvent({
-              type: "UPLOAD_REJECTED_OVERSIZE",
-              workspaceId: payload.workspaceId,
-              actorUserId: payload.userId,
-              targetId: blob.pathname,
-              metadata: { actualSizeBytes: metadata.size, maximumSizeBytes: FILE_MAX_BYTES, cleanup: "succeeded" },
-              request,
-            });
           } catch (cleanupError) {
             await recordSecurityEvent({
               type: "UPLOAD_ORPHAN_CLEANUP_FAILED",
@@ -71,6 +63,14 @@ export async function POST(request: Request): Promise<Response> {
             }).catch(() => undefined);
             throw cleanupError;
           }
+          await recordSecurityEvent({
+            type: "UPLOAD_REJECTED_OVERSIZE",
+            workspaceId: payload.workspaceId,
+            actorUserId: payload.userId,
+            targetId: blob.pathname,
+            metadata: { actualSizeBytes: metadata.size, maximumSizeBytes: FILE_MAX_BYTES, cleanup: "succeeded" },
+            request,
+          });
           return;
         }
 
