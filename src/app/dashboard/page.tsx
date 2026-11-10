@@ -10,6 +10,7 @@ import MeritMark from "@/components/MeritMark";
 import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
 import ClickTrend from "./click-trend";
+import SignOutButton from "@/components/SignOutButton";
 import { can, type Role } from "@/lib/domain";
 
 export default async function DashboardPage() {
@@ -101,14 +102,17 @@ export default async function DashboardPage() {
             <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
             <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
-              {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-[#718178]">Signed in as</p>
-              <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
+                {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-[#718178]">Signed in as</p>
+                <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
+              </div>
             </div>
+            <SignOutButton />
           </div>
         </header>
 
