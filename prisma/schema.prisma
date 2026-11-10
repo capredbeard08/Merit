@@ -36,6 +36,12 @@ enum SupportAccessStatus {
   EXPIRED
 }
 
+enum GuestQrCodeStatus {
+  ACTIVE
+  PAUSED
+  REVOKED
+}
+
 enum FeedbackStatus {
   PENDING
   CONTACTED
@@ -52,6 +58,8 @@ model Workspace {
   updatedAt DateTime  @updatedAt
   members   Member[]
   branches  Branch[]
+  guestQrCodes GuestQrCode[]
+  guestFeedback GuestFeedback[]
   customers Customer[]
   feedback  Feedback[]
   events    ServiceEvent[]
@@ -86,6 +94,7 @@ model Branch {
   workspaceId String
   name        String
   externalId  String?
+  googleReviewUrl String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
@@ -95,9 +104,55 @@ model Branch {
   feedback    Feedback[]
   events      ServiceEvent[]
   webhooks    WebhookEndpoint[]
+  guestQrCodes GuestQrCode[]
+  guestFeedback GuestFeedback[]
   @@unique([workspaceId, externalId])
+  @@unique([workspaceId, id])
   @@index([workspaceId])
   @@index([workspaceId, archivedAt])
+}
+
+
+/// Permanent, public-facing QR identity for one workspace branch.
+/// The publicId is a random locator, not an authentication credential.
+model GuestQrCode {
+  id          String            @id @default(cuid())
+  workspaceId String
+  branchId    String
+  publicId    String            @unique
+  label       String?
+  status      GuestQrCodeStatus @default(ACTIVE)
+  lastUsedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch      Branch            @relation(fields: [workspaceId, branchId], references: [workspaceId, id], onDelete: Cascade)
+  feedback    GuestFeedback[]
+  @@unique([workspaceId, branchId, id])
+  @@index([workspaceId, status, createdAt])
+  @@index([branchId, status])
+}
+
+/// Anonymous feedback collected through a permanent guest QR page.
+model GuestFeedback {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  branchId          String
+  qrCodeId          String
+  rating            FeedbackRating
+  message           String?        @db.VarChar(2000)
+  answers           Json?
+  submissionKeyHash String?        @unique
+  source            String         @default("PERMANENT_QR")
+  submittedAt       DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch            Branch         @relation(fields: [workspaceId, branchId], references: [workspaceId, id], onDelete: Cascade)
+  qrCode            GuestQrCode    @relation(fields: [workspaceId, branchId, qrCodeId], references: [workspaceId, branchId, id], onDelete: Cascade)
+  @@index([workspaceId, submittedAt])
+  @@index([branchId, submittedAt])
+  @@index([qrCodeId, submittedAt])
+  @@index([workspaceId, rating, submittedAt])
 }
 
 model Customer {
