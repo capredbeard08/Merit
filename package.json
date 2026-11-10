@@ -11,7 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
-    "test:security": "tsx --test src/lib/security-warden.test.ts src/lib/file-security.test.ts src/lib/domain.test.ts src/lib/security-db.integration.test.ts"
+    "test:security": "tsx --test src/lib/security-warden.test.ts src/lib/file-security.test.ts src/lib/domain.test.ts src/lib/security-db.integration.test.ts src/lib/tenant-integrity.integration.test.ts"
   },
   "dependencies": {
     "next": "15.5.18",
