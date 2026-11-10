@@ -196,3 +196,38 @@ test("membership role downgrade waits for an already-authorized mutation", async
     await prisma.user.deleteMany({ where: { id: user.id } });
   }
 });
+
+
+test("workspace permission helper fails closed for absent membership and insufficient role", async () => {
+  const suffix = randomUUID();
+  const workspaceA = await prisma.workspace.create({ data: { name: "Access A " + suffix } });
+  const workspaceB = await prisma.workspace.create({ data: { name: "Access B " + suffix } });
+  const user = await prisma.user.create({
+    data: { id: "access-user-" + suffix, name: "Access Test", email: "access-" + suffix + "@example.test" },
+  });
+  await prisma.member.create({
+    data: { workspaceId: workspaceA.id, userId: user.id, email: user.email, role: "VIEWER" },
+  });
+
+  let operationRan = false;
+  try {
+    await assert.rejects(
+      withWorkspacePermission(workspaceB.id, user.id, "branches:manage", async () => {
+        operationRan = true;
+        return true;
+      }),
+      /FORBIDDEN/,
+    );
+    await assert.rejects(
+      withWorkspacePermission(workspaceA.id, user.id, "branches:manage", async () => {
+        operationRan = true;
+        return true;
+      }),
+      /FORBIDDEN/,
+    );
+    assert.equal(operationRan, false);
+  } finally {
+    await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
+  }
+});
