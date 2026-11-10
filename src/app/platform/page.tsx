@@ -6,6 +6,7 @@ import { canAccessPlatform } from "@/lib/platform-access";
 import { PlatformAccountsManager } from "./platform-accounts-manager";
 import { PlatformSecurityEvents } from "./platform-security-events";
 import { PlatformSupportRequests } from "./platform-support-requests";
+import { PlatformRedSquid } from "./platform-red-squid";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,10 @@ export default async function PlatformConsolePage() {
         )}
 
         <PlatformSecurityEvents canExport={canAccessPlatform(access, "platform:audit:export")} />
+
+        {canAccessPlatform(access, "platform:security:read") ? (
+          <PlatformRedSquid canApprove={canAccessPlatform(access, "platform:security:approve")} />
+        ) : null}
 
         <PlatformSupportRequests />
 
