@@ -132,12 +132,24 @@ export async function POST(request: Request): Promise<Response> {
           select: { id: true },
         });
         if (!existingScan) {
-          await enqueueSecurityHunterRun({
-            hunterType: "DATA",
-            engine: "CLAMAV",
-            engineVersion: "container-managed",
-            scopeMetadata: { source: assetId },
-          });
+          try {
+            await enqueueSecurityHunterRun({
+              hunterType: "DATA",
+              engine: "CLAMAV",
+              engineVersion: "container-managed",
+              scopeMetadata: { source: assetId },
+            });
+          } catch (error) {
+            await recordSecurityEvent({
+              type: "UPLOAD_SCAN_QUEUE_FAILED",
+              workspaceId: payload.workspaceId,
+              actorUserId: payload.userId,
+              targetId: assetId,
+              metadata: { reason: error instanceof Error ? error.name : "unknown" },
+              request,
+            }).catch(() => undefined);
+            throw error;
+          }
         }
 
         await recordSecurityEvent({
