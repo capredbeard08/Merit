@@ -14,6 +14,8 @@ import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
 import { POST as acceptInvitation } from "../app/api/invitations/accept/route";
 import { POST as serviceCompletedWebhook } from "../app/api/webhooks/service-completed/route";
 import { POST as processFollowUps } from "../app/api/follow-ups/process/route";
+import { GET as openOptOutLink, POST as confirmOptOut } from "../app/api/feedback/[id]/optout/route";
+import { createFeedbackToken } from "./feedback-token";
 
 const enabled = process.env.MERIT_SECURITY_DB_TESTS === "1";
 const prisma = new PrismaClient();
@@ -426,5 +428,34 @@ test("database security transitions are single-winner and workspace-scoped", { s
     if (oldEmailKey === undefined) delete process.env.EMAIL_PROVIDER_API_KEY;
     else process.env.EMAIL_PROVIDER_API_KEY = oldEmailKey;
   }
+
+
+  // Opening an opt-out link must be safe against automated email link scanners.
+  const optOutToken = createFeedbackToken(recoveryFeedback.id);
+  const optOutUrl = "http://localhost/api/feedback/" + recoveryFeedback.id + "/optout?t=" + encodeURIComponent(optOutToken);
+  const confirmationPage = await openOptOutLink(
+    new Request(optOutUrl),
+    { params: Promise.resolve({ id: recoveryFeedback.id }) },
+  );
+  assert.equal(confirmationPage.status, 200);
+  assert.match(await confirmationPage.text(), /Confirm opt-out/);
+  const beforeConfirmation = await prisma.customer.findUnique({ where: { id: recoveryCustomer.id } });
+  const feedbackBeforeConfirmation = await prisma.feedback.findUnique({ where: { id: recoveryFeedback.id } });
+  assert.equal(beforeConfirmation?.optedOutAt, null, "GET must not change customer consent");
+  assert.equal(feedbackBeforeConfirmation?.status, "PENDING", "GET must not change feedback status");
+
+  const confirmedOptOut = await confirmOptOut(
+    new Request("http://localhost/api/feedback/" + recoveryFeedback.id + "/optout", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ token: optOutToken }),
+    }),
+    { params: Promise.resolve({ id: recoveryFeedback.id }) },
+  );
+  assert.equal(confirmedOptOut.status, 303);
+  const afterConfirmation = await prisma.customer.findUnique({ where: { id: recoveryCustomer.id } });
+  const feedbackAfterConfirmation = await prisma.feedback.findUnique({ where: { id: recoveryFeedback.id } });
+  assert.ok(afterConfirmation?.optedOutAt, "explicit POST confirmation must record the opt-out");
+  assert.equal(feedbackAfterConfirmation?.status, "OPTED_OUT");
 
 });
