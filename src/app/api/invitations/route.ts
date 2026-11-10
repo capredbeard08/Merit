@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -44,21 +45,34 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const token = randomBytes(32).toString("base64url");
-  const invitation = await prisma.invitation.create({
-    data: {
-      workspaceId: parsed.data.workspaceId,
-      email: parsed.data.email,
-      role: parsed.data.role.toUpperCase() as never,
-      tokenHash: hash(token),
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
-      invitedByUserId: session.user.id,
-    },
-    select: { id: true, email: true, role: true, expiresAt: true },
-  });
+  let invitation;
+  try {
+    invitation = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "members:manage",
+      (tx) => tx.invitation.create({
+        data: {
+          workspaceId: parsed.data.workspaceId,
+          email: parsed.data.email,
+          role: parsed.data.role.toUpperCase() as never,
+          tokenHash: hash(token),
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
+          invitedByUserId: session.user.id,
+        },
+        select: { id: true, email: true, role: true, expiresAt: true },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!appUrl) {
-    await prisma.invitation.delete({ where: { id: invitation.id } });
+    await prisma.invitation.deleteMany({ where: { id: invitation.id, workspaceId: parsed.data.workspaceId } });
     return NextResponse.json({ error: "Invitation delivery is unavailable because the application URL is not configured." }, { status: 503 });
   }
   const acceptUrl = appUrl.replace(/\/$/, "") + "/invite/" + token;
