@@ -166,3 +166,13 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [x] Test stale-claim recovery, expired provider idempotency cutoff and stable token generation.
 - [x] Full CI passed on code head `2d58447557c667f21c8cbcf1072d62678f2c2f8c` in [run #42805205778](https://github.com/capredbeard08/Merit/actions/runs/42805205778): migrations, integration tests, TypeScript and production build all passed.
 - [ ] Real Resend delivery/idempotency E2E remains untested because no verified sender/domain and provider credentials are configured. Do not claim real delivery works.
+
+
+## Final PR #3 pass — 10 November 2026
+
+- [x] Serialize initial workspace provisioning by locking the user row, preventing concurrent first-time requests from creating duplicate workspaces.
+- [x] Create the workspace, owner membership and workspace-created audit event in one transaction.
+- [x] Add a database integration test that races two initial workspace setup requests and verifies one workspace, one owner membership and one creation audit event.
+- [x] Latest full CI passed on current PR head `8c169da05c90c44fee1acd4aa59af781cd45e7e4` in [run #42897194617](https://github.com/capredbeard08/Merit/actions/runs/42897194617): PostgreSQL migrations, Security Warden/database integration tests, TypeScript and production build all passed.
+- [ ] Full route-by-route cross-workspace negative coverage remains broader than the current integration suite; continue before treating tenant review as exhaustive.
+- [ ] External release gates remain: verified sender/provider delivery, malware scanning and server-verified upload metadata, separate Preview/Production DB confirmation, production reviewer policy, encrypted backup restore drill, and restricted-role RLS decision.
