@@ -303,6 +303,13 @@ test("database security transitions are single-winner and workspace-scoped", { s
   const notesBody = await notesResponse.json() as { notes: Array<{ note: string }> };
   assert.equal(notesBody.notes.length, 1);
   assert.equal(notesBody.notes[0].note, "Internal follow-up context");
+  const storedNote = await prisma.feedbackNote.findFirstOrThrow({ where: { workspaceId: workspace.id, feedbackId: routeFeedback.id } });
+  const noteAudit = await prisma.auditLog.findFirstOrThrow({ where: { workspaceId: workspace.id, action: "FEEDBACK_NOTE_CREATED", targetId: storedNote.id } });
+  assert.equal(JSON.stringify(noteAudit.metadata).includes("Internal follow-up context"), false, "private note text must not be copied into audit metadata");
+  await assert.rejects(
+    prisma.feedbackNote.create({ data: { workspaceId: provisionedWorkspaceId, feedbackId: routeFeedback.id, authorUserId: user.id, content: "cross-tenant note" } }),
+    "database composite foreign key must block a note attached to another workspace's feedback",
+  );
   const foreignNotesResponse = await getFeedbackNotes(
     new Request("http://localhost/api/feedback/" + routeFeedback.id + "/notes?workspaceId=" + workspace.id, { headers: outsiderHeaders }),
     { params: Promise.resolve({ id: routeFeedback.id }) },
