@@ -100,7 +100,7 @@ CREATE INDEX "SupportAccessRequest_status_expiresAt_idx"
 ALTER TABLE "SupportAccessRequest"
   ADD CONSTRAINT "SupportAccessRequest_workspaceId_fkey"
   FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+  ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "SupportAccessRequest"
   ADD CONSTRAINT "SupportAccessRequest_requestedByUserId_fkey"
   FOREIGN KEY ("requestedByUserId") REFERENCES "User"("id")
