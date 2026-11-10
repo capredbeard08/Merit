@@ -1,6 +1,49 @@
 -- Enforce workspace consistency for tenant-owned foreign-key relations.
 -- These guards complement application predicates; they do not replace authorization or RLS.
 
+-- Refuse to install guards over inconsistent historical tenant relations.
+DO $
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM "Customer" c JOIN "Branch" b ON b."id" = c."branchId"
+    WHERE c."branchId" IS NOT NULL AND c."workspaceId" IS DISTINCT FROM b."workspaceId"
+  ) THEN RAISE EXCEPTION 'Existing Customer.branch cross-workspace relation detected'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM "ServiceEvent" e
+    JOIN "Branch" b ON b."id" = e."branchId"
+    JOIN "Customer" c ON c."id" = e."customerId"
+    WHERE e."workspaceId" IS DISTINCT FROM b."workspaceId"
+       OR e."workspaceId" IS DISTINCT FROM c."workspaceId"
+  ) THEN RAISE EXCEPTION 'Existing ServiceEvent cross-workspace relation detected'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM "Feedback" f
+    JOIN "Branch" b ON b."id" = f."branchId"
+    JOIN "Customer" c ON c."id" = f."customerId"
+    JOIN "ServiceEvent" e ON e."id" = f."serviceEventId"
+    WHERE f."workspaceId" IS DISTINCT FROM b."workspaceId"
+       OR f."workspaceId" IS DISTINCT FROM c."workspaceId"
+       OR f."workspaceId" IS DISTINCT FROM e."workspaceId"
+  ) THEN RAISE EXCEPTION 'Existing Feedback cross-workspace relation detected'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM "FollowUp" u JOIN "Feedback" f ON f."id" = u."feedbackId"
+    WHERE u."workspaceId" IS DISTINCT FROM f."workspaceId"
+  ) THEN RAISE EXCEPTION 'Existing FollowUp cross-workspace relation detected'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM "FeedbackReply" r JOIN "Feedback" f ON f."id" = r."feedbackId"
+    WHERE r."workspaceId" IS DISTINCT FROM f."workspaceId"
+  ) THEN RAISE EXCEPTION 'Existing FeedbackReply cross-workspace relation detected'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM "WebhookEndpoint" w JOIN "Branch" b ON b."id" = w."branchId"
+    WHERE w."branchId" IS NOT NULL AND w."workspaceId" IS DISTINCT FROM b."workspaceId"
+  ) THEN RAISE EXCEPTION 'Existing WebhookEndpoint.branch cross-workspace relation detected'; END IF;
+END;
+$;
+
 CREATE OR REPLACE FUNCTION merit_assert_workspace_parent(
   parent_table text,
   parent_id text,
