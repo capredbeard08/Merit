@@ -47,6 +47,13 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       session.user.id,
       "files:manage",
       async (tx) => {
+        // Capture the current workspace label while holding a shared row lock;
+        // a concurrent rename cannot race the immutable deletion snapshot.
+        const workspaceRows = await tx.$queryRaw<Array<{ name: string }>>`
+          SELECT "name" FROM "Workspace" WHERE "id" = ${file.workspaceId} FOR SHARE
+        `;
+        if (workspaceRows.length !== 1) return 0;
+        const workspaceNameAtDeletion = workspaceRows[0].name;
         const deletedAt = new Date();
         const result = await tx.fileAsset.updateMany({
           where: { id: file.id, workspaceId: file.workspaceId, status: file.status, deletedAt: null },
@@ -55,7 +62,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
             deletedById: session.user.id,
             priorStatus: file.status,
             status: "DELETED",
-            workspaceNameAtDeletion: file.workspace.name,
+            workspaceNameAtDeletion,
             deletedByNameAtDeletion: session.user.name,
           },
         });
@@ -73,7 +80,7 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
             metadata: sanitizeSecurityMetadata({
               priorStatus: file.status,
               recoveryAvailable: true,
-              workspaceName: file.workspace.name,
+              workspaceName: workspaceNameAtDeletion,
               workspaceId: file.workspaceId,
               deletedById: session.user.id,
               deletedByName: session.user.name,
