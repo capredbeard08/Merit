@@ -121,3 +121,14 @@ This roadmap reflects code inspected on the `main` branch and changes currently 
 - [ ] Keep RLS deferred: the current database provider does not offer a separate restricted runtime role. Do not wire an unrestricted connection into the tenant helper or claim RLS enforcement.
 - [ ] Complete cross-workspace negative tests for every route, relation traversal and bulk operation.
 - [ ] Finish backup/restore, Preview-vs-Production database, production-environment reviewer, email-provider and upload-scanning release gates before any production rollout.
+
+
+## Additional tenant-mutation hardening — 10 November 2026
+
+- [x] Prevent service-completed webhooks from reversing an explicit customer opt-out; incoming consent flags alone cannot re-enable feedback requests.
+- [x] Hold shared database locks on webhook credentials and active branches while processing service-completed events, so revocation/archive cannot race the write.
+- [x] Make manual feedback opt-out workspace-scoped, cancel all queued/processing follow-ups for that customer, and write its audit event in the same transaction.
+- [x] Lock workspace membership during branch creation/update/archive/restore, feedback status changes, invitation creation, integration endpoint creation/revocation and insight generation.
+- [x] Commit branch and integration endpoint lifecycle audit events with their corresponding mutations.
+- [x] Add route-level regression coverage for webhook opt-out precedence, integration creation/revocation, feedback workspace isolation and customer-wide follow-up cancellation.
+- [ ] Confirm full CI on the latest code head after these additional route changes.
