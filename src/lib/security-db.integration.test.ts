@@ -66,7 +66,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
   // cookie-backed CSRF origin check, not merely unauthenticated login behavior.
   const sessionHeaders = await createCredentialAccount(user.id, user.email, "owner-" + suffix);
 
-  const authOriginRequest = (host: string, origin: string) => auth.handler(new Request(
+  const authOriginRequest = (host: string, origin: string, name = "Origin check " + suffix) => auth.handler(new Request(
     "https://" + host + "/api/auth/update-user",
     {
       method: "POST",
@@ -78,7 +78,7 @@ test("database security transitions are single-winner and workspace-scoped", { s
         cookie: sessionHeaders.get("cookie")!,
         "content-type": "application/json",
       },
-      body: JSON.stringify({ name: "Origin check " + suffix }),
+      body: JSON.stringify({ name }),
     },
   ));
   const canonicalOriginResponse = await authOriginRequest("merit-olive.vercel.app", "https://merit-olive.vercel.app");
@@ -90,6 +90,8 @@ test("database security transitions are single-winner and workspace-scoped", { s
   // Better Auth's CSRF middleware to enforce the trusted-origin boundary.
   const untrustedOriginResponse = await authOriginRequest("merit-olive.vercel.app", "https://attacker.example");
   assert.equal(untrustedOriginResponse.status, 403, "untrusted browser origins must be rejected by Better Auth");
+  const restoreAuthUserResponse = await authOriginRequest("merit-olive.vercel.app", "https://merit-olive.vercel.app", user.name);
+  assert.equal(restoreAuthUserResponse.status, 200, "trusted origin can restore the test user's original profile after the CSRF probe");
   // Concurrent first-time workspace setup must serialize on the user row:
   // one request creates the workspace, and the other returns that same workspace.
   const provisioningUser = await prisma.user.create({
