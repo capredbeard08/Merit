@@ -15,6 +15,27 @@ enum Role {
   VIEWER
 }
 
+enum PlatformAccessRole {
+  FOUNDER_SUPER_ADMIN
+  PLATFORM_ADMIN
+  ENGINEER
+}
+
+enum SupportAccessScope {
+  CUSTOMER_RECORDS_READ
+  FEEDBACK_READ
+  FEEDBACK_REPLIES_READ
+  FILE_ASSETS_READ
+}
+
+enum SupportAccessStatus {
+  PENDING
+  APPROVED
+  DENIED
+  REVOKED
+  EXPIRED
+}
+
 enum FeedbackStatus {
   PENDING
   CONTACTED
@@ -41,6 +62,7 @@ model Workspace {
   insights Insight[]
   auditLogs AuditLog[]
   files FileAsset[]
+  supportAccessRequests SupportAccessRequest[]
   feedbackNotes FeedbackNote[]
 }
 
@@ -217,6 +239,14 @@ model User {
   accounts      Account[]
   members       Member[]
   authoredFeedbackNotes FeedbackNote[]
+  twoFactorEnabled Boolean @default(false)
+  twoFactorEnabledAt DateTime?
+  twoFactor TwoFactor?
+  platformAccess PlatformAccess? @relation("PlatformAccessSubject")
+  platformAccessGrants PlatformAccess[] @relation("PlatformAccessGrantor")
+  supportAccessRequestsMade SupportAccessRequest[] @relation("SupportAccessRequester")
+  supportAccessDecisions SupportAccessRequest[] @relation("SupportAccessDecider")
+  supportAccessRevocations SupportAccessRequest[] @relation("SupportAccessRevoker")
 }
 
 model Session {
@@ -366,4 +396,64 @@ model SecurityEvent {
   @@index([workspaceId, createdAt])
   @@index([severity, createdAt])
   @@index([type, createdAt])
+}
+
+
+model TwoFactor {
+  id                     String   @id
+  userId                 String   @unique
+  secret                 String
+  backupCodes            String
+  verified               Boolean  @default(false)
+  failedVerificationCount Int     @default(0)
+  lockedUntil            DateTime?
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PlatformAccess {
+  id              String             @id @default(cuid())
+  userId          String             @unique
+  role            PlatformAccessRole
+  grantedByUserId String?
+  revokedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation("PlatformAccessSubject", fields: [userId], references: [id], onDelete: Restrict)
+  grantedBy       User?              @relation("PlatformAccessGrantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  @@index([role, revokedAt])
+}
+
+model SupportAccessRequest {
+  id                       String              @id @default(cuid())
+  workspaceId              String
+  requestedByUserId        String
+  decidedByUserId          String?
+  revokedByUserId          String?
+  scope                    SupportAccessScope
+  status                   SupportAccessStatus @default(PENDING)
+  reason                   String              @db.VarChar(500)
+  requestedDurationMinutes Int
+  requestExpiresAt         DateTime
+  decidedAt                DateTime?
+  expiresAt                DateTime?
+  revokedAt                DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  workspace                Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedBy              User                @relation("SupportAccessRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  decidedBy                User?               @relation("SupportAccessDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  revokedBy                User?               @relation("SupportAccessRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  @@index([workspaceId, status, createdAt])
+  @@index([requestedByUserId, status, createdAt])
+  @@index([status, requestExpiresAt])
+  @@index([status, expiresAt])
+}
+
+model RateLimitBucket {
+  id              String   @id
+  key             String   @unique
+  windowStartedAt DateTime
+  count           Int
+  expiresAt       DateTime
+  @@index([expiresAt])
 }
