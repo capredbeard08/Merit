@@ -171,6 +171,19 @@ test("public guest feedback handles idempotency, rate limits, and QR lifecycle s
 
     assert.equal((await submitRaw(qr.publicId, "{invalid-json", "198.51.100.42")).status, 400,
       "malformed JSON must receive a bounded validation response");
+    const wrongContentType = await submitGuestFeedback(
+      new Request("https://merit-olive.vercel.app/api/public/guest-feedback/" + qr.publicId, {
+        method: "POST",
+        headers: { "content-type": "text/plain", "x-real-ip": "198.51.100.47" },
+        body: JSON.stringify({ rating: 5, submissionKey: randomUUID() }),
+      }),
+      { params: Promise.resolve({ publicId: qr.publicId }) },
+    );
+    assert.equal(wrongContentType.status, 415, "public submissions must require JSON content type");
+    const oversizedBody = await submitRaw(qr.publicId, JSON.stringify({
+      rating: 5, message: "x".repeat(5000), submissionKey: randomUUID(),
+    }), "198.51.100.48");
+    assert.equal(oversizedBody.status, 413, "raw request bodies must be bounded before JSON parsing");
     assert.equal((await submitRaw(qr.publicId, JSON.stringify({
       rating: 6, submissionKey: randomUUID(),
     }), "198.51.100.43")).status, 400,
