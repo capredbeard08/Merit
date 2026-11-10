@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { sanitizeSecurityMetadata } from "@/lib/security-warden";
 import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
-  const session = await (await import("@/lib/better-auth")).auth.api.getSession({ headers: request.headers });
+  const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
   const { id } = await context.params;
