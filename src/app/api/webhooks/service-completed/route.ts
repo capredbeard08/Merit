@@ -120,14 +120,28 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Re-check the branch inside a serializable transaction. The preflight
-      // check above improves the common response path, but only this check
-      // protects against a branch being archived while the webhook is in flight.
-      const activeBranch = await tx.branch.findFirst({
-        where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
-        select: { id: true },
-      });
-      if (!activeBranch) throw new Error("MERIT_BRANCH_NOT_ACTIVE");
+      // Hold shared locks on the matched credential and active branch until
+      // the event transaction commits. Revocation/archive must either win first
+      // or wait for this already-authorized event to finish.
+      const activeEndpoint = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "WebhookEndpoint"
+        WHERE "id" = ${endpoint.id}
+          AND "workspaceId" = ${parsed.data.workspaceId}
+          AND "revokedAt" IS NULL
+        FOR SHARE
+      `;
+      if (activeEndpoint.length !== 1) throw new Error("MERIT_WEBHOOK_ENDPOINT_REVOKED");
+
+      const activeBranch = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Branch"
+        WHERE "id" = ${parsed.data.branchId}
+          AND "workspaceId" = ${parsed.data.workspaceId}
+          AND "archivedAt" IS NULL
+        FOR SHARE
+      `;
+      if (activeBranch.length !== 1) throw new Error("MERIT_BRANCH_NOT_ACTIVE");
 
       const customer = await tx.customer.upsert({
         where: {
@@ -150,9 +164,9 @@ export async function POST(request: Request): Promise<Response> {
           name: parsed.data.customer.name ?? undefined,
           email: parsed.data.customer.email ?? undefined,
           phone: parsed.data.customer.phone ?? undefined,
-          ...(parsed.data.consent.feedbackContact
-            ? { consentAt: new Date(parsed.data.consent.recordedAt), optedOutAt: null }
-            : {}),
+          consentAt: parsed.data.consent.feedbackContact
+            ? new Date(parsed.data.consent.recordedAt)
+            : null,
         },
       });
 
@@ -168,7 +182,8 @@ export async function POST(request: Request): Promise<Response> {
         },
       });
 
-      if (!parsed.data.consent.feedbackContact) return { eventId: event.id, feedbackId: null };
+      // A later integration event is not authority to reverse an explicit MERIT opt-out.
+      if (!parsed.data.consent.feedbackContact || customer.optedOutAt) return { eventId: event.id, feedbackId: null };
 
       const feedback = await tx.feedback.create({
         data: {
@@ -193,8 +208,8 @@ export async function POST(request: Request): Promise<Response> {
       return { eventId: event.id, feedbackId: feedback.id };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    await prisma.webhookEndpoint.update({
-      where: { id: endpoint.id },
+    await prisma.webhookEndpoint.updateMany({
+      where: { id: endpoint.id, workspaceId: parsed.data.workspaceId, revokedAt: null },
       data: { lastUsedAt: new Date() },
     });
 
@@ -204,6 +219,13 @@ export async function POST(request: Request): Promise<Response> {
       feedbackId: result.feedbackId,
     }, { status: 202 });
   } catch (error) {
+    if (error instanceof Error && error.message === "MERIT_WEBHOOK_ENDPOINT_REVOKED") {
+      return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "MERIT_BRANCH_NOT_ACTIVE") {
+      return NextResponse.json({ error: "Branch is no longer active." }, { status: 404 });
+    }
+
     const duplicate = await prisma.serviceEvent.findFirst({
       where: { workspaceId: parsed.data.workspaceId, externalId: parsed.data.eventId },
       select: { id: true, feedback: { select: { id: true } } },
@@ -218,9 +240,6 @@ export async function POST(request: Request): Promise<Response> {
       }, { status: 202 });
     }
 
-    if (error instanceof Error && error.message === "MERIT_BRANCH_NOT_ACTIVE") {
-      return NextResponse.json({ error: "Branch is no longer active." }, { status: 404 });
-    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
       return NextResponse.json({ error: "Branch or event state changed during processing; retry the webhook." }, { status: 409 });
     }
