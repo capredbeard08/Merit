@@ -37,3 +37,9 @@ test("revoked, absent, and unknown access records fail closed", () => {
   assert.equal(canAccessPlatform(active("UNKNOWN"), "platform:security:read"), false);
   assert.equal(canAccessPlatform({ role: "ENGINEER", revokedAt: new Date() }, "platform:security:read"), false);
 });
+test("Founder approval capability is exclusive to the Founder Super Admin", () => {
+  assert.equal(canAccessPlatform(active("FOUNDER_SUPER_ADMIN"), "platform:security:approve"), true);
+  assert.equal(canAccessPlatform(active("PLATFORM_ADMIN"), "platform:security:approve"), false);
+  assert.equal(canAccessPlatform(active("ENGINEER"), "platform:security:approve"), false);
+});
+
