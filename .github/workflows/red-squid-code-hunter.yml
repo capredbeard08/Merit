@@ -4,7 +4,7 @@ on:
   push:
     branches: [integration/batch-2-platform-guest-security]
   pull_request:
-    branches: [security/remediation-phase-1]
+    branches: [integration/batch-1-security-foundation]
   workflow_dispatch:
 
 permissions:
