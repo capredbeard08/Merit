@@ -11,13 +11,14 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate",
-    "test:security": "tsx --test src/lib/security-warden.test.ts src/lib/file-security.test.ts"
+    "test:security": "tsx --test src/lib/security-warden.test.ts src/lib/file-security.test.ts src/lib/domain.test.ts src/lib/feedback-token.test.ts src/lib/security-db.integration.test.ts src/lib/tenant-integrity.integration.test.ts src/lib/tenant-route-boundaries.integration.test.ts src/lib/workspace-access.test.ts src/lib/platform-access.test.ts src/lib/founder-bootstrap.test.ts src/lib/platform-security-events.test.ts src/lib/support-access-decision.test.ts src/lib/support-access.test.ts src/lib/support-access.integration.test.ts src/lib/guest-feedback.test.ts src/lib/guest-feedback.integration.test.ts src/lib/security-warden-policy.test.ts src/lib/security-warden-approvals.test.ts src/lib/security-warden-approvals.integration.test.ts src/lib/security-warden-queue.integration.test.ts security-worker/scan-verdict.test.ts src/lib/ai/groq.test.ts src/lib/email.test.ts src/lib/guest-feedback-ai.integration.test.ts",
+    "test:security-worker": "tsc -p tsconfig.security-worker.json"
   },
   "dependencies": {
-    "next": "15.5.18",
+    "next": "15.5.29",
     "react": "19.1.7",
     "react-dom": "19.1.7",
-    "zod": "4.0.0",
+    "zod": "4.6.7",
     "better-auth": "1.7.8",
     "@better-auth/prisma-adapter": "1.7.8",
     "@prisma/client": "6.19.3",
@@ -31,6 +32,18 @@
     "tailwindcss": "4.1.0",
     "@tailwindcss/postcss": "4.1.0",
     "prisma": "6.19.3",
-    "tsx": "4.19.2"
+    "tsx": "4.23.15"
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
+    },
+    "next": {
+      "postcss": "^8.5.32"
+    },
+    "sharp": "^0.35.4",
+    "zod": "$zod",
+    "@vercel/oidc": "^4.0.8",
+    "@vercel/cli-config": "^0.3.6"
   }
 }
