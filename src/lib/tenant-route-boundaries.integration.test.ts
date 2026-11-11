@@ -85,6 +85,14 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
     const securityEventB = await prisma.securityEvent.create({
       data: { workspaceId: workspaceB.id, actorUserId: user.id, type: "ROUTE_TEST_B", severity: "CRITICAL", targetId: feedbackB.id },
     });
+    // The workspace security-events endpoint reads the audit projection written
+    // alongside each SecurityEvent by recordSecurityEvent().
+    await prisma.auditLog.create({
+      data: { workspaceId: workspaceA.id, actorUserId: user.id, action: "SECURITY:ROUTE_TEST_A", targetType: "SECURITY_EVENT", targetId: feedbackA.id, metadata: { severity: "HIGH" } },
+    });
+    await prisma.auditLog.create({
+      data: { workspaceId: workspaceB.id, actorUserId: user.id, action: "SECURITY:ROUTE_TEST_B", targetType: "SECURITY_EVENT", targetId: feedbackB.id, metadata: { severity: "CRITICAL" } },
+    });
     const invitationToken = "route-invitation-token-" + suffix;
     const invitationB = await prisma.invitation.create({
       data: {
@@ -310,7 +318,7 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
       );
       assert.equal(scopedSecurityEventsResponse.status, 200);
       const scopedSecurityEvents = await scopedSecurityEventsResponse.json();
-      assert.deepEqual(scopedSecurityEvents.events.map((item: { id: string }) => item.id), [securityEventA.id]);
+      assert.deepEqual(scopedSecurityEvents.events.map((item: { targetId: string | null }) => item.targetId), [feedbackA.id]);
       assert.equal(scopedSecurityEvents.counts.HIGH, 1);
       assert.equal(scopedSecurityEvents.counts.CRITICAL, 0);
 
