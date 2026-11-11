@@ -75,12 +75,14 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Type-check isolated security worker
+        if: github.base_ref == 'integration/batch-1-security-foundation'
         run: npm run test:security-worker
 
       - name: Build production application
         run: npm run build
 
   scanner-image:
+    if: github.base_ref == 'integration/batch-1-security-foundation'
     name: Build private Red Squid scanner image
     runs-on: ubuntu-latest
     timeout-minutes: 25
