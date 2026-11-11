@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serviceCompletedEventSchema } from "@/lib/security";
-import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/env";
+import { WEBHOOK_MAX_AGE_SECONDS, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_MAX_FUTURE_SECONDS } from "@/lib/webhook-constants";
 import { recordSecurityEvent } from "@/lib/security-warden";
 
 export const runtime = "nodejs";
@@ -30,9 +30,34 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 
-  const rawBody = await request.text().catch(() => "");
-  if (!rawBody || new TextEncoder().encode(rawBody).byteLength > WEBHOOK_MAX_BODY_BYTES) {
-    return NextResponse.json({ error: "Payload too large or empty" }, { status: 413 });
+  // Enforce the body limit while streaming. Content-Length may be absent or untrusted.
+  if (!request.body) {
+    return NextResponse.json({ error: "Empty payload" }, { status: 400 });
+  }
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let receivedBytes = 0;
+  let rawBody = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      receivedBytes += value.byteLength;
+      if (receivedBytes > WEBHOOK_MAX_BODY_BYTES) {
+        await reader.cancel();
+        return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+      }
+      rawBody += decoder.decode(value, { stream: true });
+    }
+    rawBody += decoder.decode();
+  } catch {
+    return NextResponse.json({ error: "Unable to read payload" }, { status: 400 });
+  }
+
+  if (!rawBody.trim()) {
+    return NextResponse.json({ error: "Empty payload" }, { status: 400 });
   }
 
   let body: unknown;
@@ -88,13 +113,36 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const branch = await prisma.branch.findFirst({
-    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId },
+    where: { id: parsed.data.branchId, workspaceId: parsed.data.workspaceId, archivedAt: null },
     select: { id: true },
   });
   if (!branch) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
   try {
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // Hold shared locks on the matched credential and active branch until
+      // the event transaction commits. Revocation/archive must either win first
+      // or wait for this already-authorized event to finish.
+      const activeEndpoint = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "WebhookEndpoint"
+        WHERE "id" = ${endpoint.id}
+          AND "workspaceId" = ${parsed.data.workspaceId}
+          AND "revokedAt" IS NULL
+        FOR SHARE
+      `;
+      if (activeEndpoint.length !== 1) throw new Error("MERIT_WEBHOOK_ENDPOINT_REVOKED");
+
+      const activeBranch = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Branch"
+        WHERE "id" = ${parsed.data.branchId}
+          AND "workspaceId" = ${parsed.data.workspaceId}
+          AND "archivedAt" IS NULL
+        FOR SHARE
+      `;
+      if (activeBranch.length !== 1) throw new Error("MERIT_BRANCH_NOT_ACTIVE");
+
       const customer = await tx.customer.upsert({
         where: {
           workspaceId_externalId: {
@@ -116,9 +164,9 @@ export async function POST(request: Request): Promise<Response> {
           name: parsed.data.customer.name ?? undefined,
           email: parsed.data.customer.email ?? undefined,
           phone: parsed.data.customer.phone ?? undefined,
-          ...(parsed.data.consent.feedbackContact
-            ? { consentAt: new Date(parsed.data.consent.recordedAt), optedOutAt: null }
-            : {}),
+          consentAt: parsed.data.consent.feedbackContact
+            ? new Date(parsed.data.consent.recordedAt)
+            : null,
         },
       });
 
@@ -134,7 +182,8 @@ export async function POST(request: Request): Promise<Response> {
         },
       });
 
-      if (!parsed.data.consent.feedbackContact) return { eventId: event.id, feedbackId: null };
+      // A later integration event is not authority to reverse an explicit MERIT opt-out.
+      if (!parsed.data.consent.feedbackContact || customer.optedOutAt) return { eventId: event.id, feedbackId: null };
 
       const feedback = await tx.feedback.create({
         data: {
@@ -157,10 +206,10 @@ export async function POST(request: Request): Promise<Response> {
       });
 
       return { eventId: event.id, feedbackId: feedback.id };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-    await prisma.webhookEndpoint.update({
-      where: { id: endpoint.id },
+    await prisma.webhookEndpoint.updateMany({
+      where: { id: endpoint.id, workspaceId: parsed.data.workspaceId, revokedAt: null },
       data: { lastUsedAt: new Date() },
     });
 
@@ -170,6 +219,13 @@ export async function POST(request: Request): Promise<Response> {
       feedbackId: result.feedbackId,
     }, { status: 202 });
   } catch (error) {
+    if (error instanceof Error && error.message === "MERIT_WEBHOOK_ENDPOINT_REVOKED") {
+      return NextResponse.json({ error: "Invalid webhook credentials" }, { status: 401 });
+    }
+    if (error instanceof Error && error.message === "MERIT_BRANCH_NOT_ACTIVE") {
+      return NextResponse.json({ error: "Branch is no longer active." }, { status: 404 });
+    }
+
     const duplicate = await prisma.serviceEvent.findFirst({
       where: { workspaceId: parsed.data.workspaceId, externalId: parsed.data.eventId },
       select: { id: true, feedback: { select: { id: true } } },
@@ -184,6 +240,9 @@ export async function POST(request: Request): Promise<Response> {
       }, { status: 202 });
     }
 
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+      return NextResponse.json({ error: "Branch or event state changed during processing; retry the webhook." }, { status: 409 });
+    }
     console.error("MERIT webhook transaction failed", error);
     return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
   }
