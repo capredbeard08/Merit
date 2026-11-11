@@ -19,7 +19,7 @@ function validToken(id: string, token: unknown, sentAt?: Date | null): token is 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const { id } = await context.params;
   const token = new URL(request.url).searchParams.get("t");
-  if (!token || token.length > 512) {
+  if (token === null) {
     return NextResponse.json({ error: "Invalid opt-out link" }, { status: 400 });
   }
 
