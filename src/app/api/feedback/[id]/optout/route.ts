@@ -16,7 +16,7 @@ function validToken(id: string, token: unknown, sentAt?: Date | null): token is 
   return typeof token === "string" && token.length <= 512 && verifyFeedbackToken(id, token, sentAt);
 }
 
-export async function GET(request: Request): Promise<Response> {
+export async function GET(request: Request, _context: { params: Promise<{ id: string }> }): Promise<Response> {
   // GET only renders a confirmation form. The capability is verified and the
   // consent change occurs exclusively in POST, so email link scanners cannot
   // trigger an opt-out merely by prefetching the URL.
