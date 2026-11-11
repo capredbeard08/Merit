@@ -15,11 +15,35 @@ const themeSchema = z.object({
 export type GuestFeedbackThemeAnalysis = z.infer<typeof themeSchema>;
 
 function redactPersonalData(value: string): string {
-  return value
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
-    .replace(/(?:\+?\d[\d\s().-]{7,}\d)/g, "[phone]")
-    .replace(/(?:https?:\/\/|www\.)\S+/gi, "[link]")
-    .replace(/mailto:\S+/gi, "[link]")
+  // Redact complete URL tokens, not just familiar domain substrings. Parsing
+  // the token also covers redirect URLs whose path contains another hostname.
+  const linksRedacted = value.split(/(\\s+)/).map((part) => {
+    if (/^\\s+$/.test(part)) return part;
+
+    const leading = part.match(/^[([{<"'\\x60]+/)?.[0] ?? "";
+    const trailing = part.match(/[)\\]}>,"'\\x60!?;:.]+$/)?.[0] ?? "";
+    const candidate = part.slice(leading.length, part.length - trailing.length || undefined);
+    if (!candidate) return part;
+    if (/^mailto:/i.test(candidate)) return leading + "[link]" + trailing;
+
+    const hasWebScheme = /^https?:\\/\\//i.test(candidate);
+    const isDomainToken = /^(?:www\\.)?(?:[a-z0-9-]+\\.)+[a-z]{2,}(?::\\d+)?(?:\\/|$)/i.test(candidate);
+    if (!hasWebScheme && !isDomainToken) return part;
+
+    try {
+      const parsed = new URL(hasWebScheme ? candidate : "https://" + candidate);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return leading + "[link]" + trailing;
+      }
+    } catch {
+      // Invalid URL-like tokens are not treated as verified redaction.
+    }
+    return part;
+  }).join("");
+
+  return linksRedacted
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, "[email]")
+    .replace(/(?:\\+?\\d[\\d\\s().-]{7,}\\d)/g, "[phone]")
     .slice(0, 1200);
 }
 
