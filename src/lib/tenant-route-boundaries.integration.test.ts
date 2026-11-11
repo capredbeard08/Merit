@@ -379,6 +379,13 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
       sessionMock.mock.restore();
     }
   } finally {
+    // Release the test-only hold after asserting that the application cannot
+    // delete the held file. The database trigger correctly blocks workspace
+    // cascades while any child file remains under legal hold.
+    await prisma.fileAsset.updateMany({
+      where: { workspaceId: workspaceA.id, legalHoldAt: { not: null } },
+      data: { legalHoldAt: null, legalHoldById: null, legalHoldReason: null },
+    });
     await prisma.securityEvent.deleteMany({ where: { workspaceId: { in: [workspaceA.id, workspaceB.id] } } });
     await prisma.workspace.deleteMany({ where: { id: { in: [workspaceA.id, workspaceB.id] } } });
     await prisma.user.deleteMany({ where: { id: user.id } });
