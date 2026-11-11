@@ -14,11 +14,11 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const events = await prisma.auditLog.findMany({
-    where: { workspaceId, action: { startsWith: "SECURITY:" } },
+  const events = await prisma.securityEvent.findMany({
+    where: { workspaceId },
     orderBy: { createdAt: "desc" },
     take: 100,
-    select: { id: true, action: true, targetId: true, metadata: true, createdAt: true, actorUserId: true },
+    select: { id: true, type: true, severity: true, targetId: true, metadata: true, createdAt: true, actorUserId: true },
   });
   const counts: Record<string, number> = {
     CRITICAL: 0,
@@ -28,9 +28,7 @@ export async function GET(request: Request): Promise<Response> {
     UNKNOWN: 0,
   };
   for (const event of events) {
-    const severity = typeof event.metadata === "object" && event.metadata && "severity" in event.metadata
-      ? String(event.metadata.severity)
-      : "UNKNOWN";
+    const severity = event.severity || "UNKNOWN";
     counts[severity] = (counts[severity] ?? 0) + 1;
   }
   return NextResponse.json({ events, counts });
