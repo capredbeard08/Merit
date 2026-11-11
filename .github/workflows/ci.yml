@@ -58,6 +58,12 @@ jobs:
       - name: Replay migrations on an empty PostgreSQL database
         run: npx prisma migrate deploy
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Verify tenant and retention database guards
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f prisma/tests/security-constraints.sql
+
       - name: Run Security Warden tests
         run: npm run test:security
 
