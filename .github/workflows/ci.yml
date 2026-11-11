@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, integration/batch-1-security-foundation]
   workflow_dispatch:
 
 permissions:
@@ -40,6 +40,7 @@ jobs:
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       EMAIL_FROM: ci@example.invalid
       CRON_SECRET: ci-only-cron-secret-not-for-production-0000000000000000
+      RECAPTCHA_SECRET_KEY: ci-only-recaptcha-secret-not-for-production-0000000000000000
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,10 +66,30 @@ jobs:
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f prisma/tests/security-constraints.sql
 
       - name: Run Security Warden tests
+        env:
+          NODE_ENV: test
+          MERIT_CI_AUTH_TESTS: "true"
         run: npm run test:security
 
       - name: Type-check TypeScript
         run: npx tsc --noEmit
 
+      - name: Type-check isolated security worker
+        run: npm run test:security-worker
+
       - name: Build production application
         run: npm run build
+
+  scanner-image:
+    name: Build private Red Squid scanner image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build scanner container (no push or deployment)
+        run: docker build --pull -f security-worker/Dockerfile -t merit-red-squid:ci .
+
+      - name: Run isolated ClamAV runtime smoke tests (no secrets or production access)
+        run: docker run --rm --entrypoint /bin/sh merit-red-squid:ci /app/security-worker/container-smoke-test.sh
