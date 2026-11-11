@@ -16,23 +16,13 @@ function validToken(id: string, token: unknown, sentAt?: Date | null): token is 
   return typeof token === "string" && token.length <= 512 && verifyFeedbackToken(id, token, sentAt);
 }
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
-  const { id } = await context.params;
-  const token = new URL(request.url).searchParams.get("t");
-  if (token === null) {
-    return NextResponse.json({ error: "Invalid opt-out link" }, { status: 400 });
-  }
+export async function GET(request: Request): Promise<Response> {
+  // GET only renders a confirmation form. The capability is verified and the
+  // consent change occurs exclusively in POST, so email link scanners cannot
+  // trigger an opt-out merely by prefetching the URL.
+  const token = new URL(request.url).searchParams.get("t") ?? "";
+  const formToken = token.slice(0, 512);
 
-  const feedback = await prisma.feedback.findUnique({
-    where: { id },
-    select: { id: true, sentAt: true },
-  });
-  if (!feedback || !validToken(id, token, feedback.sentAt)) {
-    return NextResponse.json({ error: "Invalid or expired opt-out link" }, { status: 400 });
-  }
-
-  // Email security scanners commonly prefetch GET links. Opening this page
-  // must never change customer consent; the customer must submit the form.
   const html = `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Confirm email opt-out</title></head>
@@ -41,7 +31,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     <h1>Stop feedback emails?</h1>
     <p>Confirm below if you no longer want feedback requests from this business.</p>
     <form method="post" action="">
-      <input type="hidden" name="token" value="${escapeHtml(token)}">
+      <input type="hidden" name="token" value="${escapeHtml(formToken)}">
       <button type="submit">Confirm opt-out</button>
     </form>
   </main>
