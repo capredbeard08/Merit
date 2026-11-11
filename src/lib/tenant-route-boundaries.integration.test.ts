@@ -11,7 +11,8 @@ import { PATCH as patchWorkspace } from "../app/api/workspaces/[workspaceId]/rou
 import { GET as getWorkspaceSupportAccess } from "../app/api/workspaces/[workspaceId]/support-access/route";
 import { PATCH as patchFeedback } from "../app/api/feedback/[id]/route";
 import { DELETE as deleteBranch } from "../app/api/branches/[id]/route";
-import { GET as getFile } from "../app/api/files/[id]/route";
+import { GET as getFile, DELETE as deleteFile } from "../app/api/files/[id]/route";
+import { POST as restoreFile } from "../app/api/files/[id]/restore/route";
 import { DELETE as deleteWebhook } from "../app/api/integrations/webhook/route";
 import { GET as getMembers, POST as createMember } from "../app/api/members/route";
 import { POST as createInvitation } from "../app/api/invitations/route";
@@ -150,7 +151,7 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
       assert.deepEqual(scopedFiles.files.map((item: { id: string }) => item.id), [fileA.id]);
       assert.equal((await getFiles(
         new Request("https://merit.example.test/api/files?workspaceId=" + encodeURIComponent(workspaceB.id)),
-      )).status, 403);
+      )).status, 404);
 
       const selectedWorkspaceResponse = await getWorkspace(
         new Request("https://merit.example.test/api/workspaces?workspaceId=" + encodeURIComponent(workspaceA.id)),
@@ -215,6 +216,53 @@ test("tenant API routes reject cross-workspace reads and mutations", async () =>
         { params: Promise.resolve({ id: fileB.id }) },
       );
       assert.equal(foreignFileRead.status, 404);
+
+      const softDeleteResponse = await deleteFile(
+        new Request("https://merit.example.test/api/files/" + fileA.id, { method: "DELETE" }),
+        { params: Promise.resolve({ id: fileA.id }) },
+      );
+      assert.equal(softDeleteResponse.status, 204);
+      const softDeletedFile = await prisma.fileAsset.findUnique({ where: { id: fileA.id } });
+      assert.ok(softDeletedFile?.deletedAt);
+      assert.equal(softDeletedFile?.status, "DELETED");
+      assert.equal(softDeletedFile?.pathname, fileA.pathname);
+      assert.equal((await getFile(
+        new Request("https://merit.example.test/api/files/" + fileA.id),
+        { params: Promise.resolve({ id: fileA.id }) },
+      )).status, 404);
+
+      const restoreResponse = await restoreFile(
+        new Request("https://merit.example.test/api/files/" + fileA.id + "/restore", { method: "POST" }),
+        { params: Promise.resolve({ id: fileA.id }) },
+      );
+      assert.equal(restoreResponse.status, 200);
+      const restoredFile = await prisma.fileAsset.findUnique({ where: { id: fileA.id } });
+      assert.equal(restoredFile?.deletedAt, null);
+      assert.equal(restoredFile?.status, "AVAILABLE");
+      assert.equal(restoredFile?.pathname, fileA.pathname);
+
+      const legalHoldFile = await prisma.fileAsset.create({
+        data: {
+          workspaceId: workspaceA.id,
+          uploadedById: user.id,
+          originalName: "legal-hold.txt",
+          pathname: "private/legal-hold-" + suffix + ".txt",
+          contentType: "text/plain",
+          sizeBytes: 1,
+          status: "AVAILABLE",
+          legalHoldAt: new Date(),
+          legalHoldById: user.id,
+          legalHoldReason: "Retention regression test",
+        },
+      });
+      const blockedLegalHoldDelete = await deleteFile(
+        new Request("https://merit.example.test/api/files/" + legalHoldFile.id, { method: "DELETE" }),
+        { params: Promise.resolve({ id: legalHoldFile.id }) },
+      );
+      assert.equal(blockedLegalHoldDelete.status, 423);
+      const retainedLegalHoldFile = await prisma.fileAsset.findUnique({ where: { id: legalHoldFile.id } });
+      assert.equal(retainedLegalHoldFile?.deletedAt, null);
+      assert.equal(retainedLegalHoldFile?.status, "AVAILABLE");
 
       const foreignWebhookRevocation = await deleteWebhook(
         new Request("https://merit.example.test/api/integrations/webhook?id=" + webhookB.id, {
