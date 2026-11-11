@@ -20,10 +20,18 @@ export async function GET(request: Request): Promise<Response> {
     take: 100,
     select: { id: true, action: true, targetId: true, metadata: true, createdAt: true, actorUserId: true },
   });
-  const counts = events.reduce<Record<string, number>>((result, event) => {
-    const severity = typeof event.metadata === "object" && event.metadata && "severity" in event.metadata ? String(event.metadata.severity) : "UNKNOWN";
-    result[severity] = (result[severity] ?? 0) + 1;
-    return result;
-  }, {});
+  const counts: Record<string, number> = {
+    CRITICAL: 0,
+    HIGH: 0,
+    MEDIUM: 0,
+    LOW: 0,
+    UNKNOWN: 0,
+  };
+  for (const event of events) {
+    const severity = typeof event.metadata === "object" && event.metadata && "severity" in event.metadata
+      ? String(event.metadata.severity)
+      : "UNKNOWN";
+    counts[severity] = (counts[severity] ?? 0) + 1;
+  }
   return NextResponse.json({ events, counts });
 }
