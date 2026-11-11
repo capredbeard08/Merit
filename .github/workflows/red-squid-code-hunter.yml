@@ -2,7 +2,7 @@ name: Red Squid Code Hunter
 
 on:
   push:
-    branches: [security/remediation-phase-1]
+    branches: [integration/batch-2-platform-guest-security]
   pull_request:
     branches: [security/remediation-phase-1]
   workflow_dispatch:
