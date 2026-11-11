@@ -1,0 +1,89 @@
+name: Red Squid Code Hunter
+
+on:
+  push:
+    branches: [security/remediation-phase-1]
+  pull_request:
+    branches: [security/remediation-phase-1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: red-squid-codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: Code Hunter · CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
+          output: ${{ runner.temp }}/codeql-sarif
+
+      - name: Preserve CodeQL SARIF for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-squid-codeql-sarif
+          path: ${{ runner.temp }}/codeql-sarif/*.sarif
+          if-no-files-found: error
+          retention-days: 7
+
+  dependency-hunter:
+    name: Dependency Hunter · full npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Regenerate lockfile with approved non-breaking security updates
+        run: rm -f package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Audit all dependencies, including development tooling
+        shell: bash
+        run: |
+          audit_exit=0
+          npm audit --json > red-squid-npm-audit.json || audit_exit=$?
+          if [ "$audit_exit" -gt 1 ]; then
+            echo "npm audit encountered an operational error (exit $audit_exit)."
+            exit "$audit_exit"
+          fi
+          node -e 'const report=require("./red-squid-npm-audit.json"); const counts=report.metadata?.vulnerabilities ?? {}; console.log(JSON.stringify(counts)); if (Object.values(counts).some(value => Number(value) > 0)) process.exit(1);'
+
+      - name: Preserve dependency audit evidence for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-squid-dependency-audit
+          path: |
+            package-lock.json
+            red-squid-npm-audit.json
+          if-no-files-found: error
+          retention-days: 7

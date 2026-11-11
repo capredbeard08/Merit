@@ -1,4 +1,5 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
+import { del, head } from "@vercel/blob";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
@@ -6,6 +7,7 @@ import { can, type Role } from "@/lib/domain";
 import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, FILE_MAX_BYTES, safeOriginalName } from "@/lib/file-security";
 import { recordSecurityEvent } from "@/lib/security-warden";
 import { withWorkspacePermission } from "@/lib/workspace-access";
+import { enqueueSecurityHunterRun } from "@/lib/security-warden-queue";
 
 export const runtime = "nodejs";
 
@@ -41,8 +43,40 @@ export async function POST(request: Request): Promise<Response> {
         const payload = JSON.parse(tokenPayload || "{}") as { workspaceId?: string; userId?: string; originalName?: string; sizeBytes?: number };
         if (!payload.workspaceId || !payload.userId || !payload.originalName) throw new Error("Missing verified upload metadata");
         const originalName = safeOriginalName(payload.originalName);
+
+        // Verify authoritative Blob metadata before persisting a usable asset.
+        const metadata = await head(blob.pathname);
+        if (!Number.isSafeInteger(metadata.size) || metadata.size < 1) {
+          throw new Error("Uploaded file size could not be verified");
+        }
+        if (metadata.size > FILE_MAX_BYTES) {
+          try {
+            await del(blob.pathname);
+          } catch (cleanupError) {
+            await recordSecurityEvent({
+              type: "UPLOAD_ORPHAN_CLEANUP_FAILED",
+              workspaceId: payload.workspaceId,
+              actorUserId: payload.userId,
+              targetId: blob.pathname,
+              metadata: { reason: "oversized_upload_cleanup_failed" },
+              request,
+            }).catch(() => undefined);
+            throw cleanupError;
+          }
+          await recordSecurityEvent({
+            type: "UPLOAD_REJECTED_OVERSIZE",
+            workspaceId: payload.workspaceId,
+            actorUserId: payload.userId,
+            targetId: blob.pathname,
+            metadata: { actualSizeBytes: metadata.size, maximumSizeBytes: FILE_MAX_BYTES, cleanup: "succeeded" },
+            request,
+          });
+          return;
+        }
+
+        let assetId: string;
         try {
-          await withWorkspacePermission(
+          const asset = await withWorkspacePermission(
             payload.workspaceId,
             payload.userId,
             "files:manage",
@@ -54,39 +88,79 @@ export async function POST(request: Request): Promise<Response> {
                 originalName,
                 pathname: blob.pathname,
                 contentType: contentTypeForName(originalName),
-                // The client-reported size is untrusted, and this callback does not provide
-                // a verified object size. Do not persist a forged size as authoritative.
-                sizeBytes: 0,
-                // Keep uploads unavailable until server-side content/size verification
-                // and malware scanning are implemented.
+                sizeBytes: metadata.size,
                 status: "QUARANTINED",
               },
               update: {},
+              select: { id: true },
             }),
           );
+          assetId = asset.id;
         } catch (error) {
           if (error instanceof Error && error.message === "FORBIDDEN") {
-            await recordSecurityEvent({
-              type: "AUTHZ_DENIED",
-              workspaceId: payload.workspaceId,
-              actorUserId: payload.userId,
-              targetId: blob.pathname,
-              metadata: { reason: "upload_permission_revoked_before_completion" },
-              request,
-            });
-            throw new Error("Forbidden");
+            try {
+              await del(blob.pathname);
+              await recordSecurityEvent({
+                type: "UPLOAD_ORPHAN_CLEANUP_SUCCEEDED",
+                workspaceId: payload.workspaceId,
+                actorUserId: payload.userId,
+                targetId: blob.pathname,
+                metadata: { reason: "permission_revoked_before_upload_completion" },
+                request,
+              });
+            } catch {
+              await recordSecurityEvent({
+                type: "UPLOAD_ORPHAN_CLEANUP_FAILED",
+                workspaceId: payload.workspaceId,
+                actorUserId: payload.userId,
+                targetId: blob.pathname,
+                metadata: { reason: "permission_revoked_before_upload_completion" },
+                request,
+              }).catch(() => undefined);
+            }
+            throw new Error("Upload authorization expired");
           }
           throw error;
         }
+
+        const existingScan = await prisma.securityHunterRun.findFirst({
+          where: {
+            hunterType: "DATA",
+            engine: "CLAMAV",
+            scopeMetadata: { equals: { source: assetId } },
+          },
+          select: { id: true },
+        });
+        if (!existingScan) {
+          try {
+            await enqueueSecurityHunterRun({
+              hunterType: "DATA",
+              engine: "CLAMAV",
+              engineVersion: "container-managed",
+              scopeMetadata: { source: assetId },
+            });
+          } catch (error) {
+            await recordSecurityEvent({
+              type: "UPLOAD_SCAN_QUEUE_FAILED",
+              workspaceId: payload.workspaceId,
+              actorUserId: payload.userId,
+              targetId: assetId,
+              metadata: { reason: error instanceof Error ? error.name : "unknown" },
+              request,
+            }).catch(() => undefined);
+            throw error;
+          }
+        }
+
         await recordSecurityEvent({
           type: "UPLOAD_QUARANTINED",
           workspaceId: payload.workspaceId,
           actorUserId: payload.userId,
           targetId: blob.pathname,
-          metadata: { contentType: contentTypeForName(originalName), status: "QUARANTINED" },
+          metadata: { contentType: contentTypeForName(originalName), status: "QUARANTINED", scanQueued: true },
           request,
         });
-      },
+      }
     });
     return NextResponse.json(jsonResponse);
   } catch (error) {
