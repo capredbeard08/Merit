@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
-import { writeAuditLog } from "@/lib/audit";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const createSchema = z.object({
   workspaceId: z.string().min(1),
@@ -69,12 +69,39 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (existing) return NextResponse.json({ error: "User is already a member" }, { status: 409 });
 
-  const member = await prisma.member.create({
-    data: { workspaceId: parsed.data.workspaceId, userId: user.id, email: user.email, role: parsed.data.role.toUpperCase() as never },
-    select: { id: true, email: true, role: true, createdAt: true },
-  });
-
-  await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: result.session.user.id, action: "MEMBER_CREATED", targetType: "MEMBER", targetId: member.id, metadata: { role: parsed.data.role }, request });
-
-  return NextResponse.json({ member }, { status: 201 });
+  try {
+    const member = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      result.session.user.id,
+      "members:manage",
+      async (tx) => {
+        const created = await tx.member.create({
+          data: { workspaceId: parsed.data.workspaceId, userId: user.id, email: user.email, role: parsed.data.role.toUpperCase() as never },
+          select: { id: true, email: true, role: true, createdAt: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            workspaceId: parsed.data.workspaceId,
+            actorUserId: result.session.user.id,
+            action: "MEMBER_CREATED",
+            targetType: "MEMBER",
+            targetId: created.id,
+            metadata: { role: parsed.data.role },
+            ipAddress: request.headers.get("x-real-ip")?.slice(0, 64) ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
+            userAgent: request.headers.get("user-agent")?.slice(0, 300) ?? null,
+          },
+        });
+        return created;
+      },
+    );
+    return NextResponse.json({ member }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return NextResponse.json({ error: "User is already a member" }, { status: 409 });
+    }
+    throw error;
+  }
 }
