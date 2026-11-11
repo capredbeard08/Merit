@@ -124,3 +124,28 @@ test("redacts www and mailto links before sending comments externally", async ()
   assert.equal(sent.includes("mailto:"), false);
   assert.equal(sent.includes("guest@example.com"), false);
 });
+
+test("redacts complete redirect URLs and bare multi-level hostnames", async () => {
+  process.env.GROQ_API_KEY = "test-groq-key";
+  let requestBody: any;
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
+      themes: [],
+      overallSummary: "There is not enough detail to identify a clear theme.",
+      priority: "Collect more feedback before taking action.",
+    }) } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+
+  await analyzeGuestFeedbackThemes([{
+    rating: 4,
+    message: "Visit https://redirect.example.net/path/www.example.com/after.evil or sub.example.co.uk/path?next=evil.com",
+  }]);
+
+  const sent = JSON.parse(requestBody.messages[1].content).feedback[0].message;
+  assert.equal(sent.includes("redirect.example.net"), false);
+  assert.equal(sent.includes("www.example.com"), false);
+  assert.equal(sent.includes("sub.example.co.uk"), false);
+  assert.equal(sent.includes("evil.com"), false);
+  assert.equal((sent.match(/\\[link\\]/g) ?? []).length, 2);
+});
