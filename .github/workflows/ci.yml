@@ -2,7 +2,7 @@ name: MERIT CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, integration/batch-2-platform-guest-security]
   pull_request:
     branches: [main, integration/batch-1-security-foundation]
   workflow_dispatch:

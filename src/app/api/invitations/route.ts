@@ -5,6 +5,8 @@ import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
 import { can, roles, type Role } from "@/lib/domain";
 import { writeAuditLog } from "@/lib/audit";
+import { sendEmail } from "@/lib/email";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const schema = z.object({
   workspaceId: z.string().min(1),
@@ -14,6 +16,9 @@ const schema = z.object({
 
 function hash(value: string) {
   return createHash("sha256").update(value).digest("hex");
+}
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] || character);
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -40,24 +45,49 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const token = randomBytes(32).toString("base64url");
-  const invitation = await prisma.invitation.create({
-    data: {
-      workspaceId: parsed.data.workspaceId,
-      email: parsed.data.email,
-      role: parsed.data.role.toUpperCase() as never,
-      tokenHash: hash(token),
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
-      invitedByUserId: session.user.id,
-    },
-    select: { id: true, email: true, role: true, expiresAt: true },
-  });
+  let invitation;
+  try {
+    invitation = await withWorkspacePermission(
+      parsed.data.workspaceId,
+      session.user.id,
+      "members:manage",
+      (tx) => tx.invitation.create({
+        data: {
+          workspaceId: parsed.data.workspaceId,
+          email: parsed.data.email,
+          role: parsed.data.role.toUpperCase() as never,
+          tokenHash: hash(token),
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 72),
+          invitedByUserId: session.user.id,
+        },
+        select: { id: true, email: true, role: true, expiresAt: true },
+      }),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
 
-  await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "INVITATION_CREATED", targetType: "INVITATION", targetId: invitation.id, metadata: { role: parsed.data.role }, request });
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    await prisma.invitation.deleteMany({ where: { id: invitation.id, workspaceId: parsed.data.workspaceId } });
+    return NextResponse.json({ error: "Invitation delivery is unavailable because the application URL is not configured." }, { status: 503 });
+  }
+  const acceptUrl = appUrl.replace(/\/$/, "") + "/invite/" + token;
+  try {
+    await sendEmail({
+      to: invitation.email,
+      subject: "You're invited to join a MERIT workspace",
+      html: `<div style="font-family:Arial,sans-serif;color:#173b2f;line-height:1.6"><h2>You're invited to MERIT</h2><p>You have been invited to join a business workspace as <strong>${escapeHtml(parsed.data.role)}</strong>.</p><p><a href="${escapeHtml(acceptUrl)}" style="display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px">Accept invitation</a></p><p>This invitation expires in 72 hours. If you were not expecting it, you can ignore this email.</p></div>`,
+      idempotencyKey: "merit-invitation-" + invitation.id,
+    });
+  } catch {
+    await prisma.invitation.delete({ where: { id: invitation.id } });
+    return NextResponse.json({ error: "Invitation email could not be delivered. No active invitation was left behind." }, { status: 502 });
+  }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  return NextResponse.json({
-    invitation,
-    acceptUrl: appUrl + "/invite/" + token,
-    warning: "Invitation delivery is not wired yet; the accept URL is returned for development.",
-  }, { status: 201 });
+  await writeAuditLog({ workspaceId: parsed.data.workspaceId, actorUserId: session.user.id, action: "INVITATION_CREATED", targetType: "INVITATION", targetId: invitation.id, metadata: { role: parsed.data.role, delivery: "email" }, request });
+  return NextResponse.json({ invitation, delivered: true }, { status: 201 });
 }

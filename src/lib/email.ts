@@ -6,7 +6,7 @@ type SendEmailInput = {
 };
 
 export async function sendEmail(input: SendEmailInput) {
-  const apiKey = process.env.EMAIL_PROVIDER_API_KEY;
+  const apiKey = process.env.RESEND_API_KEY || process.env.EMAIL_PROVIDER_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) throw new Error("Email provider is not configured");
 
@@ -36,6 +36,26 @@ function escapeHtml(value: string): string {
     };
     return entities[character];
   });
+}
+
+function safeEmailUrl(value: string): string {
+  return escapeHtml(value);
+}
+
+export function verificationEmailHtml(url: string) {
+  return "<div style=\"font-family:Arial,sans-serif;color:#173b2f;line-height:1.6\">" +
+    "<h2>Verify your email</h2>" +
+    "<p>Confirm your email address to finish setting up your MERIT account.</p>" +
+    "<p><a href=\"" + safeEmailUrl(url) + "\" style=\"display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px\">Verify email address</a></p>" +
+    "<p>If you did not create this account, you can ignore this message.</p></div>";
+}
+
+export function passwordResetEmailHtml(url: string) {
+  return "<div style=\"font-family:Arial,sans-serif;color:#173b2f;line-height:1.6\">" +
+    "<h2>Reset your MERIT password</h2>" +
+    "<p>We received a request to reset the password for your MERIT account.</p>" +
+    "<p><a href=\"" + safeEmailUrl(url) + "\" style=\"display:inline-block;padding:12px 18px;background:#173b2f;color:#fff;text-decoration:none;border-radius:8px\">Reset password</a></p>" +
+    "<p>This link expires after one hour. If you did not request a password reset, you can ignore this email. Your password will not change unless the link is used.</p></div>";
 }
 
 export function feedbackEmailHtml(args: {
