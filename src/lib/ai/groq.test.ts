@@ -120,9 +120,7 @@ test("redacts www and mailto links before sending comments externally", async ()
 
   await analyzeGuestFeedbackThemes([{ rating: 4, message: "See www.example.com or mailto:guest@example.com for details." }]);
   const sent = JSON.parse(requestBody.messages[1].content).feedback[0].message;
-  assert.equal(sent.includes("www.example.com"), false);
-  assert.equal(sent.includes("mailto:"), false);
-  assert.equal(sent.includes("guest@example.com"), false);
+  assert.equal(sent, "See [link] or [link] for details.");
 });
 
 test("redacts complete redirect URLs and bare multi-level hostnames", async () => {
@@ -143,9 +141,5 @@ test("redacts complete redirect URLs and bare multi-level hostnames", async () =
   }]);
 
   const sent = JSON.parse(requestBody.messages[1].content).feedback[0].message;
-  assert.equal(sent.includes("redirect.example.net"), false);
-  assert.equal(sent.includes("www.example.com"), false);
-  assert.equal(sent.includes("sub.example.co.uk"), false);
-  assert.equal(sent.includes("evil.com"), false);
-  assert.equal((sent.match(/\\[link\\]/g) ?? []).length, 2);
+  assert.equal(sent, "Visit [link] or [link]");
 });
