@@ -57,6 +57,17 @@ Create one new additive migration after PR #3's current latest migration. It mus
 - Run tenant integrity tests, TypeScript and production build.
 - Review the exact PR #3 diff and CI results before proposing merge readiness.
 
-## Current state
+## Current state (updated for Batch 2)
 
-This branch is intentionally a clean integration branch. The migration and application modules have not yet been ported. Founder bootstrap remains unavailable until the email-verification and MFA prerequisites are tested end to end.
+The platform-access schema, migration, application modules, MFA surfaces, bootstrap route, operator controls, support-access governance and related tests are now selectively integrated in Batch 2 PR #15, based on the validated Batch 1 security foundation. This supersedes the earlier pre-port status above.
+
+The designated initial Founder account is configured through `FOUNDER_BOOTSTRAP_EMAIL`; the repository's `.env.example` sets this to `osagieuduebor6@gmail.com`. This selects the eligible account only. It does **not** mark the user's Better Auth email as verified or create the account. The mailbox must be verified through the normal email-verification link.
+
+Founder bootstrap remains unavailable until all of the following are complete:
+- A real account exists for the designated email and its email is verified.
+- A verified sender domain and successful end-to-end verification-email delivery/callback are confirmed.
+- Authenticator MFA is enrolled, followed by a fresh sign-in with the authenticator code.
+- A unique one-time `FOUNDER_BOOTSTRAP_SECRET` of at least 32 bytes is configured securely for the ceremony.
+- The bootstrap procedure is rehearsed and explicitly authorized.
+
+Email verification remains disabled by default. Do not enable it until sender verification and delivery have been tested. Do not bypass the email verification, MFA, freshness, origin, or one-time-secret checks. No Founder bootstrap has been executed.
