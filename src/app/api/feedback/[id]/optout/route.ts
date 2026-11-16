@@ -12,6 +12,12 @@ function escapeHtml(value: string) {
   })[character] || character);
 }
 
+/**
+ * The submitted value is an untrusted capability, not an authorization flag:
+ * it is accepted only after verifyFeedbackToken checks its HMAC, feedback ID,
+ * expiry, and signing-key rotation window. Keep this cryptographic verification
+ * in the authorization path; never replace it with a truthiness or format check.
+ */
 function validToken(id: string, token: unknown, sentAt?: Date | null): token is string {
   return typeof token === "string" && token.length <= 512 && verifyFeedbackToken(id, token, sentAt);
 }
