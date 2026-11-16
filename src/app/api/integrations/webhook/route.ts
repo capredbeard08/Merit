@@ -105,7 +105,9 @@ export async function DELETE(request: Request): Promise<Response> {
   const membership = await prisma.member.findUnique({
     where: { workspaceId_userId: { workspaceId: endpoint.workspaceId, userId: session.user.id } },
   });
-  if (!membership || !can(membership.role.toLowerCase() as Role, "integrations:manage")) {
+  // Do not reveal whether a webhook exists outside the caller's workspace.
+  if (!membership) return NextResponse.json({ error: "Webhook endpoint not found" }, { status: 404 });
+  if (!can(membership.role.toLowerCase() as Role, "integrations:manage")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

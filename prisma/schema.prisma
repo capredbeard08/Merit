@@ -15,6 +15,33 @@ enum Role {
   VIEWER
 }
 
+enum PlatformAccessRole {
+  FOUNDER_SUPER_ADMIN
+  PLATFORM_ADMIN
+  ENGINEER
+}
+
+enum SupportAccessScope {
+  CUSTOMER_RECORDS_READ
+  FEEDBACK_READ
+  FEEDBACK_REPLIES_READ
+  FILE_ASSETS_READ
+}
+
+enum SupportAccessStatus {
+  PENDING
+  APPROVED
+  DENIED
+  REVOKED
+  EXPIRED
+}
+
+enum GuestQrCodeStatus {
+  ACTIVE
+  PAUSED
+  REVOKED
+}
+
 enum FeedbackStatus {
   PENDING
   CONTACTED
@@ -31,6 +58,8 @@ model Workspace {
   updatedAt DateTime  @updatedAt
   members   Member[]
   branches  Branch[]
+  guestQrCodes GuestQrCode[]
+  guestFeedback GuestFeedback[]
   customers Customer[]
   feedback  Feedback[]
   events    ServiceEvent[]
@@ -41,6 +70,7 @@ model Workspace {
   insights Insight[]
   auditLogs AuditLog[]
   files FileAsset[]
+  supportAccessRequests SupportAccessRequest[]
   feedbackNotes FeedbackNote[]
 }
 
@@ -64,6 +94,7 @@ model Branch {
   workspaceId String
   name        String
   externalId  String?
+  googleReviewUrl String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   archivedAt  DateTime?
@@ -73,9 +104,55 @@ model Branch {
   feedback    Feedback[]
   events      ServiceEvent[]
   webhooks    WebhookEndpoint[]
+  guestQrCodes GuestQrCode[]
+  guestFeedback GuestFeedback[]
   @@unique([workspaceId, externalId])
+  @@unique([workspaceId, id])
   @@index([workspaceId])
   @@index([workspaceId, archivedAt])
+}
+
+
+/// Permanent, public-facing QR identity for one workspace branch.
+/// The publicId is a random locator, not an authentication credential.
+model GuestQrCode {
+  id          String            @id @default(cuid())
+  workspaceId String
+  branchId    String
+  publicId    String            @unique
+  label       String?
+  status      GuestQrCodeStatus @default(ACTIVE)
+  lastUsedAt  DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch      Branch            @relation(fields: [workspaceId, branchId], references: [workspaceId, id], onDelete: Cascade)
+  feedback    GuestFeedback[]
+  @@unique([workspaceId, branchId, id])
+  @@index([workspaceId, status, createdAt])
+  @@index([branchId, status])
+}
+
+/// Anonymous feedback collected through a permanent guest QR page.
+model GuestFeedback {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  branchId          String
+  qrCodeId          String
+  rating            FeedbackRating
+  message           String?        @db.VarChar(2000)
+  answers           Json?
+  submissionKeyHash String?        @unique
+  source            String         @default("PERMANENT_QR")
+  submittedAt       DateTime       @default(now())
+  createdAt         DateTime       @default(now())
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch            Branch         @relation(fields: [workspaceId, branchId], references: [workspaceId, id], onDelete: Cascade)
+  qrCode            GuestQrCode    @relation(fields: [workspaceId, branchId, qrCodeId], references: [workspaceId, branchId, id], onDelete: Cascade)
+  @@index([workspaceId, submittedAt])
+  @@index([branchId, submittedAt])
+  @@index([qrCodeId, submittedAt])
+  @@index([workspaceId, rating, submittedAt])
 }
 
 model Customer {
@@ -217,6 +294,14 @@ model User {
   accounts      Account[]
   members       Member[]
   authoredFeedbackNotes FeedbackNote[]
+  twoFactorEnabled Boolean @default(false)
+  twoFactorEnabledAt DateTime?
+  twoFactor TwoFactor?
+  platformAccess PlatformAccess? @relation("PlatformAccessSubject")
+  platformAccessGrants PlatformAccess[] @relation("PlatformAccessGrantor")
+  supportAccessRequestsMade SupportAccessRequest[] @relation("SupportAccessRequester")
+  supportAccessDecisions SupportAccessRequest[] @relation("SupportAccessDecider")
+  supportAccessRevocations SupportAccessRequest[] @relation("SupportAccessRevoker")
 }
 
 model Session {
@@ -366,4 +451,317 @@ model SecurityEvent {
   @@index([workspaceId, createdAt])
   @@index([severity, createdAt])
   @@index([type, createdAt])
+}
+
+
+model TwoFactor {
+  id                     String   @id
+  userId                 String   @unique
+  secret                 String
+  backupCodes            String
+  verified               Boolean  @default(false)
+  failedVerificationCount Int     @default(0)
+  lockedUntil            DateTime?
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PlatformAccess {
+  id              String             @id @default(cuid())
+  userId          String             @unique
+  role            PlatformAccessRole
+  grantedByUserId String?
+  revokedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation("PlatformAccessSubject", fields: [userId], references: [id], onDelete: Restrict)
+  grantedBy       User?              @relation("PlatformAccessGrantor", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  @@index([role, revokedAt])
+}
+
+model SupportAccessRequest {
+  id                       String              @id @default(cuid())
+  workspaceId              String
+  requestedByUserId        String
+  decidedByUserId          String?
+  revokedByUserId          String?
+  scope                    SupportAccessScope
+  status                   SupportAccessStatus @default(PENDING)
+  reason                   String              @db.VarChar(500)
+  requestedDurationMinutes Int
+  requestExpiresAt         DateTime
+  decidedAt                DateTime?
+  expiresAt                DateTime?
+  revokedAt                DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  workspace                Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  requestedBy              User                @relation("SupportAccessRequester", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  decidedBy                User?               @relation("SupportAccessDecider", fields: [decidedByUserId], references: [id], onDelete: SetNull)
+  revokedBy                User?               @relation("SupportAccessRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  @@index([workspaceId, status, createdAt])
+  @@index([requestedByUserId, status, createdAt])
+  @@index([status, requestExpiresAt])
+  @@index([status, expiresAt])
+}
+
+model RateLimitBucket {
+  id              String   @id
+  key             String   @unique
+  windowStartedAt DateTime
+  count           Int
+  expiresAt       DateTime
+  @@index([expiresAt])
+}
+
+enum SecurityIncidentStatus {
+  OPEN
+  TRIAGED
+  INVESTIGATING
+  CONTAINED
+  AWAITING_APPROVAL
+  RESOLVED
+  FALSE_POSITIVE
+  CLOSED
+}
+
+enum SecuritySeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SecurityHunterType {
+  CODE
+  BEHAVIOUR
+  DEPENDENCY
+  ACCESS
+  DATA
+  NETWORK
+  INTEGRITY
+}
+
+enum SecurityHunterRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  INCONCLUSIVE
+  CANCELLED
+}
+
+enum SecurityArtifactState {
+  QUARANTINED
+  ANALYSIS_APPROVED
+  DISPOSAL_PENDING
+  DISPOSED
+  RESTORED
+  RETAINED
+}
+
+enum SecurityScannerVerdict {
+  UNKNOWN
+  CLEAN
+  MALICIOUS
+  ERROR
+  TIMEOUT
+}
+
+enum SecurityApprovalStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+  CONSUMED
+  REVOKED
+}
+
+enum SecurityActionType {
+  STATIC_ANALYSIS
+  SAFE_UNPACK
+  DEOBFUSCATE
+  QUARANTINE
+  RESTORE
+  DISPOSE
+}
+
+enum SecurityActionStatus {
+  REQUESTED
+  APPROVED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  ROLLED_BACK
+}
+
+enum SecurityCorrelationType {
+  SHARED_HASH
+  SHARED_INDICATOR
+  SHARED_DEPENDENCY
+  SHARED_PATH
+  TEMPORAL
+  RELATED_EVENT
+}
+
+model SecurityIncident {
+  id          String                 @id @default(cuid())
+  workspaceId String?
+  status      SecurityIncidentStatus @default(OPEN)
+  severity    SecuritySeverityLevel
+  confidence  Int
+  source      String
+  fingerprint String?
+  summary     String                 @db.VarChar(500)
+  firstSeenAt DateTime               @default(now())
+  lastSeenAt  DateTime               @default(now())
+  resolvedAt  DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  findings    SecurityFinding[]
+  artifacts   SecurityArtifact[]
+  approvals   SecurityApproval[]
+  actions     SecurityAction[]
+  hunterRuns  SecurityHunterRun[]
+  correlations SecurityCorrelation[]
+  @@index([status, severity, lastSeenAt])
+  @@index([workspaceId, createdAt])
+  @@index([fingerprint, lastSeenAt])
+}
+
+model SecurityFinding {
+  id               String                 @id @default(cuid())
+  incidentId       String
+  hunterType       SecurityHunterType
+  detector         String
+  ruleVersion      String?
+  artifactId       String?
+  filePath         String?
+  lineStart        Int?
+  lineEnd          Int?
+  sha256           String?
+  evidenceMetadata Json?
+  rationale        String                 @db.VarChar(2000)
+  confidence       Int
+  severity         SecuritySeverityLevel
+  createdAt        DateTime               @default(now())
+  incident         SecurityIncident       @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  artifact         SecurityArtifact?      @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  correlationsLeft SecurityCorrelation[]  @relation("SecurityCorrelationLeft")
+  correlationsRight SecurityCorrelation[] @relation("SecurityCorrelationRight")
+  @@index([incidentId, createdAt])
+  @@index([hunterType, severity, createdAt])
+  @@index([sha256])
+}
+
+model SecurityArtifact {
+  id                String               @id @default(cuid())
+  incidentId        String?
+  originalObjectRef String               @unique
+  sha256            String
+  sizeBytes         BigInt
+  contentType       String?
+  storageState      SecurityArtifactState @default(QUARANTINED)
+  scannerVerdict    SecurityScannerVerdict @default(UNKNOWN)
+  scannerName       String?
+  scannerVersion    String?
+  scannedAt         DateTime?
+  quarantineReason  String?              @db.VarChar(1000)
+  chainOfCustody    Json?
+  retainedUntil     DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  incident          SecurityIncident?    @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  findings          SecurityFinding[]
+  approvals         SecurityApproval[]
+  actions           SecurityAction[]
+  @@index([storageState, createdAt])
+  @@index([sha256])
+  @@index([retainedUntil])
+}
+
+model SecurityApproval {
+  id            String                @id @default(cuid())
+  incidentId    String
+  artifactId    String?
+  actionType    SecurityActionType
+  status        SecurityApprovalStatus @default(PENDING)
+  requestedById String
+  approvedById  String?
+  artifactHash  String?
+  actionScope   Json
+  scopeHash     String
+  reason        String                @db.VarChar(1000)
+  nonceHash     String                @unique
+  expiresAt     DateTime
+  approvedAt    DateTime?
+  consumedAt    DateTime?
+  createdAt     DateTime              @default(now())
+  incident      SecurityIncident      @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  artifact      SecurityArtifact?     @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  actions       SecurityAction[]
+  @@index([status, expiresAt])
+  @@index([incidentId, createdAt])
+  @@index([approvedById, approvedAt])
+}
+
+model SecurityAction {
+  id             String               @id @default(cuid())
+  incidentId     String
+  artifactId     String?
+  approvalId     String?
+  actionType     SecurityActionType
+  status         SecurityActionStatus @default(REQUESTED)
+  actorUserId    String?
+  operationHash  String?
+  resultMetadata Json?
+  rollbackRef    String?
+  failureCode    String?
+  createdAt      DateTime             @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  incident       SecurityIncident     @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  artifact       SecurityArtifact?    @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  approval       SecurityApproval?   @relation(fields: [approvalId], references: [id], onDelete: Restrict)
+  @@index([incidentId, createdAt])
+  @@index([artifactId, createdAt])
+  @@index([status, createdAt])
+}
+
+model SecurityHunterRun {
+  id           String                 @id @default(cuid())
+  incidentId   String?
+  hunterType   SecurityHunterType
+  engine       String
+  engineVersion String?
+  scopeMetadata Json?
+  status       SecurityHunterRunStatus @default(QUEUED)
+  summary      String?                @db.VarChar(2000)
+  attemptCount Int                    @default(0)
+  leaseTokenHash String?
+  leaseExpiresAt DateTime?
+  lastHeartbeatAt DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime               @default(now())
+  incident     SecurityIncident?      @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  @@index([status, createdAt])
+  @@index([status, leaseExpiresAt])
+  @@index([hunterType, createdAt])
+  @@index([incidentId, createdAt])
+}
+
+model SecurityCorrelation {
+  id             String                @id @default(cuid())
+  incidentId     String
+  leftFindingId  String
+  rightFindingId String
+  relation       SecurityCorrelationType
+  confidence     Int
+  rationale      String                @db.VarChar(1000)
+  createdAt      DateTime              @default(now())
+  incident       SecurityIncident     @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  leftFinding    SecurityFinding      @relation("SecurityCorrelationLeft", fields: [leftFindingId], references: [id], onDelete: Restrict)
+  rightFinding   SecurityFinding      @relation("SecurityCorrelationRight", fields: [rightFindingId], references: [id], onDelete: Restrict)
+  @@unique([leftFindingId, rightFindingId, relation])
+  @@index([incidentId, createdAt])
 }
