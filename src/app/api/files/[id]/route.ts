@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { withWorkspacePermission } from "@/lib/workspace-access";
 import { sanitizeSecurityMetadata } from "@/lib/security-warden";
+import { isDownloadableFileStatus } from "@/lib/file-security";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }): Promise<Response> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -15,7 +16,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: file.workspaceId, userId: session.user.id } } });
   if (!member) return NextResponse.json({ error: "File not found" }, { status: 404 });
   if (!can(member.role.toLowerCase() as Role, "feedback:read")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  if (file.status === "QUARANTINED") return NextResponse.json({ error: "This file is unavailable until its safety workflow is complete." }, { status: 423 });
+  if (!isDownloadableFileStatus(file.status)) return NextResponse.json({ error: "This file is unavailable until its safety workflow is complete." }, { status: 423 });
   const blob = await get(file.pathname, { access: "private" });
   if (!blob || blob.statusCode !== 200) return NextResponse.json({ error: "Stored file not found" }, { status: 404 });
   return new Response(blob.stream, { headers: {
