@@ -1,11 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES } from "./file-security";
+import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, isDownloadableFileStatus } from "./file-security";
 
 test("blocks executable and script uploads", () => {
   assert.equal(allowedFileName("installer.exe"), false);
   assert.equal(allowedFileName("report.pdf.exe"), false);
   assert.equal(allowedFileName("script.sh"), false);
+});
+
+test("only explicitly available files can be downloaded", () => {
+  assert.equal(isDownloadableFileStatus("AVAILABLE"), true);
+  for (const status of ["QUARANTINED", "DELETED", "PROCESSING", "UNKNOWN", ""]) {
+    assert.equal(isDownloadableFileStatus(status), false);
+  }
 });
 
 test("allows supported document and media formats", () => {
