@@ -9,21 +9,31 @@ import Intelligence from "./intelligence";
 import MeritMark from "@/components/MeritMark";
 import FileLibrary from "./files";
 import SecurityCenter from "./security-center";
+import ClickTrend from "./click-trend";
+import SignOutButton from "@/components/SignOutButton";
 import { can, type Role } from "@/lib/domain";
+import { resolveWorkspaceMembership } from "@/lib/workspace-access";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ workspaceId?: string }> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/auth");
 
-  const membership = await prisma.member.findFirst({
+  const { workspaceId: requestedWorkspaceId } = await searchParams;
+  const memberships = await prisma.member.findMany({
     where: { userId: session.user.id },
     include: { workspace: true },
     orderBy: { createdAt: "asc" },
   });
-  if (!membership) redirect("/auth");
+  if (memberships.length === 0) redirect("/auth");
+
+  // A requested workspace is usable only when the signed-in user is a member.
+  const membership = resolveWorkspaceMembership(memberships, requestedWorkspaceId);
+  if (!membership) redirect("/dashboard");
 
   const workspaceId = membership.workspaceId;
-  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, members, insights, replies] = await Promise.all([
+  const canManageBranches = can(membership.role.toLowerCase() as Role, "branches:manage");
+  const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
+  const [feedbackCount, sentCount, pendingCount, repliedCount, recentFeedback, branches, archivedBranches, members, insights, replies, recentClicks] = await Promise.all([
     prisma.feedback.count({ where: { workspaceId } }),
     prisma.feedback.count({ where: { workspaceId, sentAt: { not: null } } }),
     prisma.feedback.count({ where: { workspaceId, status: "PENDING" } }),
@@ -40,7 +50,8 @@ export default async function DashboardPage() {
         branch: { select: { name: true } },
       },
     }),
-    prisma.branch.findMany({ where: { workspaceId }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
+    prisma.branch.findMany({ where: { workspaceId, archivedAt: null }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }),
+    canManageBranches ? prisma.branch.findMany({ where: { workspaceId, archivedAt: { not: null } }, orderBy: { name: "asc" }, select: { id: true, name: true, externalId: true } }) : Promise.resolve([]),
     prisma.member.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { user: { select: { email: true, name: true } } } }),
     prisma.insight.findMany({ where: { workspaceId }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.feedbackReply.findMany({
@@ -61,7 +72,21 @@ export default async function DashboardPage() {
         },
       },
     }),
+    prisma.feedback.findMany({
+      where: { workspaceId, clickedAt: { gte: eightWeeksAgo } },
+      select: { clickedAt: true },
+    }),
   ]);
+  const clickTrend = Array.from({ length: 8 }, (_, index) => {
+    const start = new Date(eightWeeksAgo);
+    start.setDate(start.getDate() + index * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return {
+      label: start.toLocaleDateString("en", { month: "short", day: "numeric" }),
+      clicks: recentClicks.filter((item) => item.clickedAt && item.clickedAt >= start && item.clickedAt < end).length,
+    };
+  });
 
   const metrics = [
     { label: "Feedback requests", value: feedbackCount, note: "Created in this workspace", mark: "01" },
@@ -71,30 +96,84 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f7f4ec] px-4 py-6 text-[#17211c] sm:px-6 sm:py-8 lg:px-10">
-      <div className="mx-auto max-w-[1400px]">
+    <main className="min-h-screen bg-[#f7f4ec] text-[#17211c]">
+      <div className="mx-auto flex min-h-screen max-w-[1600px]">
+        <aside className="hidden w-[260px] shrink-0 border-r border-[#dfe4df] bg-[#f2efe6] px-5 py-7 lg:flex lg:flex-col">
+          <a href="#overview" aria-label="MERIT dashboard home" className="merit-brand mb-9">
+            <MeritMark size={40} />
+            <span className="merit-brand-name">MERIT</span>
+          </a>
+          <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#87938a]">Workspace</p>
+          <nav aria-label="Dashboard navigation" className="space-y-1">
+            {[
+              ["overview", "Overview", "⌂"],
+              ["action-inbox", "Action inbox", "↳"],
+              ["intelligence", "Feedback intelligence", "⌁"],
+              ["branches", "Branches", "▦"],
+              ["files", "Files & documents", "▤"],
+              ["team", "Team access", "♙"],
+              ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security Warden", "◇"]] : []),
+            ].map(([id, label, mark]) => (
+              <a key={id} href={`#${id}`} className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-[#52665a] transition hover:bg-white hover:text-[#123c2d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#315b49]">
+                <span aria-hidden="true" className="w-5 text-center text-base text-[#718178]">{mark}</span>
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-auto rounded-2xl border border-[#dfe4df] bg-white/70 p-4">
+            {memberships.length > 1 ? (
+              <form action="/dashboard" method="get" className="mb-4 space-y-2">
+                <label htmlFor="workspace-switcher" className="block text-xs font-semibold text-[#52665a]">Switch workspace</label>
+                <select id="workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="w-full rounded-lg border border-[#dfe4df] bg-white px-2 py-2 text-sm text-[#173b2f]">
+                  {memberships.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspace.name}</option>)}
+                </select>
+                <button type="submit" className="w-full rounded-lg bg-[#123c2d] px-3 py-2 text-xs font-semibold text-[#f7f4ec] hover:bg-[#1b513b]">Switch workspace</button>
+              </form>
+            ) : null}
+            <p className="text-xs font-semibold text-[#173b2f]">Your workspace</p>
+            <p className="mt-1 truncate text-sm text-[#718178]">{membership.workspace.name}</p>
+            <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-[#87938a]">{membership.role.toLowerCase()}</p>
+          </div>
+        </aside>
+        <div className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-9">
+          {memberships.length > 1 ? (
+            <form action="/dashboard" method="get" className="mb-4 flex items-center gap-2 lg:hidden">
+              <label htmlFor="mobile-workspace-switcher" className="shrink-0 text-xs font-semibold text-[#52665a]">Workspace</label>
+              <select id="mobile-workspace-switcher" name="workspaceId" defaultValue={membership.workspaceId} className="min-w-0 flex-1 rounded-lg border border-[#dfe4df] bg-white px-3 py-2 text-sm text-[#173b2f]">
+                {memberships.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspace.name}</option>)}
+              </select>
+              <button type="submit" className="rounded-lg bg-[#123c2d] px-3 py-2 text-xs font-semibold text-[#f7f4ec]">Go</button>
+            </form>
+          ) : null}
+          <div className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden" aria-label="Dashboard navigation">
+            {[
+              ["overview", "Overview"], ["action-inbox", "Inbox"], ["intelligence", "Insights"],
+              ["branches", "Branches"], ["files", "Files"], ["team", "Team"],
+              ...(can(membership.role.toLowerCase() as Role, "security:read") ? [["security-center", "Security"]] : []),
+            ].map(([id, label]) => <a key={id} href={`#${id}`} className="shrink-0 rounded-full border border-[#dfe4df] bg-white/75 px-4 py-2 text-xs font-semibold text-[#315b49]">{label}</a>)}
+          </div>
+          <div className="mx-auto max-w-[1200px]">
         <header className="flex flex-col gap-5 border-b border-[#dfe4df] pb-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <a href="/dashboard" aria-label="MERIT dashboard home" className="merit-brand">
-              <MeritMark size={40} />
-              <span className="merit-brand-name">MERIT</span>
-            </a>
             <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#718178]">Workspace overview</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">{membership.workspace.name}</h1>
             <p className="mt-2 text-sm text-[#69756e]">A clear view of customer experience and the work that follows.</p>
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
-              {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-[#718178]">Signed in as</p>
-              <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-[#dfe4df] bg-white/65 px-4 py-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e7eee9] text-sm font-semibold text-[#315b49]">
+                {(session.user.name || session.user.email || "M").slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-[#718178]">Signed in as</p>
+                <p className="max-w-[240px] truncate text-sm font-medium text-[#173b2f]">{session.user.name || session.user.email}</p>
+              </div>
             </div>
+            <SignOutButton />
           </div>
         </header>
 
-        <section aria-label="Workspace metrics" className="grid gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
+        <section id="overview" aria-label="Workspace metrics" className="grid scroll-mt-6 gap-4 py-7 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <article key={metric.label} className="rounded-2xl border border-[#dfe4df] bg-white/75 p-5 transition-colors hover:bg-white">
               <div className="flex items-center justify-between gap-3">
@@ -107,7 +186,24 @@ export default async function DashboardPage() {
           ))}
         </section>
 
-        <section id="action-inbox" className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
+        <section className="mb-7 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+          <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Review-link clicks</h2>
+                <p className="mt-1 text-sm text-[#69756e]">Recorded clicks over the last eight weeks</p>
+              </div>
+              <span className="rounded-full bg-[#e2f1eb] px-3 py-1.5 text-xs font-semibold text-[#075b46]">{recentClicks.length} tracked</span>
+            </div>
+            <ClickTrend points={clickTrend} />
+          </div>
+          <div className="rounded-3xl border border-[#dfe4df] bg-[#eff7f3] p-5 sm:p-7">
+            <h2 className="text-lg font-semibold">What this measures</h2>
+            <p className="mt-2 text-sm leading-6 text-[#53645d]">MERIT records clicks on feedback review links within this workspace. These are operational engagement metrics, not independently verified public reviews.</p>
+          </div>
+        </section>
+
+        <section id="action-inbox" className="scroll-mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,0.8fr)]">
           <div className="rounded-3xl border border-[#dfe4df] bg-white/80 p-5 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -145,13 +241,14 @@ export default async function DashboardPage() {
           </aside>
         </section>
 
-        <section id="intelligence" className="mt-7">
+        <section id="intelligence" className="mt-7 scroll-mt-6">
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Understand the signal</p>
             <h2 className="mt-1 text-2xl font-semibold tracking-tight">Feedback intelligence</h2>
             <p className="mt-1 text-sm text-[#69756e]">Recent replies and emerging themes from this workspace.</p>
           </div>
           <Intelligence
+            workspaceId={workspaceId}
             initialInsights={insights.map((item) => ({ ...item, createdAt: item.createdAt.toISOString() }))}
             initialReplies={replies.map((item) => ({
               ...item,
@@ -171,9 +268,9 @@ export default async function DashboardPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#557565]">Workspace management</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight">Your workspace, organised</h2>
           <p className="mt-1 text-sm text-[#69756e]">Manage locations, authorised team members, and supporting files.</p>
-          <div id="branches" className="mt-5"><BranchManager workspaceId={workspaceId} initialBranches={branches} /></div>
-          <div id="files" className="mt-5"><FileLibrary workspaceId={workspaceId} /></div>
-          <div id="team" className="mt-5">
+          <div id="branches" className="mt-5 scroll-mt-6"><BranchManager workspaceId={workspaceId} initialBranches={branches} initialArchivedBranches={archivedBranches} canManage={canManageBranches} /></div>
+          <div id="files" className="mt-5 scroll-mt-6"><FileLibrary workspaceId={workspaceId} canManage={can(membership.role.toLowerCase() as Role, "files:manage")} canRecover={can(membership.role.toLowerCase() as Role, "files:recover")} canPlaceHold={["OWNER", "ADMIN"].includes(membership.role)} canReleaseHold={membership.role === "OWNER"} /></div>
+          <div id="team" className="mt-5 scroll-mt-6">
             <MemberManager
               workspaceId={workspaceId}
               initialMembers={members.map((member) => ({ id: member.id, role: member.role, user: member.user }))}
@@ -181,12 +278,14 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {can(membership.role.toLowerCase() as Role, "workspace:manage") ? <SecurityCenter workspaceId={workspaceId} /> : null}
+        {can(membership.role.toLowerCase() as Role, "security:read") ? <div id="security-center" className="scroll-mt-6"><SecurityCenter workspaceId={workspaceId} /></div> : null}
 
         <footer className="mt-10 flex flex-col gap-2 border-t border-[#dfe4df] pt-5 text-xs text-[#7b887f] sm:flex-row sm:items-center sm:justify-between">
           <span>MERIT · Customer intelligence, quietly automated.</span>
           <span>Workspace data is shown within your authorised membership.</span>
         </footer>
+          </div>
+        </div>
       </div>
     </main>
   );

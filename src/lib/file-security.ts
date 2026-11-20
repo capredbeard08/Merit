@@ -47,3 +47,7 @@ export function contentTypeForName(name: string): string {
   };
   return (ext && types[ext]) || "application/octet-stream";
 }
+
+export function isDownloadableFileStatus(status: string): boolean {
+  return status === "AVAILABLE";
+}

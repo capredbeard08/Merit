@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/better-auth";
 import { prisma } from "@/lib/prisma";
-import { headers } from "next/headers";
 import { can, type Role } from "@/lib/domain";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 const themes: Record<string, string[]> = {
   service: ["service", "staff", "team", "employee", "helpful", "rude"],
@@ -17,13 +17,15 @@ type ReplyForInsight = {
   createdAt: Date;
 };
 
-export async function POST(): Promise<Response> {
-  const session = await auth.api.getSession({ headers: await headers() });
+export async function POST(request: Request): Promise<Response> {
+  const session = await auth.api.getSession({ headers: request.headers });
   if (!session?.user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const membership = await prisma.member.findFirst({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
+  const body = await request.json().catch(() => null) as { workspaceId?: unknown } | null;
+  const workspaceId = typeof body?.workspaceId === "string" ? body.workspaceId : "";
+  if (!workspaceId || workspaceId.length > 128) return NextResponse.json({ error: "A valid workspaceId is required" }, { status: 400 });
+  const membership = await prisma.member.findUnique({
+    where: { workspaceId_userId: { workspaceId, userId: session.user.id } },
   });
   if (!membership) return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
   if (!can(membership.role.toLowerCase() as Role, "ai:use")) {
@@ -57,15 +59,26 @@ export async function POST(): Promise<Response> {
     ? "Average customer rating is " + average.toFixed(1) + "/5 across " + rated.length + " rated responses."
     : "Customers have submitted " + replies.length + " written responses.";
 
-  const insight = await prisma.insight.create({
-    data: {
-      workspaceId: membership.workspaceId,
-      kind: "FEEDBACK_SUMMARY",
-      title: "Latest customer signal",
-      summary,
-      evidence: { responseCount: replies.length, averageRating: average, themes: ranked },
-    },
-  });
-
-  return NextResponse.json({ generated: 1, insight });
+  try {
+    const insight = await withWorkspacePermission(
+      workspaceId,
+      session.user.id,
+      "ai:use",
+      (tx) => tx.insight.create({
+        data: {
+          workspaceId: membership.workspaceId,
+          kind: "FEEDBACK_SUMMARY",
+          title: "Latest customer signal",
+          summary,
+          evidence: { responseCount: replies.length, averageRating: average, themes: ranked },
+        },
+      }),
+    );
+    return NextResponse.json({ generated: 1, insight });
+  } catch (error) {
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    throw error;
+  }
 }

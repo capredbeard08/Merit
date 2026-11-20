@@ -16,27 +16,29 @@ jobs:
     name: Create and verify PostgreSQL backup
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment:
+      name: production
     steps:
       - name: Check required secret is present
         env:
-          MERIT_DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          MERIT_PRODUCTION_DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
         run: |
-          if [ -z "$MERIT_DATABASE_URL" ]; then
-            echo "::error::MERIT_DATABASE_URL secret is missing."
+          if [ -z "$MERIT_PRODUCTION_DATABASE_URL" ]; then
+            echo "::error::MERIT_PRODUCTION_DATABASE_URL secret is missing from the protected production environment."
             exit 1
           fi
 
       - name: Create custom-format database dump
         env:
-          MERIT_DATABASE_URL: ${{ secrets.MERIT_DATABASE_URL }}
+          MERIT_PRODUCTION_DATABASE_URL: ${{ secrets.MERIT_PRODUCTION_DATABASE_URL }}
         run: |
           set -euo pipefail
           BACKUP_FILE="merit-postgres-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.dump"
           docker run --rm \
-            --env MERIT_DATABASE_URL \
+            --env MERIT_PRODUCTION_DATABASE_URL \
             --volume "$RUNNER_TEMP:/backup" \
             postgres:17-alpine \
-            sh -ceu 'pg_dump "$MERIT_DATABASE_URL" --format=custom --no-owner --no-acl --file="/backup/'"$BACKUP_FILE"'"'
+            sh -ceu 'pg_dump "$MERIT_PRODUCTION_DATABASE_URL" --format=custom --no-owner --no-acl --file="/backup/'"$BACKUP_FILE"'"'
           test -s "$RUNNER_TEMP/$BACKUP_FILE"
           echo "BACKUP_FILE=$BACKUP_FILE" >> "$GITHUB_ENV"
           echo "Backup file created; connection details are not printed."
@@ -51,10 +53,28 @@ jobs:
           test -s "$RUNNER_TEMP/backup-contents.txt"
           echo "Backup archive is readable by pg_restore."
 
-      - name: Upload backup artifact
+      - name: Encrypt backup before artifact upload
+        env:
+          MERIT_BACKUP_AGE_RECIPIENT: ${{ vars.MERIT_BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MERIT_BACKUP_AGE_RECIPIENT" ]; then
+            echo "::error::Set the repository variable MERIT_BACKUP_AGE_RECIPIENT to an age public recipient before running backups."
+            exit 1
+          fi
+          sudo apt-get update
+          sudo apt-get install --yes age
+          age --recipient "$MERIT_BACKUP_AGE_RECIPIENT" \
+            --output "$RUNNER_TEMP/$BACKUP_FILE.age" \
+            "$RUNNER_TEMP/$BACKUP_FILE"
+          test -s "$RUNNER_TEMP/$BACKUP_FILE.age"
+          rm -f "$RUNNER_TEMP/$BACKUP_FILE"
+          echo "Encrypted backup created; plaintext dump removed from the runner workspace."
+
+      - name: Upload encrypted backup artifact
         uses: actions/upload-artifact@v4
         with:
           name: merit-postgres-backup-${{ github.run_id }}
-          path: ${{ runner.temp }}/merit-postgres-${{ github.run_id }}-${{ github.run_attempt }}.dump
+          path: ${{ runner.temp }}/merit-postgres-${{ github.run_id }}-${{ github.run_attempt }}.dump.age
           if-no-files-found: error
           retention-days: 7

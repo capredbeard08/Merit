@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { can, type Role } from "@/lib/domain";
 import { allowedFileName, contentTypeForName, FILE_ALLOWED_CONTENT_TYPES, FILE_MAX_BYTES, safeOriginalName } from "@/lib/file-security";
 import { recordSecurityEvent } from "@/lib/security-warden";
+import { withWorkspacePermission } from "@/lib/workspace-access";
 
 export const runtime = "nodejs";
 
@@ -39,26 +40,44 @@ export async function POST(request: Request): Promise<Response> {
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         const payload = JSON.parse(tokenPayload || "{}") as { workspaceId?: string; userId?: string; originalName?: string; sizeBytes?: number };
         if (!payload.workspaceId || !payload.userId || !payload.originalName) throw new Error("Missing verified upload metadata");
-        const member = await prisma.member.findUnique({ where: { workspaceId_userId: { workspaceId: payload.workspaceId, userId: payload.userId } } });
-        if (!member) throw new Error("Workspace membership no longer exists");
         const originalName = safeOriginalName(payload.originalName);
-        await prisma.fileAsset.upsert({
-          where: { pathname: blob.pathname },
-          create: {
-            workspaceId: payload.workspaceId,
-            uploadedById: payload.userId,
-            originalName,
-            pathname: blob.pathname,
-            contentType: contentTypeForName(originalName),
-            // The client-reported size is untrusted, and this callback does not provide
-            // a verified object size. Do not persist a forged size as authoritative.
-            sizeBytes: 0,
-            // Keep uploads unavailable until server-side content/size verification
-            // and malware scanning are implemented.
-            status: "QUARANTINED",
-          },
-          update: {},
-        });
+        try {
+          await withWorkspacePermission(
+            payload.workspaceId,
+            payload.userId,
+            "files:manage",
+            (tx) => tx.fileAsset.upsert({
+              where: { pathname: blob.pathname },
+              create: {
+                workspaceId: payload.workspaceId!,
+                uploadedById: payload.userId!,
+                originalName,
+                pathname: blob.pathname,
+                contentType: contentTypeForName(originalName),
+                // The client-reported size is untrusted, and this callback does not provide
+                // a verified object size. Do not persist a forged size as authoritative.
+                sizeBytes: 0,
+                // Keep uploads unavailable until server-side content/size verification
+                // and malware scanning are implemented.
+                status: "QUARANTINED",
+              },
+              update: {},
+            }),
+          );
+        } catch (error) {
+          if (error instanceof Error && error.message === "FORBIDDEN") {
+            await recordSecurityEvent({
+              type: "AUTHZ_DENIED",
+              workspaceId: payload.workspaceId,
+              actorUserId: payload.userId,
+              targetId: blob.pathname,
+              metadata: { reason: "upload_permission_revoked_before_completion" },
+              request,
+            });
+            throw new Error("Forbidden");
+          }
+          throw error;
+        }
         await recordSecurityEvent({
           type: "UPLOAD_QUARANTINED",
           workspaceId: payload.workspaceId,
